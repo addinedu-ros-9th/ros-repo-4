@@ -1,0 +1,58 @@
+.label {
+    width: 10px;
+    height: 10px;
+    min-width: 10px;
+    min-height: 10px;
+    max-width: 10px;
+    max-height: 10px;
+    border-radius: 5px;
+}
+
+.label.primary { background-color:  {{primary}}; }
+.label.secondary { background-color:  {{secondary}}; }
+.label.therity { background-color:  {{therity}}; }
+.label.fourth { background-color:  {{fourth}}; }
+
+.camera_img {
+    background: url("./style/images/camera_img_sample.png") no-repeat center center;
+    border-radius: {{radius}};
+}
+.map_img {
+    background: url("./style/images/map-img.png") no-repeat center center;
+    border-radius: {{radius}};
+}
+
+.move_first {
+    border-radius: 5px;
+    background-color: white;
+    font-size: 20px;
+    font-weight: bold;
+    color: {{primary_dark}};
+    border : 2px solid {{primary_dark}};
+}
+
+.move_last {
+    border-radius: 5px;
+    background-color: white;
+    font-size: 20px;
+    font-weight: bold;
+    color: #666;
+    border : 2px solid #666;
+}
+
+.move_arrow {
+    background: url("./style/images/status_arrow.png") no-repeat center center;
+}
+
+.battery_img {
+    background: url("./style/images/battery.png") no-repeat center center;
+}
+
+.network_img {
+    background: url("./style/images/network.png") no-repeat center center;
+}
+
+.map_robot {
+    background: url("./style/images/map_robot.png") no-repeat center center;
+    border-radius: {{radius}};
+}

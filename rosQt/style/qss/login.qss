@@ -1,0 +1,16 @@
+#login_bg {
+    background: url("./style/images/login-bg.png") no-repeat center center;
+}
+
+#login_logo {
+    /* qproperty-icon: url("./style/images/login-logo.png");
+    qproperty-iconSize: 75px 75px; */
+    font-weight: 900;
+    font-size: 50px;
+    color: {{primary_dark}};
+}
+
+
+#login_logo_icon {
+    background: url("./style/images/login-logo.png") no-repeat center center;
+}

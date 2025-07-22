@@ -1,0 +1,17 @@
+.toggle {
+    background-color: transparent;
+}
+.toggle.active {
+    background-color: white;
+    color: black;
+    font-weight: 700;
+    border: 1px solid #999;
+    border-radius: {{radius}};
+}
+.toggle:hover {
+    background-color: rgba(0,0,0,0.1);
+    border-radius: {{radius}};
+}
+.toggle.active:hover {
+    background-color: #f5f5f5;
+}

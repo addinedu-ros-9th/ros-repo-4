@@ -1,0 +1,97 @@
+/* default setting */
+* {
+    margin: 0 ;
+    padding: 0 ;
+    background: white;
+    border: none;
+}
+#MainWindow {
+    border: 1px solid #ccc;
+    padding: 1px;
+}
+.QStatusBar {
+    width: 0;
+    height: 0;
+    min-height: 0;
+    max-height: 0;
+}
+/* bg */
+.bg.gray6 { background-color: #666; }
+.bg.gray9 { background-color: #999; }
+.bg.grayc { background-color: #ccc; }
+.bg.graye { background-color: #eee; }
+.bg.grayf5 { background-color: #f5f5f5; }
+.bg.primary_25p { background-color: rgba(0, 153, 153, 0.25); }
+.bg.primary_50p { background-color: rgba(0, 153, 153, 0.50); }
+.bg.primary_75p { background-color: rgba(0, 153, 153, 0.75); }
+.bg.primary { background-color: {{primary}}; }
+.bg.primary_light { background-color: {{primary_light}}; }
+.bg.green_gray1 { background-color: {{green_gray1}}; }
+
+/* outline */
+.otl.gray6 { border: 1px solid #666; }
+.otl.primary_dark { border: 1px solid {{primary_dark}}; }
+
+/* text color */
+.color-white { color: white; }
+.color-black { color: black; }
+.color-gray6 { color: #666;  }
+.color-gray9 { color: #999;  }
+.color-gray9.active { color: #333; }
+.color-grayc { color: #ccc;  }
+.color-error   { color: {{error}}; }
+.color-primary      { color: {{primary}};      }
+.color-primary_dark { color: {{primary_dark}}; }
+.color-secondary    { color: {{secondary}};    }
+.color-therity      { color: {{tertiary}};     }
+.color-fourth       { color: {{fourth}};       } 
+.color-fourth_dark  { color: {{fourth_dark}};  }
+
+/* outline */
+.otlc { border: 1px solid #ccc }
+
+/* font size */
+.size10 { font-size: 10px; }
+.size12 { font-size: 12px; }
+.size14 { font-size: 14px; }
+.size16 { font-size: 16px; }
+.size18 { font-size: 18px; }
+.size20 { font-size: 20px; }
+.size22 { font-size: 22px; }
+.size24 { font-size: 24px; }
+.size28 { font-size: 28px; }
+.size32 { font-size: 32px; }
+.size50 { font-size: 50px; }
+
+/* font weight */
+.weight300 { font-weight: 300; }
+.weight400 { font-weight: 400; }
+.weight500 { font-weight: 500; }
+.weight600 { font-weight: 600; }
+.weight700 { font-weight: 700; }
+.weight800 { font-weight: 800; }
+.weight900 { font-weight: 900; }
+
+.align-center {
+    text-align: center;
+} 
+
+.point {
+    border-radius: 2px;
+    background-color: {{primary}};
+}
+
+.title_point {
+    border-radius: 2px;
+    background-color: {{primary}};
+}
+
+.radius { border-radius: {{radius}}; }
+
+/* etc */
+.hidden {
+    opacity: 0;
+    min-height: 0;
+    max-height: 0;
+    font-size: 0;
+}

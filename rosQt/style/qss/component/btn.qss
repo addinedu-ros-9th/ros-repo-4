@@ -1,0 +1,229 @@
+QPushButton:focus, QPushButton:pressed {
+    outline: none;
+    background: none;
+    border: none;
+    /* box-shadow: none; */
+}
+
+.btn {
+    font-size: 14px;
+    height: 36px;
+    border-radius: {{radius}};
+}
+
+.btn.small {
+    height: 28px;
+    
+}
+
+.btn.outlined.primary {
+    color: {{primary}};
+    border: 1px solid {{primary}};
+}
+
+.btn.outlined.primary:hover {
+    background-color: rgba(3, 180, 200, 0.1);
+}
+
+.btn.outlined.primary_dark {
+    color: {{primary_dark}};
+    border: 1px solid {{primary_dark}};
+}
+
+.btn.outlined.primary_dark:hover {
+    background-color: rgba(3, 180, 200, 0.1);
+}
+
+.btn.outlined.gray6 {
+    color: #666;
+    border: 1px solid #666;
+}
+.btn.outlined.gray6:hover {
+    background-color: rgba(0,0,0, 0.1);
+}
+
+.btn.contained {
+    color: white;
+    border: none;
+}
+
+.btn.contained.primary {
+    
+    background-color: {{primary}};
+}
+
+.btn.contained.primary:hover {
+    background-color: {{primary_dark}};
+}
+
+.btn.contained.primary_dark {
+    
+    background-color: {{primary_dark}};
+}
+
+.btn.contained.primary_dark:hover {
+    background-color: {{primary}};
+}
+
+.btn.large {
+    font-weight: bold;
+    font-size: 16px;
+    height: 44px;
+}
+
+.btn.delete {
+    qproperty-icon: url("./style/images/ico-delete.png");
+    qproperty-iconSize: 18px 18px;
+    border: 1px solid #666;
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    min-height: 22px;
+    max-width: 22px;
+    max-height: 22px;
+    background-color: white;;
+    border-radius: {{radius}};
+}
+
+.btn.delete:hover {
+    background-color: #eee;
+}
+
+.btn.clip {
+    qproperty-icon: url("./style/images/ico-cctv.png");
+    qproperty-iconSize: 18px 18px;
+    width: 100px;
+    height: 22px;
+    min-width: 100px;
+    min-height: 22px;
+    max-width: 100px;
+    max-height: 22px;
+    background-color: white;;
+    border: 1px solid {{primary}};
+    border-radius: {{radius}};
+}
+.btn.clip.small {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    min-height: 22px;
+    max-width: 22px;
+    max-height: 22px;
+}
+
+.btn.confirm {
+    width: 75px;
+    height: 22px;
+    min-width: 75px;
+    min-height: 22px;
+    max-width: 75px;
+    max-height: 22px;
+    background-color: white;;
+    font-size: 12px;
+    font-weight: 600;
+    color: {{primary}};
+    border: 1px solid {{primary}};
+    border-radius: {{radius}};
+}
+
+.btn.clip:hover,
+.btn.confirm:hover {
+    background-color: rgba(3, 180, 200, 0.1);
+}
+
+.label.primary {
+    width: 68px;
+    min-width: 68px;
+    max-width: 68px;
+    height: 21px;
+    min-height: 21px;
+    max-height: 21px;
+    font-size: 12px;
+    background-color: rgba(0, 153, 153, 0.1);
+    font-weight: 600;
+    border-radius: {{radius}};
+    color: {{primary}};
+}
+
+.label.secondary {
+    width: 68px;
+    min-width: 68px;
+    max-width: 68px;
+    height: 21px;
+    min-height: 21px;
+    max-height: 21px;
+    font-size: 12px;
+    background-color: rgba(255, 156, 29, 0.1);
+    font-weight: 600;
+    border-radius: {{radius}};
+    color: {{secondary}};
+}
+
+.label.gray {
+    width: 68px;
+    min-width: 68px;
+    max-width: 68px;
+    height: 21px;
+    min-height: 21px;
+    max-height: 21px;
+    font-size: 12px;
+    background-color: rgba(102,102,102, 0.1);
+    font-weight: 600;
+    color: #666;
+    border-radius: {{radius}};
+}
+
+
+.btn.comfirm {
+    width: 50px;
+    min-width: 50px;
+    max-width: 50px;
+    height: 24px;
+    min-height: 24px;
+    max-height: 24px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #999;
+    background-color: #eee;
+}
+.btn.comfirm.changed {
+    background-color: white;
+    color: {{primary}};
+    border: 1px solid {{primary}};
+}
+.btn.comfirm.changed:hover {
+    background-color: rgba(3, 180, 200, 0.1);
+}
+
+.btn.favorite {
+    qproperty-icon: url("./style/images/ico-favorite.png");
+    qproperty-iconSize: 18px 18px;
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    min-height: 22px;
+    max-width: 22px;
+    max-height: 22px;
+    background-color: white;;
+    border-radius: {{radius}};
+}
+
+.btn.favorite:hover {
+    background-color: #eee;
+}
+
+.btn.favorite.active {
+    qproperty-icon: url("./style/images/ico-favorite_active.png");
+    qproperty-iconSize: 18px 18px;
+}
+
+.btn.refresh {
+    qproperty-icon: url("./style/images/ico-refresh.png");
+    qproperty-iconSize: 18px 18px;
+    border: 1px solid #999;
+    background-color: white;;
+    border-radius: {{radius}};
+}
+.btn.refresh:hover {
+    background-color: #eee;
+}

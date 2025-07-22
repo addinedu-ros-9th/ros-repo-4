@@ -1,0 +1,42 @@
+.spinbox {
+    border: 1px solid #ccc;
+    height: 36px;
+    padding: 0 10px;
+    border-radius: {{radius}};
+}
+
+.spinbox.small {
+    height: 28px !important;
+    max-height: 28px !important;
+    min-height: 28px !important;
+    padding: 0 4px;
+}
+
+.spinbox::up-button {
+    image: url('./style/images/ico-arrow_up.png');
+    width: 16px; /* 버튼 너비 */
+    height: 17px; /* 버튼 높이 */
+    background-color: transparent; /* 버튼 배경색 */
+    border: none; /* 버튼 테두리 */
+    border-left: 1px solid #ccc;
+    border-bottom: 1px solid #ccc;
+}
+
+.spinbox::down-button {
+    image: url('./style/images/ico-arrow_down.png');
+    width: 16px; /* 버튼 너비 */
+    height: 16px; /* 버튼 높이 */
+    background-color: transparent; /* 버튼 배경색 */
+    border: none; /* 버튼 테두리 */
+    border-left: 1px solid #ccc;
+}
+
+.spinbox.small::up-button {
+    width: 14px; /* 버튼 너비 */
+    height: 14px; /* 버튼 높이 */
+}
+
+.spinbox.small::down-button {
+    width: 14px; /* 버튼 너비 */
+    height: 14px; /* 버튼 높이 */
+}

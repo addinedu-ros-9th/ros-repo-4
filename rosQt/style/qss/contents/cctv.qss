@@ -1,0 +1,77 @@
+#cctv_box {
+    border: 1px solid #999;
+    border-radius: {{radius}};
+}
+
+#detect_log {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    padding: 0 10px;
+}
+
+#title {
+    font-size: 24px;
+    font-weight: 900;
+    color: #000;
+}
+
+.video_bg {
+    background-color: white !important;
+    border: 1px solid #ccc;
+    border-radius: {{radius}};
+}
+
+.video_wrap {
+    padding: 0;
+    margin: 0;
+}
+
+.duration_bar {
+    background-color: #ccc;
+    border-radius: {{radius}};
+}
+
+.current_bar {
+    background-color: {{primary}};
+    border-radius: {{radius}};
+}
+
+
+.playBtn.play {
+    qproperty-icon: url("./style/images/ico-play.png");
+    qproperty-iconSize: 30px 30px;
+    border: 1px solid {{primary}};
+    border-radius: {{radius}};
+}
+
+.playBtn.pause {
+    qproperty-icon: url("./style/images/ico-pause.png");
+    qproperty-iconSize: 30px 30px;
+    border: 1px solid {{primary}};
+    border-radius: {{radius}};
+}
+
+.playBtn:hover {
+    background-color: rgba(3, 180, 200, 0.1);
+    border: 1px solid {{primary}};
+}
+
+.forwardBtn {
+    qproperty-icon: url("./style/images/ico-forward.png");
+    qproperty-iconSize: 30px 30px;
+    background-color: white;
+    border-radius: {{radius}};
+}
+
+.backwardBtn {
+    qproperty-icon: url("./style/images/ico-backward.png");
+    qproperty-iconSize: 30px 30px;
+    background-color: white;
+    border-radius: {{radius}};
+}
+
+.forwardBtn:hover,
+.backwardBtn:hover {
+    background-color: #eee;
+}

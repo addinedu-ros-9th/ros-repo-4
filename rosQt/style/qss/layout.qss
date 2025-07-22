@@ -1,0 +1,97 @@
+#logoBtn {
+    qproperty-icon: url("./style/images/ico-logo.png");
+    qproperty-iconSize: 30px 30px;
+    font-weight: 700;
+    font-size: 20px;
+    color: white;
+    background-color: {{primary}};
+}
+
+#logoBtn:hover {
+    background-color: {{primary_dark}};
+}
+
+.menuBtn1,
+.menuBtn2,
+.menuBtn3 {
+    font-weight: 700;
+    font-size: 16px;
+    color: #666;
+    border-radius: 2px;
+    padding-top: 30px;
+}
+#menuBtn1Icon {
+    background: url("./style/images/ico-cctv.png") no-repeat center center;
+}
+
+#menuBtn2Icon {
+    background: url("./style/images/ico-log.png") no-repeat center center;
+}
+
+#menuBtn3Icon {
+    background: url("./style/images/ico-log.png") no-repeat center center;
+}
+
+.menuBtn1:hover,
+.menuBtn2:hover,
+.menuBtn3:hover {
+    color: black;
+    background-color: rgba(0, 153, 153, 0.1);
+}
+
+.menuBtn1.active,
+.menuBtn2.active,
+.menuBtn3.active {
+    font-weight: 700;
+    font-size: 16px;
+    color: black;
+    background-color: rgba(0, 153, 153, 0.1);
+    border-radius: 2px;
+    padding-top: 30px;
+}
+
+#notiBtn {
+    qproperty-icon: url("./style/images/ico-noti-active.svg");
+    /* qproperty-icon: url("./style/images/ico-noti.svg"); */
+    qproperty-iconSize: 30px 30px; /* 아이콘 크기 설정 */
+    min-width: 30px;
+    max-width: 30px;
+    min-height: 30px;
+    max-height: 30px;
+    border-radius: 2px;
+}
+
+#userBtn {
+    qproperty-icon: url("./style/images/ico-dropdown.png");
+    qproperty-iconSize: 12px 7px; 
+    border-radius: 2px;
+    text-align: left; 
+    padding-right: 10px;
+    padding-left: 10px;
+}
+
+#notiBtn:hover,
+#userBtn:hover {
+    background-color: #eee;
+}
+
+#popoverBg {
+    background-color: white;
+    border-radius: 2px;
+    border: 1px solid #ccc;
+}
+
+#logoutBtn {
+    qproperty-icon: url("./style/images/ico-logout.png");
+    qproperty-iconSize: 24px 24px; 
+    text-align: left; 
+    border-top: 1px solid #ccc;
+    font-weight: 700;
+    font-size: 14px;
+    color: #000;
+    padding: 0 15px;
+}
+
+#logoutBtn:hover {
+    background-color: #eee;
+}

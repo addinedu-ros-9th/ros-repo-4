@@ -1,0 +1,21 @@
+.checkbox {
+    font-size: 14px;
+    color: #000;
+}
+
+.checkbox.gray9 {
+    color: #999;
+}
+
+.checkbox::indicator {
+    width: 20px;
+    height: 20px;
+}
+
+.checkbox::indicator:unchecked {
+    image: url("./style/images/checkbox_unchecked.png");
+}
+
+.checkbox::indicator:checked {
+    image: url("./style/images/checkbox_checked.png");
+}
