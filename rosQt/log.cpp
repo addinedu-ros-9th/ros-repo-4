@@ -1,6 +1,7 @@
 #include "log.h"
 #include "ui_log.h"
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QDebug>
 #include <QTableWidget>
@@ -198,10 +199,10 @@ void LogWidget::setWidgetClasses()
         ui->search_btn->setProperty("class", "btn outlined primary weight700");  // 검색 버튼
     }
     if (ui->delete_btn1) {
-        ui->delete_btn1->setProperty("class", "btn outlined gray6 weight700");  // 삭제 버튼
+        ui->delete_btn1->setProperty("class", "btn outlined gray3 weight700");  // 삭제 버튼
     }
     if (ui->delete_btn2) {
-        ui->delete_btn2->setProperty("class", "btn outlined gray6 weight700");  // 삭제 버튼
+        ui->delete_btn2->setProperty("class", "btn outlined gray3 weight700");  // 삭제 버튼
     }
 
     // 테이블 스타일
@@ -227,16 +228,57 @@ void LogWidget::setupTableData()
         ui->robot_table->setAlternatingRowColors(true);
         ui->robot_table->verticalHeader()->setVisible(false);
         
+        // 헤더 설정 - 테이블이 전체 너비를 채우도록 설정
+        QHeaderView* header = ui->robot_table->horizontalHeader();
+        header->setStretchLastSection(false);  // 마지막 섹션 자동 늘리기 비활성화
+        
         // 컬럼 너비 설정
         ui->robot_table->setColumnWidth(0, 50);   // 선택
-        ui->robot_table->setColumnWidth(1, 100);  // 환자 번호
-        ui->robot_table->setColumnWidth(2, 100);  // 촬영지
-        ui->robot_table->setColumnWidth(3, 100);  // 도착지
-        ui->robot_table->setColumnWidth(4, 150);  // 기록일시
+        ui->robot_table->setColumnWidth(1, 120);  // 환자 번호
+        ui->robot_table->setColumnWidth(2, 120);  // 촬영지
+        ui->robot_table->setColumnWidth(3, 120);  // 도착지
         ui->robot_table->setColumnWidth(5, 50);   // 상세
+        
+        // 기록일시 컬럼(4번)을 남은 공간에 맞게 늘리기
+        header->setSectionResizeMode(0, QHeaderView::Fixed);      // 선택
+        header->setSectionResizeMode(1, QHeaderView::Fixed);      // 환자 번호
+        header->setSectionResizeMode(2, QHeaderView::Fixed);      // 촬영지
+        header->setSectionResizeMode(3, QHeaderView::Fixed);      // 도착지
+        header->setSectionResizeMode(4, QHeaderView::Stretch);    // 기록일시 - 남은 공간 채우기
+        header->setSectionResizeMode(5, QHeaderView::Fixed);      // 상세
         
         // 데이터 추가
         populateRobotTable();
+    }
+    
+    if (ui->miss_table) {
+        // 테이블 컬럼 설정
+        ui->miss_table->setColumnCount(4);
+        QStringList missHeaders = {"선택", "오류 원인", "기록일시", "삭제"};
+        ui->miss_table->setHorizontalHeaderLabels(missHeaders);
+        
+        // 테이블 설정
+        ui->miss_table->setSelectionBehavior(QAbstractItemView::SelectRows);
+        ui->miss_table->setAlternatingRowColors(true);
+        ui->miss_table->verticalHeader()->setVisible(false);
+        
+        // 헤더 설정 - 테이블이 전체 너비를 채우도록 설정
+        QHeaderView* missHeader = ui->miss_table->horizontalHeader();
+        missHeader->setStretchLastSection(false);  // 마지막 섹션 자동 늘리기 비활성화
+        
+        // 컬럼 너비 설정
+        ui->miss_table->setColumnWidth(0, 50);   // 선택
+        ui->miss_table->setColumnWidth(1, 130);  // 오류 원인
+        ui->miss_table->setColumnWidth(3, 50);   // 삭제
+        
+        // 기록일시 컬럼(2번)을 남은 공간에 맞게 늘리기
+        missHeader->setSectionResizeMode(0, QHeaderView::Fixed);      // 선택
+        missHeader->setSectionResizeMode(1, QHeaderView::Fixed);      // 오류 원인
+        missHeader->setSectionResizeMode(2, QHeaderView::Stretch);    // 기록일시 - 남은 공간 채우기
+        missHeader->setSectionResizeMode(3, QHeaderView::Fixed);      // 삭제
+        
+        // 데이터 추가
+        populateMissTable();
     }
 }
 
@@ -271,7 +313,15 @@ void LogWidget::populateRobotTable()
         {"00 00 00 00", "위암 센터", "CT 검사실", "25.07.15 15:30:00"},
         {"00 00 00 00", "위암 센터", "CT 검사실", "25.07.15 15:30:00"},
         {"00 00 00 00", "위암 센터", "CT 검사실", "25.07.15 15:30:00"},
-        {"00 00 00 00", "수술장 검사실", "대장암 센터", "25.07.15 15:30:00"}
+        {"00 00 00 00", "수술장 검사실", "대장암 센터", "25.07.15 15:30:00"},
+        {"00 00 00 00", "수술장 검사실", "대장암 센터", "25.07.15 15:30:00"},
+        {"00 00 00 00", "수술장 검사실", "대장암 센터", "25.07.15 15:30:00"},
+        {"00 00 00 00", "수술장 검사실", "대장암 센터", "25.07.15 15:30:00"},
+        {"00 00 00 00", "수술장 검사실", "대장암 센터", "25.07.15 15:30:00"},
+        {"00 00 00 00", "수술장 검사실", "대장암 센터", "25.07.15 15:30:00"},
+        {"00 00 00 00", "수술장 검사실", "대장암 센터", "25.07.15 15:30:00"},
+        {"00 00 00 00", "수술장 검사실", "대장암 센터", "25.07.15 15:30:00"},
+        {"00 00 00 00", "수술장 검사실", "대장암 센터", "25.07.15 15:30:00"},
     };
     
     // 테이블 행 수 설정
@@ -285,7 +335,19 @@ void LogWidget::populateRobotTable()
         QCheckBox* checkBox = new QCheckBox();
         checkBox->setChecked(false);
         checkBox->setProperty("class", "checkbox");
-        ui->robot_table->setCellWidget(row, 0, checkBox);
+        checkBox->setStyleSheet("background-color: transparent;");  // 체크박스 배경 투명하게 설정
+        
+        // 체크박스를 가운데 정렬하기 위한 레이아웃 설정
+        QHBoxLayout* checkboxLayout = new QHBoxLayout();
+        checkboxLayout->addWidget(checkBox);
+        checkboxLayout->setAlignment(Qt::AlignCenter);  // 가운데 정렬
+        checkboxLayout->setContentsMargins(0, 0, 0, 0);  // 여백 제거
+        
+        // 체크박스 셀에 레이아웃 설정
+        QWidget* checkboxWidget = new QWidget();
+        checkboxWidget->setLayout(checkboxLayout);
+        checkboxWidget->setAttribute(Qt::WA_TranslucentBackground);  // 투명 배경 속성 설정
+        ui->robot_table->setCellWidget(row, 0, checkboxWidget);
         
         // 환자 번호
         QTableWidgetItem* patientItem = new QTableWidgetItem(entry.patientId);
@@ -316,10 +378,145 @@ void LogWidget::populateRobotTable()
             qDebug() << "Detail button clicked for row:" << row;
             // 상세 정보 표시 또는 삭제 로직
         });
-        ui->robot_table->setCellWidget(row, 5, deleteBtn);
+        
+        // 버튼을 가운데 정렬하기 위한 레이아웃 설정
+        QHBoxLayout* buttonLayout = new QHBoxLayout();
+        buttonLayout->addWidget(deleteBtn);
+        buttonLayout->setAlignment(Qt::AlignCenter);  // 가운데 정렬
+        buttonLayout->setContentsMargins(0, 0, 0, 0);  // 여백 제거
+        
+        // 셀에 레이아웃 설정
+        QWidget* cellWidget = new QWidget();
+        cellWidget->setLayout(buttonLayout);
+        cellWidget->setAttribute(Qt::WA_TranslucentBackground);  // 투명 배경 속성 설정
+        ui->robot_table->setCellWidget(row, 5, cellWidget);
     }
     
     qDebug() << "Robot table populated with" << logEntries.size() << "entries";
+}
+
+void LogWidget::populateMissTable()
+{
+    if (!ui->miss_table) return;
+    
+    // 샘플 데이터 - 미스 테이블용 데이터
+    struct MissData {
+        QString errorCause;
+        QString timestamp;
+    };
+    
+    QVector<MissData> missEntries = {
+        {"통신 끊김", "25.07.15 14:20:00"},
+        {"고장", "25.07.15 14:35:00"},
+        {"전력 부족", "25.07.15 15:10:00"},
+        {"통신 끊김", "25.07.15 15:45:00"},
+        {"충돌", "25.07.15 16:00:00"},
+        {"통신 끊김", "25.07.15 14:20:00"},
+        {"고장", "25.07.15 14:35:00"},
+        {"전력 부족", "25.07.15 15:10:00"},
+        {"통신 끊김", "25.07.15 15:45:00"},
+        {"충돌", "25.07.15 16:00:00"},
+        {"통신 끊김", "25.07.15 14:20:00"},
+        {"고장", "25.07.15 14:35:00"},
+        {"전력 부족", "25.07.15 15:10:00"},
+        {"통신 끊김", "25.07.15 15:45:00"},
+        {"충돌", "25.07.15 16:00:00"},
+        {"통신 끊김", "25.07.15 14:20:00"},
+        {"고장", "25.07.15 14:35:00"},
+        {"전력 부족", "25.07.15 15:10:00"},
+        {"통신 끊김", "25.07.15 15:45:00"},
+        {"충돌", "25.07.15 16:00:00"},
+        {"통신 끊김", "25.07.15 14:20:00"},
+        {"고장", "25.07.15 14:35:00"},
+        {"전력 부족", "25.07.15 15:10:00"},
+        {"통신 끊김", "25.07.15 15:45:00"},
+        {"충돌", "25.07.15 16:00:00"},
+    };
+    
+    // 테이블 행 수 설정
+    ui->miss_table->setRowCount(missEntries.size());
+    
+    // 데이터 추가
+    for (int row = 0; row < missEntries.size(); ++row) {
+        const MissData& entry = missEntries[row];
+        
+        // 체크박스 (선택 컬럼 - 0번)
+        QCheckBox* checkBox = new QCheckBox();
+        checkBox->setChecked(false);
+        checkBox->setProperty("class", "checkbox");
+        checkBox->setStyleSheet("background-color: transparent;");
+        
+        QHBoxLayout* checkboxLayout = new QHBoxLayout();
+        checkboxLayout->addWidget(checkBox);
+        checkboxLayout->setAlignment(Qt::AlignCenter);
+        checkboxLayout->setContentsMargins(0, 0, 0, 0);
+        
+        QWidget* checkboxWidget = new QWidget();
+        checkboxWidget->setLayout(checkboxLayout);
+        checkboxWidget->setAttribute(Qt::WA_TranslucentBackground);
+        ui->miss_table->setCellWidget(row, 0, checkboxWidget);
+        
+        // 오류 원인 (1번)
+        QLabel* errorLabel = new QLabel(entry.errorCause);
+        errorLabel->setAlignment(Qt::AlignCenter);
+        errorLabel->setMinimumSize(80, 21);  // 최소 크기 설정
+        errorLabel->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);  // 크기 정책 설정
+        
+        // "고장"일 때 label primary 클래스 적용
+        if (entry.errorCause == "고장") {
+            errorLabel->setProperty("class", "label primary");
+        } else if (entry.errorCause == "충돌") {
+            errorLabel->setProperty("class", "label error");
+        } else if (entry.errorCause == "통신 끊김") {
+            errorLabel->setProperty("class", "label therity");
+        } else if (entry.errorCause == "전력 부족") {
+            errorLabel->setProperty("class", "label secondary");
+        } else {
+            errorLabel->setProperty("class", "label gray");
+        }
+        
+        // 스타일 강제 적용
+        errorLabel->style()->unpolish(errorLabel);
+        errorLabel->style()->polish(errorLabel); 
+        
+        // 오류 원인을 가운데 정렬하기 위한 레이아웃 설정
+        QHBoxLayout* errorLayout = new QHBoxLayout();
+        errorLayout->addWidget(errorLabel);
+        errorLayout->setAlignment(Qt::AlignCenter);
+        errorLayout->setContentsMargins(0, 0, 0, 0);
+        
+        QWidget* errorWidget = new QWidget();
+        errorWidget->setLayout(errorLayout);
+        errorWidget->setAttribute(Qt::WA_TranslucentBackground);
+        ui->miss_table->setCellWidget(row, 1, errorWidget);
+        
+        // 기록일시 (2번)
+        QTableWidgetItem* timeItem = new QTableWidgetItem(entry.timestamp);
+        timeItem->setTextAlignment(Qt::AlignCenter);
+        ui->miss_table->setItem(row, 2, timeItem);
+        
+        // 삭제 버튼 (3번)
+        QPushButton* deleteBtn = new QPushButton();
+        deleteBtn->setFixedSize(22, 22);
+        deleteBtn->setProperty("class", "btn delete");
+        
+        connect(deleteBtn, &QPushButton::clicked, [this, row]() {
+            qDebug() << "Miss table delete button clicked for row:" << row;
+            // 삭제 로직
+        });
+        
+        QHBoxLayout* buttonLayout = new QHBoxLayout();
+        buttonLayout->addWidget(deleteBtn);
+        buttonLayout->setAlignment(Qt::AlignCenter);
+        buttonLayout->setContentsMargins(0, 0, 0, 0);
+        
+        QWidget* cellWidget = new QWidget();
+        cellWidget->setLayout(buttonLayout);
+        cellWidget->setAttribute(Qt::WA_TranslucentBackground);
+        ui->miss_table->setCellWidget(row, 3, cellWidget);
+    }
+    
+    qDebug() << "Miss table populated with" << missEntries.size() << "entries";
 }
 
 void LogWidget::show_at(const QPoint& pos)
@@ -340,12 +537,18 @@ void LogWidget::refresh()
             if (ui->robot_table) {
                 // 오늘의 로봇 로그 데이터 설정
             }
+            if (ui->miss_table) {
+                // 오늘의 미스 로그 데이터 설정
+            }
             break;
         case 2:
             qDebug() << "Loading weekly logs";
             // 주간 로그 로드
             if (ui->robot_table) {
                 // 주간 로봇 로그 데이터 설정
+            }
+            if (ui->miss_table) {
+                // 주간 미스 로그 데이터 설정
             }
             break;
         case 3:
@@ -354,7 +557,11 @@ void LogWidget::refresh()
             if (ui->robot_table) {
                 // 월간 로봇 로그 데이터 설정
             }
+            if (ui->miss_table) {
+                // 월간 미스 로그 데이터 설정
+            }
             break;
     }
     populateRobotTable();
+    populateMissTable();
 }

@@ -12,8 +12,7 @@ QMap<QString, QString> StyleManager::getColors()
     colors["primary"] = "#009999";
     colors["primary_dark"] = "#00696D";
     colors["secondary"] = "#FF9C1D";
-    colors["therity"] = "#F98CAB";
-    colors["fourth"] = "#579ACE";
+    colors["therity"] = "#579ACE";
     colors["primary_light"] = "#CCEBEB";
     colors["green_gray1"] = "#EBF2F3";
     colors["error"] = "#F44336";

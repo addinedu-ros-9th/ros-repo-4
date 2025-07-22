@@ -81,12 +81,12 @@ QPushButton:focus, QPushButton:pressed {
     min-height: 22px;
     max-width: 22px;
     max-height: 22px;
-    background-color: white;;
+    background-color: white;
     border-radius: {{radius}};
 }
 
 .btn.delete:hover {
-    background-color: #eee;
+    background-color: #eee !important;
 }
 
 .btn.clip {
@@ -157,6 +157,34 @@ QPushButton:focus, QPushButton:pressed {
     font-weight: 600;
     border-radius: {{radius}};
     color: {{secondary}};
+}
+
+.label.therity {
+    width: 68px;
+    min-width: 68px;
+    max-width: 68px;
+    height: 21px;
+    min-height: 21px;
+    max-height: 21px;
+    font-size: 12px;
+    background-color: rgba(87, 154, 206, 0.1);
+    font-weight: 600;
+    border-radius: {{radius}};
+    color: {{therity}};
+}
+
+.label.error {
+    width: 68px;
+    min-width: 68px;
+    max-width: 68px;
+    height: 21px;
+    min-height: 21px;
+    max-height: 21px;
+    font-size: 12px;
+    background-color: rgba(232, 77, 77, 0.1);
+    font-weight: 600;
+    color: #E84D4D;
+    border-radius: {{radius}};
 }
 
 .label.gray {

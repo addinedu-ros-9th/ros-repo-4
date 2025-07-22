@@ -7,12 +7,6 @@
     max-height: 10px;
     border-radius: 5px;
 }
-
-.label.primary { background-color:  {{primary}}; }
-.label.secondary { background-color:  {{secondary}}; }
-.label.therity { background-color:  {{therity}}; }
-.label.fourth { background-color:  {{fourth}}; }
-
 .camera_img {
     background: url("./style/images/camera_img_sample.png") no-repeat center center;
     border-radius: {{radius}};

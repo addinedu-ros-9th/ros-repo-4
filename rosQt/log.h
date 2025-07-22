@@ -31,6 +31,7 @@ private:
     void updateToggleButtons(int activeToggle);  // 토글 버튼 상태 업데이트
     void setupTableData();  // 테이블 데이터 설정 함수 추가
     void populateRobotTable(); // 로봇 테이블 데이터 추가 함수
+    void populateMissTable();  // 미스 테이블 데이터 추가 함수
 
 private:
     Ui_LogWidget *ui;
