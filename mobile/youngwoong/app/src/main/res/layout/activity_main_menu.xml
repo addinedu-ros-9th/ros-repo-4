@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- 배경 이미지 -->
+    <ImageView
+        android:id="@+id/background_main"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:src="@drawable/main"
+        android:contentDescription="배경" />
+
+    <!-- 접수 버튼 -->
+    <ImageView
+        android:id="@+id/button_check_in"
+        android:layout_width="match_parent"
+        android:layout_height="425dp"
+        android:layout_gravity="top"
+        android:layout_marginStart="60dp"
+        android:layout_marginTop="140dp"
+        android:layout_marginEnd="60dp"
+        android:src="@drawable/check_in"
+        android:contentDescription="접수 버튼" />
+
+    <!-- 음성안내 & 길안내 버튼 그룹 -->
+    <LinearLayout
+        android:id="@+id/bottom_button_group"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:layout_marginTop="580dp"
+        android:layout_marginStart="80dp"
+        android:layout_marginEnd="80dp"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <!-- 음성안내 버튼 -->
+        <ImageView
+            android:id="@+id/button_voice"
+            android:layout_width="0dp"
+            android:layout_height="135dp"
+            android:layout_weight="1"
+            android:src="@drawable/btn_voice_guide"
+            android:contentDescription="음성안내 버튼" />
+
+        <!-- 길안내 버튼 -->
+        <ImageView
+            android:id="@+id/button_guidance"
+            android:layout_width="0dp"
+            android:layout_height="135dp"
+            android:layout_weight="1"
+            android:src="@drawable/guidance"
+            android:contentDescription="길안내 버튼" />
+    </LinearLayout>
+
+</FrameLayout>

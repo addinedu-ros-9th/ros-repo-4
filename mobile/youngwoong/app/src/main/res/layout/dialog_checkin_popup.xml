@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="630dp"
+    android:layout_height="322dp"
+    android:background="@drawable/popup_info_bg"
+    android:padding="32dp">
+
+    <!-- 중앙 본문 텍스트만 표시 -->
+    <TextView
+        android:id="@+id/text_message"
+        android:layout_width="650dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="60dp"
+        android:fontFamily="@font/noto_sans_kr_bold"
+        android:gravity="center"
+        android:lineSpacingExtra="0dp"
+        android:text="김00님 반갑습니다.\n이미 정형외과 접수되었습니다.\n안내해드릴까요?"
+        android:textColor="#444444"
+        android:textSize="24sp" />
+
+
+
+    <!-- 왼쪽 하단 버튼 -->
+    <!-- 왼쪽 하단 버튼 -->
+    <ImageView
+        android:id="@+id/btn_no"
+        android:layout_width="180dp"
+        android:layout_height="50dp"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="22dp"
+        android:layout_marginBottom="14dp"
+        android:contentDescription="아니오 버튼"
+        android:scaleType="fitXY"
+        android:src="@drawable/popup_no" />
+
+    <!-- 오른쪽 하단 버튼 -->
+    <ImageView
+        android:id="@+id/btn_yes"
+        android:layout_width="180dp"
+        android:layout_height="50dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="22dp"
+        android:layout_marginBottom="14dp"
+        android:contentDescription="안내 시작 버튼"
+        android:scaleType="fitXY"
+        android:src="@drawable/popup_yes" />
+
+</FrameLayout>

@@ -1,0 +1,126 @@
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/layout_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- 배경 이미지 -->
+    <ImageView
+        android:id="@+id/bg_voice_guide"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:scaleType="fitXY"
+        android:src="@drawable/voice_guide_bg"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- 사용자 응답 텍스트 박스 -->
+    <TextView
+        android:id="@+id/text_user_message"
+        android:layout_width="588dp"
+        android:layout_height="234dp"
+        android:layout_marginTop="76dp"
+        android:layout_marginEnd="224dp"
+        android:fontFamily="@font/noto_sans_kr_bold"
+        android:gravity="center_vertical|start"
+        android:padding="16dp"
+        android:text="진료과 안내해줘"
+        android:textColor="#000000"
+        android:textSize="28sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- 로봇 응답 텍스트 박스 -->
+    <TextView
+        android:id="@+id/text_bot_message"
+        android:layout_width="588dp"
+        android:layout_height="234dp"
+        android:layout_marginStart="664dp"
+        android:layout_marginTop="376dp"
+        android:fontFamily="@font/noto_sans_kr_bold"
+        android:gravity="center_vertical|start"
+        android:padding="16dp"
+        android:text="진료과는 뇌종양 센터 / 대장암 센터 등이 있습니다."
+        android:textColor="#000000"
+        android:textSize="28sp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+
+    <!-- 녹음 버튼 -->
+
+    <!-- 뒤로가기 버튼 -->
+
+    <ImageView
+        android:id="@+id/btn_voice"
+        android:layout_width="200dp"
+        android:layout_height="200dp"
+        android:layout_marginStart="168dp"
+        android:layout_marginTop="300dp"
+        android:src="@drawable/btn_voice_start"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <ImageView
+        android:id="@+id/btn_back"
+        android:layout_width="200dp"
+        android:layout_height="70dp"
+        android:scaleType="fitXY"
+        android:layout_marginStart="50dp"
+        android:layout_marginBottom="50dp"
+        android:src="@drawable/back_btn"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <!-- 어두운 반투명 배경 -->
+    <View
+        android:id="@+id/dim_view"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="#99000000"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+
+    <!-- Lottie 애니메이션 -->
+
+
+    <TextView
+        android:id="@+id/text_prompt"
+        android:layout_width="438dp"
+        android:layout_height="94dp"
+        android:layout_marginBottom="228dp"
+        android:fontFamily="@font/noto_sans_kr_bold"
+        android:gravity="center"
+        android:padding="16dp"
+        android:text="터치로 대화를 시작합니다"
+        android:textColor="#000000"
+        android:textSize="26sp"
+        android:visibility="visible"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.046"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <com.airbnb.lottie.LottieAnimationView
+        android:id="@+id/voice_animation"
+        android:layout_width="1516dp"
+        android:layout_height="220dp"
+        android:layout_marginTop="16dp"
+        android:visibility="invisible"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/btn_voice"
+        app:layout_constraintVertical_bias="1.0"
+        app:lottie_autoPlay="false"
+        app:lottie_fileName="audio_wave2.json"
+        app:lottie_loop="true" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
