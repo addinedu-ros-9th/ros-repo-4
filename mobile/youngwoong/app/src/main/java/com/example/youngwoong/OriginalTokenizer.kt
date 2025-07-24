@@ -1,9 +1,10 @@
-package com.yourpackage
+package com.example.youngwoong
 
 import android.content.Context
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.nio.ByteBuffer
 import java.util.*
 
 class OriginalTokenizer(private val context: Context) {
@@ -19,7 +20,7 @@ class OriginalTokenizer(private val context: Context) {
     private fun loadTokenizer() {
         try {
             // 1. 어휘 사전 로드 (vocab.json)
-            val vocabStream = context.assets.open("vocab.json")
+            val vocabStream = context.assets.open("tokenizer_info/vocab.json")
             val vocabReader = BufferedReader(InputStreamReader(vocabStream))
             val vocabJson = JSONObject(vocabReader.readText())
             
@@ -30,7 +31,7 @@ class OriginalTokenizer(private val context: Context) {
             }
             
             // 2. BPE 병합 규칙 로드 (merges.txt)
-            val mergesStream = context.assets.open("merges.txt")
+            val mergesStream = context.assets.open("tokenizer_info/merges.txt")
             val mergesReader = BufferedReader(InputStreamReader(mergesStream))
             
             var line: String?
@@ -43,7 +44,7 @@ class OriginalTokenizer(private val context: Context) {
             }
             
             // 3. 특수 토큰 로드 (special_tokens_map.json)
-            val specialTokensStream = context.assets.open("special_tokens_map.json")
+            val specialTokensStream = context.assets.open("tokenizer_info/special_tokens_map.json")
             val specialTokensReader = BufferedReader(InputStreamReader(specialTokensStream))
             val specialTokensJson = JSONObject(specialTokensReader.readText())
             
@@ -198,5 +199,68 @@ class OriginalTokenizer(private val context: Context) {
     
     fun getAssistantTokenId(): Int {
         return specialTokens["assistant"] ?: 359
+    }
+    
+    /**
+     * 정수 배열을 디코딩 (AndroidStreamer용)
+     */
+    fun decode(tokenIds: IntArray, skipSpecialTokens: Boolean = true): String {
+        return tokenIds.map { tokenId ->
+            if (skipSpecialTokens && isSpecialToken(tokenId)) {
+                ""
+            } else {
+                reverseVocab[tokenId] ?: ""
+            }
+        }.joinToString("")
+    }
+    
+    /**
+     * 특수 토큰 여부 확인
+     */
+    private fun isSpecialToken(tokenId: Int): Boolean {
+        return specialTokens.values.contains(tokenId)
+    }
+    
+    /**
+     * 텍스트를 정수 배열로 인코딩
+     */
+    fun encodeToIntArray(text: String): IntArray {
+        return encode(text).toIntArray()
+    }
+    
+    /**
+     * 토큰 정보 출력 (디버그용)
+     */
+    fun getTokenInfo(): String {
+        return """
+            토크나이저 정보:
+            - 어휘 크기: ${vocab.size}
+            - 병합 규칙: ${merges.size}개
+            - 특수 토큰: ${specialTokens.size}개
+            - BOS 토큰 ID: ${getBosTokenId()}
+            - EOS 토큰 ID: ${getEosTokenId()}
+            - PAD 토큰 ID: ${getPadTokenId()}
+        """.trimIndent()
+    }
+    
+    /**
+     * 어휘에 토큰이 존재하는지 확인
+     */
+    fun hasToken(token: String): Boolean {
+        return vocab.containsKey(token)
+    }
+    
+    /**
+     * 토큰 ID로 토큰 문자열 조회
+     */
+    fun getTokenById(tokenId: Int): String? {
+        return reverseVocab[tokenId]
+    }
+    
+    /**
+     * 토큰 문자열로 토큰 ID 조회
+     */
+    fun getIdByToken(token: String): Int? {
+        return vocab[token]
     }
 } 
