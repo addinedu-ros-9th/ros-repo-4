@@ -11,7 +11,6 @@ import java.util.concurrent.atomic.AtomicInteger
  * Python의 CustomStreamer를 안드로이드 환경에 맞게 포팅
  */
 class AndroidStreamer(
-    private val tokenizer: OriginalTokenizer,
     private val skipPrompt: Boolean = true,
     private val skipSpecialTokens: Boolean = true,
     private val fastMode: Boolean = false,
@@ -63,8 +62,8 @@ class AndroidStreamer(
                 return@withContext
             }
             
-            // 프롬프트 건너뛰기 로직 (간소화)
-            if (skipPrompt && tokens.size == 1 && tokenCache.isEmpty()) {
+            // 프롬프트 건너뛰기 로직 (첫 번째 토큰만 건너뛰기)
+            if (skipPrompt && tokens.size == 1 && tokenCache.isEmpty() && tokens[0] == 0) {
                 if (debugMode) {
                     debugPrint("🔍 첫 번째 토큰 건너뛰기: ${tokens.contentToString()}")
                 }
@@ -81,34 +80,27 @@ class AndroidStreamer(
                     debugPrint("🔍 총 캐시 길이: ${tokenCache.size}")
                 }
                 
-                // 전체 토큰 캐시를 디코딩
-                try {
-                    val text = tokenizer.decode(tokenCache.toIntArray(), skipSpecialTokens)
+                // 토큰을 텍스트로 변환 (간단한 구현)
+                val text = tokens.joinToString("") { it.toString() }
+                
+                // 출력 가능한 새로운 부분만 추출
+                val currentPrintLen = printLen.get()
+                if (text.length > currentPrintLen) {
+                    val newText = text.substring(currentPrintLen)
+                    printLen.set(text.length)
                     
-                    // 출력 가능한 새로운 부분만 추출
-                    val currentPrintLen = printLen.get()
-                    if (text.length > currentPrintLen) {
-                        val newText = text.substring(currentPrintLen)
-                        printLen.set(text.length)
-                        
-                        if (debugMode) {
-                            debugPrint("🔍 출력할 텍스트: '$newText'")
-                        }
-                        
-                        // 실시간 스트리밍 전송
-                        _streamingFlow.emit(newText)
-                        
-                        // 빠른 모드에 따른 지연시간 조정
-                        if (fastMode) {
-                            delay(1) // 더 빠른 출력
-                        } else {
-                            delay(2) // 일반 속도
-                        }
+                    if (debugMode) {
+                        debugPrint("🔍 출력할 텍스트: '$newText'")
                     }
                     
-                } catch (e: Exception) {
-                    if (debugMode) {
-                        debugPrint("⚠️ 디코딩 실패: ${e.message}")
+                    // 실시간 스트리밍 전송
+                    _streamingFlow.emit(newText)
+                    
+                    // 빠른 모드에 따른 지연시간 조정
+                    if (fastMode) {
+                        delay(1) // 더 빠른 출력
+                    } else {
+                        delay(2) // 일반 속도
                     }
                 }
             }
@@ -138,7 +130,7 @@ class AndroidStreamer(
             
             // 최종 텍스트 완성
             val finalText = if (tokenCache.isNotEmpty()) {
-                tokenizer.decode(tokenCache.toIntArray(), skipSpecialTokens)
+                tokenCache.joinToString("") { it.toString() }
             } else {
                 ""
             }
@@ -169,12 +161,7 @@ class AndroidStreamer(
      */
     fun getCurrentText(): String {
         return if (tokenCache.isNotEmpty()) {
-            try {
-                tokenizer.decode(tokenCache.toIntArray(), skipSpecialTokens)
-            } catch (e: Exception) {
-                debugPrint("❌ 현재 텍스트 디코딩 실패: ${e.message}")
-                ""
-            }
+            tokenCache.joinToString("") { it.toString() }
         } else {
             ""
         }
@@ -197,83 +184,4 @@ class AndroidStreamer(
     }
 }
 
-/**
- * 안드로이드용 스트리밍 관리자
- * 여러 스트리밍 세션을 관리하고 UI 업데이트를 담당
- */
-class StreamingManager(
-    private val tokenizer: OriginalTokenizer,
-    private val debugMode: Boolean = false
-) {
-    
-    private var currentStreamer: AndroidStreamer? = null
-    private var streamingJob: Job? = null
-    
-    /**
-     * 새로운 스트리밍 세션 시작
-     */
-    fun startNewSession(
-        fastMode: Boolean = false,
-        onTextUpdate: (String) -> Unit,
-        onComplete: (String) -> Unit
-    ): AndroidStreamer {
-        // 이전 세션 정리
-        stopCurrentSession()
-        
-        // 새로운 스트리머 생성
-        val streamer = AndroidStreamer(
-            tokenizer = tokenizer,
-            fastMode = fastMode,
-            debugMode = debugMode
-        )
-        
-        currentStreamer = streamer
-        
-        // 스트리밍 Flow 구독
-        streamingJob = CoroutineScope(Dispatchers.Main).launch {
-            launch {
-                // 실시간 텍스트 업데이트 구독
-                streamer.streamingFlow.collect { newText ->
-                    onTextUpdate(newText)
-                }
-            }
-            
-            launch {
-                // 완료 이벤트 구독
-                streamer.completionFlow.collect { finalText ->
-                    onComplete(finalText)
-                }
-            }
-        }
-        
-        // 스트리밍 시작
-        streamer.startStreaming()
-        
-        return streamer
-    }
-    
-    /**
-     * 현재 스트리밍 세션 중지
-     */
-    fun stopCurrentSession() {
-        streamingJob?.cancel()
-        streamingJob = null
-        
-        currentStreamer?.let { streamer ->
-            CoroutineScope(Dispatchers.Default).launch {
-                streamer.end()
-            }
-        }
-        currentStreamer = null
-    }
-    
-    /**
-     * 현재 활성 스트리머 반환
-     */
-    fun getCurrentStreamer(): AndroidStreamer? = currentStreamer
-    
-    /**
-     * 스트리밍 활성 상태 확인
-     */
-    fun isStreaming(): Boolean = currentStreamer?.isActive() == true
-} 
+ 

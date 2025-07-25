@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.MotionEvent
+import android.widget.Button
 import android.widget.ImageView
 import androidx.appcompat.app.AppCompatActivity
 import kotlin.math.PI
@@ -15,6 +16,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var leftEye: ImageView
     private lateinit var rightEye: ImageView
     private lateinit var tapPrompt: ImageView
+    private var testButton: Button? = null
 
     private val handler = Handler(Looper.getMainLooper())
     private var angle = 0.0
@@ -32,6 +34,22 @@ class MainActivity : AppCompatActivity() {
         leftEye = findViewById(R.id.left_eye)
         rightEye = findViewById(R.id.right_eye)
         tapPrompt = findViewById(R.id.tap_prompt)
+        testButton = findViewById(R.id.testButton)
+        
+        // 디버깅: 버튼이 제대로 찾아졌는지 확인
+        if (testButton == null) {
+            println("ERROR: testButton이 null입니다!")
+        } else {
+            println("SUCCESS: testButton을 찾았습니다!")
+            // 버튼을 강제로 보이게 설정
+            testButton?.visibility = android.view.View.VISIBLE
+        }
+        
+        // 테스트 버튼이 null이 아닌지 확인 후 클릭 이벤트 설정
+        testButton?.setOnClickListener {
+            val intent = Intent(this, TestRobotSystemActivity::class.java)
+            startActivity(intent)
+        }
 
         startEyeAnimation()
         startPromptBlink()

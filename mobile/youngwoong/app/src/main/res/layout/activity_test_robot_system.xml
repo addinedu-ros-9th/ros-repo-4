@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/background">
+
+    <!-- 상단 헤더 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:background="#4D000000">
+
+        <!-- 제목 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="🤖 영웅이 AI"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:textColor="#FFFFFF"
+            android:layout_marginBottom="8dp" />
+
+        <!-- 상태 표시 -->
+        <TextView
+            android:id="@+id/statusTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="🔄 초기화 중..."
+            android:textSize="12sp"
+            android:textColor="#FFFFFF"
+            android:gravity="center"
+            android:layout_marginBottom="8dp" />
+
+        <!-- 모드 토글 버튼들 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/reasoningToggleButton"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:text="Reasoning OFF"
+                android:textSize="10sp"
+                android:layout_marginEnd="4dp"
+                android:backgroundTint="#9E9E9E"
+                android:textColor="#FFFFFF" />
+
+            <Button
+                android:id="@+id/fastModeToggleButton"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:text="빠른 모드"
+                android:textSize="10sp"
+                android:layout_marginStart="4dp"
+                android:backgroundTint="#E91E63"
+                android:textColor="#FFFFFF" />
+
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 채팅 영역 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- 응답 표시 영역 -->
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:background="#4D000000"
+            android:padding="16dp"
+            android:layout_marginBottom="16dp">
+
+            <TextView
+                android:id="@+id/responseTextView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="대화를 시작하세요..."
+                android:textSize="16sp"
+                android:textColor="#FFFFFF"
+                android:lineSpacingExtra="8dp" />
+
+        </ScrollView>
+
+        <!-- 입력 영역 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="16dp">
+
+            <EditText
+                android:id="@+id/inputEditText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="메시지를 입력하세요..."
+                android:textSize="16sp"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#CCCCCC"
+                android:background="@drawable/number_input_bg"
+                android:padding="16dp"
+                android:layout_marginEnd="12dp"
+                android:imeOptions="actionSend"
+                android:inputType="textMultiLine"
+                android:maxLines="3" />
+
+            <Button
+                android:id="@+id/sendButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="전송"
+                android:textSize="16sp"
+                android:backgroundTint="#4CAF50"
+                android:textColor="#FFFFFF"
+                android:padding="16dp" />
+
+        </LinearLayout>
+
+        <!-- 하단 버튼들 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/clearButton"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="대화 지우기"
+                android:textSize="14sp"
+                android:backgroundTint="#F44336"
+                android:textColor="#FFFFFF"
+                android:layout_marginEnd="8dp" />
+
+            <Button
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="테스트 질문"
+                android:textSize="14sp"
+                android:backgroundTint="#2196F3"
+                android:textColor="#FFFFFF"
+                android:layout_marginStart="8dp"
+                android:onClick="onTestQuestionsClick" />
+
+        </LinearLayout>
+    </LinearLayout>
+
+</LinearLayout> 
