@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets UiTools)
+find_package(rclcpp REQUIRED)
+find_package(geometry_msgs REQUIRED)
 
 qt6_standard_project_setup()
 
@@ -37,4 +39,6 @@ target_link_libraries(BasicQtApp PRIVATE
     Qt6::Core 
     Qt6::Widgets 
     Qt6::UiTools
+    rclcpp::rclcpp
+    ${geometry_msgs_TARGETS}
 )

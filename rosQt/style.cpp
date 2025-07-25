@@ -87,10 +87,6 @@ void StyleManager::applyStyle(QApplication* app)
     QStringList qssFiles = getQssFiles();
     QString combinedStyle;
     
-    // 디버깅: 현재 작업 디렉토리 출력
-    qDebug() << "Current working directory:" << QDir::currentPath();
-    qDebug() << "QSS path:" << qssPath;
-    
     // 모든 QSS 파일 로드
     for (const QString& file : qssFiles) {
         QString fullPath = qssPath + file;
@@ -99,7 +95,6 @@ void StyleManager::applyStyle(QApplication* app)
         QString fileContent = loadQssFile(fullPath);
         if (!fileContent.isEmpty()) {
             combinedStyle += fileContent + "\n";
-            qDebug() << "✓ Successfully loaded:" << file;
         } else {
             qDebug() << "✗ Failed to load:" << file;
         }
@@ -117,8 +112,6 @@ void StyleManager::applyStyle(QApplication* app)
     // 스타일 적용
     app->setStyleSheet(combinedStyle);
     
-    qDebug() << "Style applied successfully";
-    qDebug() << "Applied style length:" << combinedStyle.length();
 }
 
 QString StyleManager::getDefaultComponentStyles()

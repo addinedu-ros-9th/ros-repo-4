@@ -34,7 +34,6 @@ void DashboardWidget::setupStatusWidget()
     // StatusWidget 표시
     status_widget->show();
     
-    qDebug() << "StatusWidget setup completed in Dashboard";
 }
 
 void DashboardWidget::setupMapWidget()
@@ -44,8 +43,6 @@ void DashboardWidget::setupMapWidget()
     map_widget->setGeometry(19, 58, 438, 772);  // 위치와 크기 조정
     
     map_widget->show();
-    
-    qDebug() << "MapWidget setup completed in Dashboard";
 }
 
 void DashboardWidget::setWidgetClasses()
@@ -91,9 +88,6 @@ void DashboardWidget::show_at(const QPoint& pos)
 
 void DashboardWidget::refresh()
 {
-    qDebug() << "Dashboard widget refresh";
-    // 필요시 나중에 추가
-
     if (status_widget) {
         status_widget->refresh();
     }

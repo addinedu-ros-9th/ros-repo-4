@@ -392,7 +392,6 @@ void LogWidget::populateRobotTable()
         ui->robot_table->setCellWidget(row, 5, cellWidget);
     }
     
-    qDebug() << "Robot table populated with" << logEntries.size() << "entries";
 }
 
 void LogWidget::populateMissTable()
@@ -516,7 +515,6 @@ void LogWidget::populateMissTable()
         ui->miss_table->setCellWidget(row, 3, cellWidget);
     }
     
-    qDebug() << "Miss table populated with" << missEntries.size() << "entries";
 }
 
 void LogWidget::show_at(const QPoint& pos)
@@ -527,12 +525,9 @@ void LogWidget::show_at(const QPoint& pos)
 
 void LogWidget::refresh()
 {
-    qDebug() << "Log widget refresh";
-    
     // 현재 선택된 토글에 따라 다른 데이터 로드
     switch (currentToggle) {
         case 1:
-            qDebug() << "Loading today's logs";
             // 오늘 로그 로드
             if (ui->robot_table) {
                 // 오늘의 로봇 로그 데이터 설정
@@ -542,7 +537,6 @@ void LogWidget::refresh()
             }
             break;
         case 2:
-            qDebug() << "Loading weekly logs";
             // 주간 로그 로드
             if (ui->robot_table) {
                 // 주간 로봇 로그 데이터 설정
@@ -552,7 +546,6 @@ void LogWidget::refresh()
             }
             break;
         case 3:
-            qDebug() << "Loading monthly logs";
             // 월간 로그 로드
             if (ui->robot_table) {
                 // 월간 로봇 로그 데이터 설정

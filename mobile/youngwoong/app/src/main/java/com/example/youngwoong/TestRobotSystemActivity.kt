@@ -36,7 +36,7 @@ class TestRobotSystemActivity : AppCompatActivity() {
     
     companion object {
         private const val TAG = "TestRobotSystem"
-        private const val BASE_URL = "http://192.168.50.147:5000" // Flask 서버 URL
+        private const val BASE_URL = "http://192.168.0.31:5000" // Flask 서버 URL
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
