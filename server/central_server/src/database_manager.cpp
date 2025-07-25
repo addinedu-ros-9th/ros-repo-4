@@ -252,13 +252,52 @@ std::vector<StationInfo> DatabaseManager::getAllStations() {
             stations.push_back(station);
         }
         
-        std::cout << "[DB] 정류장 목록 조회: " << stations.size() << "개" << std::endl;
-        
     } catch (sql::SQLException& e) {
         std::cerr << "[DB] 정류장 목록 조회 실패: " << e.what() << std::endl;
     }
     
     return stations;
+}
+
+bool DatabaseManager::getReservationByPatientId(int patient_id, ReservationInfo& reservation) {
+    if (!isConnected()) {
+        return false;
+    }
+    
+    try {
+        std::lock_guard<std::mutex> lock(connection_mutex_);
+        
+        std::unique_ptr<sql::PreparedStatement> pstmt(
+            connection_->prepareStatement("SELECT patient_id, datetime, reservation FROM reservations WHERE patient_id = ? ORDER BY datetime DESC LIMIT 1")
+        );
+        pstmt->setInt(1, patient_id);
+        
+        std::unique_ptr<sql::ResultSet> res(pstmt->executeQuery());
+        
+        if (res->next()) {
+            reservation.patient_id = res->getInt("patient_id");
+            reservation.datetime = res->getString("datetime");
+            reservation.reservation = res->getString("reservation");
+            
+            // datetime을 hh:mm 형식으로 변환
+            std::string datetime_str = reservation.datetime;
+            if (datetime_str.length() >= 19) {  // "2025-01-25 09:00:00" 형식
+                std::string time_part = datetime_str.substr(11, 5);  // "09:00" 부분 추출
+                reservation.time_hhmm = time_part;
+            } else {
+                reservation.time_hhmm = "00:00";
+            }
+            
+            std::cout << "[DB] 예약 정보 조회 성공 (Patient ID): " << patient_id << std::endl;
+            return true;
+        }
+        
+        return false;
+        
+    } catch (sql::SQLException& e) {
+        std::cerr << "[DB] 예약 조회 실패 (Patient ID): " << e.what() << std::endl;
+        return false;
+    }
 }
 
 bool DatabaseManager::insertRobotLog(int robot_id, int patient_id, const std::string& datetime, float orig, float dest) {
