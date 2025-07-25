@@ -1,0 +1,7 @@
+# Request
+string robot_id  # empty string for all robots
+---
+# Response
+bool success
+string message
+RobotStatus[] robot_statuses

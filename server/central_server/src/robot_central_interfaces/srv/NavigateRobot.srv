@@ -1,0 +1,7 @@
+# Request
+string robot_id
+string[] waypoints
+---
+# Response
+bool success
+string message

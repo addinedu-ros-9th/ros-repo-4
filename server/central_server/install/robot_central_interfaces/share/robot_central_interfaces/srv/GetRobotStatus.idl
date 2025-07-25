@@ -1,0 +1,26 @@
+// generated from rosidl_adapter/resource/srv.idl.em
+// with input from robot_central_interfaces/srv/GetRobotStatus.srv
+// generated code does not contain a copyright notice
+
+#include "robot_central_interfaces/msg/RobotStatus.idl"
+
+module robot_central_interfaces {
+  module srv {
+    @verbatim (language="comment", text=
+      "Request")
+    struct GetRobotStatus_Request {
+      @verbatim (language="comment", text=
+        "empty string for all robots")
+      string robot_id;
+    };
+    @verbatim (language="comment", text=
+      "Response")
+    struct GetRobotStatus_Response {
+      boolean success;
+
+      string message;
+
+      sequence<robot_central_interfaces::msg::RobotStatus> robot_statuses;
+    };
+  };
+};

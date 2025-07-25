@@ -1,0 +1,6 @@
+msg/RobotStatus.idl
+msg/RobotStatus.msg
+srv/GetRobotStatus.idl
+srv/GetRobotStatus.srv
+srv/NavigateRobot.idl
+srv/NavigateRobot.srv

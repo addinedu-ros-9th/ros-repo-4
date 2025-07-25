@@ -1,0 +1,5 @@
+string robot_id
+string status
+string current_task
+geometry_msgs/Pose current_pose
+builtin_interfaces/Time last_update
