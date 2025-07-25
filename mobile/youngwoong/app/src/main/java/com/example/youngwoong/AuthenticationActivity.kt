@@ -8,27 +8,29 @@ import android.util.Log
 import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 
 class AuthenticationActivity : AppCompatActivity() {
 
     private val inputBoxes = mutableListOf<TextView>()
-    private val realInput = mutableListOf<String>() // 실제 숫자 저장용
+    private val realInput = mutableListOf<String>()
     private var currentIndex = 0
     private var maxLength = 13
     private lateinit var dashView: View
     private lateinit var confirmBtn: ImageView
 
-    private val handler = Handler(Looper.getMainLooper())
-    private val esp32Url = "http://192.168.0.29/uid" // ESP32 주소
+    private val esp32Url = "http://192.168.0.34/uid"
     private var lastUid: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -86,12 +88,7 @@ class AuthenticationActivity : AppCompatActivity() {
                     val digit = i.toString()
                     realInput.add(digit)
 
-                    if (maxLength == 13 && currentIndex >= 7) {
-                        inputBoxes[currentIndex].text = "*"
-                    } else {
-                        inputBoxes[currentIndex].text = digit
-                    }
-
+                    inputBoxes[currentIndex].text = if (maxLength == 13 && currentIndex >= 7) "*" else digit
                     currentIndex++
                     updateConfirmButtonState()
                 }
@@ -112,9 +109,17 @@ class AuthenticationActivity : AppCompatActivity() {
             applyAlphaEffect(it)
             if (currentIndex == maxLength) {
                 val inputNumber = realInput.joinToString("")
-                showUidPopup(inputNumber)
+
+                if (maxLength == 13) {
+                    val ssnWithDash = inputNumber.substring(0, 6) + "-" + inputNumber.substring(6)
+                    verifySSNWithServer(ssnWithDash) // 주민번호로 조회
+                } else {
+                    verifyPatientIdWithServer(inputNumber) // 회원번호로 조회
+                }
             }
         }
+
+
 
         updateBoxVisibility()
         updateConfirmButtonState()
@@ -180,40 +185,199 @@ class AuthenticationActivity : AppCompatActivity() {
 
                 if (!body.isNullOrEmpty()) {
                     val uid = JSONObject(body).optString("uid")
-                    if (uid.isNotBlank()) {
+                    if (uid.isNotBlank() && uid != lastUid) {
+                        lastUid = uid
                         Log.d("ESP32_UID", "\uD83D\uDCE5 UID 수신: $uid")
-                        withContext(Dispatchers.Main) {
-                            showUidPopup(uid)
-                        }
+                        verifyRFIDWithServer(uid)
                     }
                 }
             } catch (e: Exception) {
-                Log.e("ESP32_UID", "\u274C UID 요청 실패: ${e.message}")
+                Log.e("ESP32_UID", "❌ UID 요청 실패: ${e.message}")
             }
         }
     }
 
-    private fun showUidPopup(uid: String) {
-        val userName = "김00"
-        val department = "정형외과"
-        val waitingNumber = "001"
-        val reservationTime = "00시 00분"
+    private fun verifyRFIDWithServer(rfid: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val json = JSONObject().apply {
+                    put("robot_id", 3)
+                    put("rfid", rfid)
+                }
 
+                val request = Request.Builder()
+                    .url("http://192.168.0.27:8080/auth/rfid")
+                    .post(json.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull()))
+                    .build()
+
+                val client = OkHttpClient()
+                val response = client.newCall(request).execute()
+                val body = response.body?.string()
+
+                if (!body.isNullOrEmpty()) {
+                    val data = JSONObject(body)
+                    val name = data.optString("name")
+                    val reservation = data.optString("reservation")
+                    val reservationTime = data.optString("datetime")
+                    val department = convertReservationCodeToDepartment(reservation)
+
+                    if (name.isNotBlank() && department.isNotBlank()) {
+                        withContext(Dispatchers.Main) {
+                            showUidPopup(name, department, reservationTime)
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@AuthenticationActivity, "❌ 등록된 정보 없음", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@AuthenticationActivity, "❌ 서버 응답 없음", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("AUTH_RFID", "❌ RFID 본인확인 실패: ${e.message}")
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@AuthenticationActivity, "⚠ 네트워크 오류", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun verifySSNWithServer(ssn: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val json = JSONObject().apply {
+                    put("robot_id", 3)
+                    put("ssn", ssn)
+                }
+
+                val request = Request.Builder()
+                    .url("http://192.168.0.27:8080/auth/ssn")
+                    .post(json.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull()))
+                    .build()
+
+                val client = OkHttpClient()
+                val response = client.newCall(request).execute()
+                val body = response.body?.string()
+
+                if (!body.isNullOrEmpty()) {
+                    val data = JSONObject(body)
+                    val name = data.optString("name")
+                    val reservation = data.optString("reservation")
+                    val reservationTime = data.optString("datetime")
+
+                    if (name.isNotBlank() && reservation.isNotBlank()) {
+                        val department = convertReservationCodeToDepartment(reservation)
+
+                        withContext(Dispatchers.Main) {
+                            showUidPopup(name, department, reservationTime)
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@AuthenticationActivity, "❗등록된 예약 정보가 없습니다.", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@AuthenticationActivity, "❌ 서버 응답 없음", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("AUTH_SSN", "❌ 본인 확인 실패: ${e.message}")
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@AuthenticationActivity, "⚠️ 네트워크 오류가 발생했습니다.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun verifyPatientIdWithServer(patientId: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val patientIdInt = patientId.toIntOrNull()
+                if (patientIdInt == null) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@AuthenticationActivity, "❗회원번호는 숫자만 입력해야 합니다.", Toast.LENGTH_SHORT).show()
+                    }
+                    return@launch
+                }
+
+                val json = JSONObject().apply {
+                    put("robot_id", 3)
+                    put("patient_id", patientIdInt)  // int로 전송
+                }
+
+                val request = Request.Builder()
+                    .url("http://192.168.0.27:8080/auth/patient_id")
+                    .post(json.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull()))
+                    .build()
+
+                val client = OkHttpClient()
+                val response = client.newCall(request).execute()
+                val body = response.body?.string()
+
+                if (!body.isNullOrEmpty()) {
+                    val data = JSONObject(body)
+                    val name = data.optString("name")
+                    val reservation = data.optString("reservation")
+                    val reservationTime = data.optString("datetime")
+                    val department = convertReservationCodeToDepartment(reservation)
+
+                    if (name.isNotBlank() && department.isNotBlank()) {
+                        withContext(Dispatchers.Main) {
+                            showUidPopup(name, department, reservationTime)
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@AuthenticationActivity, "❌ 등록된 정보 없음", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@AuthenticationActivity, "❌ 서버 응답 없음", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("AUTH_PATIENT_ID", "❌ 회원번호 확인 실패: ${e.message}")
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@AuthenticationActivity, "⚠ 네트워크 오류", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+
+
+    private fun convertReservationCodeToDepartment(code: String): String {
+        return when (code.firstOrNull()) {
+            '0' -> "CT 검사실"
+            '1' -> "초음파 검사실"
+            '2' -> "X-ray 검사실"
+            '3' -> "대장암 센터"
+            '4' -> "위암 센터"
+            '5' -> "폐암 센터"
+            '6' -> "뇌종양 센터"
+            '7' -> "유방암 센터"
+            else -> "알 수 없음"
+        }
+    }
+
+    private fun showUidPopup(userName: String, department: String, reservationTime: String) {
         val popup = CheckinPopupDialog(
             userName = userName,
             department = department,
             reservationTime = reservationTime,
-            waitingNumber = waitingNumber
-        ) {
-            val intent = Intent(this, GuidanceConfirmActivity::class.java).apply {
-                putExtra("user_name", userName)
-                putExtra("department", department)
-                putExtra("waiting_number", waitingNumber)
+            onConfirm = {
+                val intent = Intent(this, GuidanceConfirmActivity::class.java).apply {
+                    putExtra("user_name", userName)
+                    putExtra("department", department)
+                    putExtra("isFromCheckin", true)
+                }
+                startActivity(intent)
+                finish()
             }
-            startActivity(intent)
-            finish()
-        }
-
+        )
         popup.show(supportFragmentManager, "CheckinPopup")
     }
 }

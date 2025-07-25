@@ -19,18 +19,29 @@ class GuidanceConfirmActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_guidance_confirm)
 
-        // 취소 버튼
         val cancelButton = findViewById<ImageView>(R.id.btn_cancel)
+        val confirmButton = findViewById<ImageView>(R.id.btn_start_guidance)
+        val textView = findViewById<TextView>(R.id.text_guidance_message)
+        val highlightColor = Color.parseColor("#00696D")
+
+        val userName = intent.getStringExtra("user_name")
+        val department = intent.getStringExtra("department")
+        val waitingNumber = intent.getStringExtra("waiting_number")
+        val selectedText = intent.getStringExtra("selected_text")
+
+        isFromCheckin = intent.getBooleanExtra("isFromCheckin", false) ||
+                (userName != null && department != null)
+
+
+        // ✅ 취소 버튼
         cancelButton.setOnClickListener {
             applyAlphaEffect(cancelButton)
             cancelButton.postDelayed({
                 if (isFromCheckin) {
-                    // 접수 경로에서 왔다면 메인으로 이동
                     val intent = Intent(this, AuthenticationActivity::class.java)
                     intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                     startActivity(intent)
                 } else {
-                    // 길안내 경로에서 왔다면 다시 길안내 페이지로 이동
                     val intent = Intent(this, GuidanceActivity::class.java)
                     intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                     startActivity(intent)
@@ -40,22 +51,23 @@ class GuidanceConfirmActivity : AppCompatActivity() {
             }, 100)
         }
 
-        val textView = findViewById<TextView>(R.id.text_guidance_message)
-        val highlightColor = Color.parseColor("#00696D")
+        // ✅ 확인 버튼
+        confirmButton.setOnClickListener {
+            applyAlphaEffect(confirmButton)
+            confirmButton.postDelayed({
+                val intent = Intent(this, GuidanceWaitingActivity::class.java)
+                intent.putExtra("selected_text", selectedText)
+                startActivity(intent)
+                overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+                finish()
+            }, 100)
+        }
 
-        val userName = intent.getStringExtra("user_name")
-        val department = intent.getStringExtra("department")
-        val waitingNumber = intent.getStringExtra("waiting_number")
-        val selectedText = intent.getStringExtra("selected_text")
-
-        isFromCheckin = (userName != null && department != null && waitingNumber != null)
-
+        // ✅ 안내 문구 표시
         if (isFromCheckin) {
-            // 진료 접수 경로
-            val message = "${userName}님 ${department} 접수가 완료되었습니다.\n현재 대기번호는 ${waitingNumber}번입니다."
+            val message = "${userName}님 ${department} 접수가 완료되었습니다."
             val spannable = SpannableString(message)
-
-            listOf(userName, department, waitingNumber).forEach { it ->
+            listOf(userName, department).forEach { it ->
                 it?.let { value ->
                     val start = message.indexOf(value)
                     if (start >= 0) {
@@ -68,15 +80,11 @@ class GuidanceConfirmActivity : AppCompatActivity() {
                     }
                 }
             }
-
-
             textView.text = spannable
 
         } else if (selectedText != null) {
-            // 길안내 경로
             val message = "${selectedText}를 선택하셨습니다.\n안내를 시작할까요?"
             val spannable = SpannableString(message)
-
             val start = message.indexOf(selectedText)
             if (start >= 0) {
                 spannable.setSpan(
@@ -86,9 +94,7 @@ class GuidanceConfirmActivity : AppCompatActivity() {
                     Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                 )
             }
-
             textView.text = spannable
-
         } else {
             textView.text = "안내를 시작할까요?"
         }
