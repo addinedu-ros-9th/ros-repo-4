@@ -1,0 +1,7 @@
+string id
+string password
+---
+bool success
+string name
+string email
+string hospital_name 

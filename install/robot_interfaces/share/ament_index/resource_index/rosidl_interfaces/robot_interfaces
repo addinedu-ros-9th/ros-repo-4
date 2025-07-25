@@ -1,0 +1,12 @@
+action/NavigateToGoal.action
+action/NavigateToGoal.idl
+msg/RobotFeedback.idl
+msg/RobotFeedback.msg
+msg/RobotPose.idl
+msg/RobotPose.msg
+msg/RobotStatus.idl
+msg/RobotStatus.msg
+srv/ChangeRobotStatus.idl
+srv/ChangeRobotStatus.srv
+srv/LoginAdmin.idl
+srv/LoginAdmin.srv

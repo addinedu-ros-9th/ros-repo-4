@@ -1,0 +1,39 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from robot_interfaces/msg/RobotFeedback.msg
+// generated code does not contain a copyright notice
+
+#include "geometry_msgs/msg/PoseWithCovarianceStamped.idl"
+
+module robot_interfaces {
+  module msg {
+    @verbatim (language="comment", text=
+      "로봇 컨트롤러에서 중앙서버로 보내는 피드백")
+    struct RobotFeedback {
+      int32 robot_id;
+
+      @verbatim (language="comment", text=
+        "\"moving\", \"standby\" (로봇이 스스로 판단하는 상태만)")
+      string status;
+
+      geometry_msgs::msg::PoseWithCovarianceStamped current_pose;
+
+      int32 battery_percent;
+
+      @verbatim (language="comment", text=
+        "\"connected\", \"disconnected\", \"weak\"")
+      string network_status;
+
+      @verbatim (language="comment", text=
+        "현재 이동 속도 (m/s)")
+      float current_speed;
+
+      @verbatim (language="comment", text=
+        "감지된 객체들 [\"person\", \"obstacle\", \"chair\", ...]")
+      sequence<string> detected_objects;
+
+      @verbatim (language="comment", text=
+        "오류 발생시 메시지 (정상시 빈 문자열)")
+      string error_message;
+    };
+  };
+};

@@ -1,0 +1,11 @@
+# Goal - 목표 위치
+int32 robot_id
+geometry_msgs/PoseStamped target_pose
+---
+# Result - 최종 결과
+bool success
+string message
+---
+# Feedback - 진행 상황
+geometry_msgs/PoseStamped current_pose
+string current_status  # "planning", "navigating", "arrived" 
