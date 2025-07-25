@@ -26,8 +26,6 @@ LoginWindow::~LoginWindow()
 
 void LoginWindow::handleLogin()
 {
-    qDebug() << "Login button clicked";
-    
     emit loginSuccessful();
 }
 
@@ -89,5 +87,4 @@ void LoginWindow::setWidgetClasses()
     this->style()->polish(this);
     this->update();
     
-    qDebug() << "CSS classes applied to widgets";
 }

@@ -47,6 +47,7 @@
 }
 
 .map_robot {
-    background: url("./style/images/map_robot.png") no-repeat center center;
+    /* background: url("./style/images/map_robot.png") no-repeat center center; */
+    background: transparent;
     border-radius: {{radius}};
 }

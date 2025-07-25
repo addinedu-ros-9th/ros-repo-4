@@ -76,7 +76,6 @@ void UserPopover::setWidgetClasses()
 
 void UserPopover::refresh()
 {
-    qDebug() << "user popover refresh";
     UserInfo info = get_user_info();
     
     if (ui->userName) {
@@ -156,9 +155,6 @@ void LayoutWindow::setupWidgets()
     // 초기에는 Dashboard만 표시
     log_widget->hide();
 
-    qDebug() << "LayoutWindow widgets setup completed";
-    qDebug() << "Dashboard widget geometry:" << dashboard_widget->geometry();
-    qDebug() << "Log widget geometry:" << log_widget->geometry();
 }
 
 void LayoutWindow::setWidgetClasses()
@@ -296,7 +292,6 @@ void LayoutWindow::show_user_popover()
 
 void LayoutWindow::refresh()
 {
-    qDebug() << "layout refresh";
     user_popover->refresh();
     log_widget->refresh();
 

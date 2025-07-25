@@ -27,6 +27,7 @@
 .bg.primary { background-color: {{primary}}; }
 .bg.primary_light { background-color: {{primary_light}}; }
 .bg.green_gray1 { background-color: {{green_gray1}}; }
+.bg.transparent { background-color: transparent; }
 
 /* outline */
 .otl.gray6 { border: 1px solid #666; }

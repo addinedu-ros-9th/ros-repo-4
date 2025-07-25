@@ -54,7 +54,6 @@ MainApp::MainApp(QWidget *parent)
 
 void MainApp::showLayoutWindow()
 {
-    qDebug() << "Switching to LayoutWindow";
     stackedWidget->setCurrentWidget(layoutWindow);
     layoutWindow->refresh();
 }
