@@ -37,6 +37,8 @@
         android:largeHeap="true"
         android:hardwareAccelerated="true">
 
+        <activity android:name=".GuidanceWaitingActivity" />
+
         <activity android:name="com.example.youngwoong.MainMenuActivity" />
 
         <activity android:name="com.example.youngwoong.AuthenticationActivity" />

@@ -114,12 +114,21 @@ class GuidanceWaitingActivity : AppCompatActivity() {
     }
 
     private fun navigateToConfirm() {
+        val selectedText = intent.getStringExtra("selected_text")
         val intent = Intent(this, GuidanceConfirmActivity::class.java)
-        intent.putExtra("isFromCheckin", true) // ✅ 명시적으로 true
+
+        if (selectedText != null) {
+            intent.putExtra("selected_text", selectedText)
+            intent.putExtra("isFromCheckin", false) // 👈 길안내 흐름
+        } else {
+            intent.putExtra("isFromCheckin", true) // 👈 접수 흐름
+        }
+
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         startActivity(intent)
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
         finish()
     }
+
 
 }
