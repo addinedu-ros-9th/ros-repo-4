@@ -39,6 +39,8 @@
 
         <activity android:name=".GuidanceWaitingActivity" />
 
+        <activity android:name=".GuidanceCompleteActivity" />
+
         <activity android:name="com.example.youngwoong.MainMenuActivity" />
 
         <activity android:name="com.example.youngwoong.AuthenticationActivity" />

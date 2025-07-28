@@ -4,10 +4,11 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
-import android.media.MediaRecorder
-import android.os.Build
 import android.os.Bundle
-import android.os.Environment
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.util.Log
 import android.view.View
 import android.view.animation.AlphaAnimation
 import android.widget.ImageView
@@ -17,35 +18,30 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.airbnb.lottie.LottieAnimationView
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import android.media.MediaScannerConnection
-import android.util.Log
 
 class VoiceGuideActivity : AppCompatActivity() {
 
-    private var isRecording = false
+    private var isListening = false
     private lateinit var voiceAnimation: LottieAnimationView
     private lateinit var dimView: View
     private lateinit var textPrompt: TextView
+    private lateinit var textUserMessage: TextView
     private var blinkAnimation: AlphaAnimation? = null
 
-    private var mediaRecorder: MediaRecorder? = null
-    private var audioFilePath: String? = null
+    private lateinit var speechRecognizer: SpeechRecognizer
+    private lateinit var speechIntent: Intent
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_voice_guide)
 
-        // 권한 확인
         checkPermissions()
+        setupSTT()
 
-        // 뷰 초기화
         voiceAnimation = findViewById(R.id.voice_animation)
         dimView = findViewById(R.id.dim_view)
         textPrompt = findViewById(R.id.text_prompt)
+        textUserMessage = findViewById(R.id.text_user_message)
 
         findViewById<ImageView>(R.id.btn_back).setOnClickListener {
             applyAlphaEffect(it)
@@ -54,19 +50,12 @@ class VoiceGuideActivity : AppCompatActivity() {
 
         findViewById<ImageView>(R.id.btn_voice).setOnClickListener {
             applyAlphaEffect(it)
-            toggleRecording(it as ImageView)
+            toggleListening(it as ImageView)
         }
     }
 
     private fun checkPermissions() {
-        val permissions = mutableListOf(Manifest.permission.RECORD_AUDIO)
-
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
-            // Android 9 이하일 경우 저장소 권한도 요청
-            permissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
-        }
-
+        val permissions = listOf(Manifest.permission.RECORD_AUDIO)
         val notGranted = permissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
@@ -81,7 +70,7 @@ class VoiceGuideActivity : AppCompatActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 1000 && grantResults.any { it != PackageManager.PERMISSION_GRANTED }) {
-            Toast.makeText(this, "필수 권한이 필요합니다.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "🎙️ 음성 인식 권한이 필요합니다.", Toast.LENGTH_SHORT).show()
             finish()
         }
     }
@@ -100,10 +89,10 @@ class VoiceGuideActivity : AppCompatActivity() {
         finish()
     }
 
-    private fun toggleRecording(button: ImageView) {
-        isRecording = !isRecording
+    private fun toggleListening(button: ImageView) {
+        isListening = !isListening
 
-        if (isRecording) {
+        if (isListening) {
             dimView.alpha = 0f
             dimView.visibility = View.VISIBLE
             dimView.animate().alpha(0.15f).setDuration(300).start()
@@ -118,12 +107,12 @@ class VoiceGuideActivity : AppCompatActivity() {
 
             textPrompt.apply {
                 visibility = View.VISIBLE
-                text = "녹음중입니다!"
+                text = "듣고 있어요..."
                 setTextColor(Color.parseColor("#FFA000"))
                 startBlinking(this)
             }
 
-            startRecording()
+            speechRecognizer.startListening(speechIntent)
             button.setImageResource(R.drawable.btn_voice_stop)
 
         } else {
@@ -142,7 +131,8 @@ class VoiceGuideActivity : AppCompatActivity() {
                 stopBlinking(this)
             }
 
-            stopRecording()
+            speechRecognizer.stopListening()
+            speechRecognizer.cancel()
             button.setImageResource(R.drawable.btn_voice_start)
         }
     }
@@ -161,59 +151,56 @@ class VoiceGuideActivity : AppCompatActivity() {
         view.clearAnimation()
     }
 
-    private fun startRecording() {
-        try {
-            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            val fileName = "recording_$timeStamp.m4a"
+    private fun setupSTT() {
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
 
-            val outputDir = File(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                "recordings"
-            )
-            if (!outputDir.exists()) outputDir.mkdirs()
+        speechRecognizer.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {}
 
-            val audioFile = File(outputDir, fileName)
-            audioFilePath = audioFile.absolutePath
+            override fun onError(error: Int) {
+                Log.e("STT", "❌ 음성 인식 오류: $error")
 
-            mediaRecorder = MediaRecorder().apply {
-                setAudioSource(MediaRecorder.AudioSource.MIC)
-                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                setOutputFile(audioFilePath)
-                prepare()
-                start()
+                if (isListening) {
+                    speechRecognizer.cancel()
+                    speechRecognizer.startListening(speechIntent)
+                } else {
+                    runOnUiThread {
+                        textPrompt.text = "터치로 대화를 시작합니다"
+                    }
+                }
             }
 
-            Log.d("VoiceGuide", "녹음 파일 경로: $audioFilePath")
+            override fun onResults(results: Bundle?) {
+                val result = results
+                    ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    ?.getOrNull(0)
 
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Toast.makeText(this, "녹음을 시작할 수 없습니다.", Toast.LENGTH_SHORT).show()
-            isRecording = false
+                result?.let {
+                    textUserMessage.text = it
+                    textPrompt.text = "듣고 있어요..."
+                }
+
+                if (isListening) {
+                    speechRecognizer.startListening(speechIntent)
+                }
+            }
+
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+
+        speechIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR")
         }
     }
 
-    private fun stopRecording() {
-        try {
-            mediaRecorder?.apply {
-                stop()
-                reset()
-                release()
-            }
-            mediaRecorder = null
-
-            // 미디어 스캐너에 등록
-            audioFilePath?.let {
-                MediaScannerConnection.scanFile(
-                    this,
-                    arrayOf(it),
-                    arrayOf("audio/*"),
-                    null
-                )
-            }
-
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+    override fun onDestroy() {
+        super.onDestroy()
+        speechRecognizer.destroy()
     }
 }
