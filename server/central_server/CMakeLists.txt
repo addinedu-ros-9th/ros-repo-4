@@ -9,6 +9,10 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(robot_interfaces REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(image_transport REQUIRED)
+find_package(OpenCV REQUIRED)
 
 # HTTP 서버를 위한 라이브러리들
 find_package(PkgConfig REQUIRED)
@@ -26,6 +30,9 @@ add_executable(central_server_node
 ament_target_dependencies(central_server_node
   rclcpp
   robot_interfaces
+  sensor_msgs
+  cv_bridge
+  image_transport
 )
 
 # MySQL 라이브러리 직접 링크
@@ -34,6 +41,7 @@ target_link_libraries(central_server_node
   mysqlclient 
   pthread
   ${JSONCPP_LIBRARIES}
+  ${OpenCV_LIBS}
 )
 
 # 헤더 파일 포함

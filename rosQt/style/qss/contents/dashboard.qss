@@ -8,7 +8,7 @@
     border-radius: 5px;
 }
 .camera_img {
-    background: url("./style/images/camera_img_sample.png") no-repeat center center;
+    /* background: url("./style/images/camera_img_sample.png") no-repeat center center; */
     border-radius: {{radius}};
 }
 .map_img {

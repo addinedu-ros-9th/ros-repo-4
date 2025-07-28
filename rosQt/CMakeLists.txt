@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets UiTools)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(OpenCV REQUIRED)
 
 qt6_standard_project_setup()
 
@@ -20,6 +21,7 @@ set(SOURCES
     status.cpp
     style.cpp
     map.cpp
+    udp_image_receiver.cpp
 )
 
 # 헤더 파일
@@ -41,4 +43,5 @@ target_link_libraries(BasicQtApp PRIVATE
     Qt6::UiTools
     rclcpp::rclcpp
     ${geometry_msgs_TARGETS}
+    ${OpenCV_LIBS}
 )
