@@ -2,11 +2,14 @@
 #define DASHBOARDWIDGET_H
 
 #include <QWidget>
+#include <QKeyEvent>  // ← 추가
 #include "udp_image_receiver.h" 
 
 class Ui_DashboardWidget;  // UI 클래스 전방 선언
 class StatusWidget;
 class MapWidget;
+class ControlPopup1;
+class ControlPopup2;
 
 class DashboardWidget : public QWidget
 {
@@ -18,24 +21,33 @@ public:
     
     void show_at(const QPoint& pos);
     void refresh();
+    
+    // 상태 관리 함수들 추가
+    void setStatus(const QString& newStatus);
+    QString getStatus() const;
 
 private slots:
     void onImageReceived(const QPixmap& pixmap);
     void onConnectionError(const QString& error);
     void onConnectionEstablished();
+    void onControlButtonClicked();
 
-    
 private:
-    Ui_DashboardWidget *ui;  // UI 포인터로 변경
+    Ui_DashboardWidget *ui;
     StatusWidget *status_widget; 
-    MapWidget *map_widget;  // 맵 위젯 포인터 추가
-    UdpImageReceiver *udp_receiver_;  // UDP 이미지 수신기 포인터
+    MapWidget *map_widget;
+    UdpImageReceiver *udp_receiver_;
+    ControlPopup1 *control_popup1_;
+    ControlPopup2 *control_popup2_;
+
+    QString status_;  // 상태 변수
     
     void setupUI();
     void setWidgetClasses();
     void setupStatusWidget(); 
     void setupMapWidget();
     void setupCameraWidget();
+    void setupControlButton();
 };
 
 #endif // DASHBOARDWIDGET_H

@@ -4,44 +4,72 @@ project(BasicQtApp)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets UiTools)
-find_package(rclcpp REQUIRED)
-find_package(geometry_msgs REQUIRED)
+# Qt 찾기
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets)
+
+# OpenCV 찾기
 find_package(OpenCV REQUIRED)
 
-qt6_standard_project_setup()
+# ROS2 패키지들 찾기
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(robot_interfaces REQUIRED)
 
-# 소스 파일
+# Qt 자동 생성 활성화
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
+
+# 소스 파일들
 set(SOURCES
     main.cpp
-    login.cpp      
-    layout.cpp     
+    login.cpp
+    layout.cpp
     dashboard.cpp
-    log.cpp 
+    log.cpp
     status.cpp
     style.cpp
     map.cpp
     udp_image_receiver.cpp
+    control_popup1.cpp
+    control_popup2.cpp
 )
 
-# 헤더 파일
-set(HEADERS
-    login.h
-    layout.h      
-    dashboard.h 
-    log.h
-    status.h
-    style.h
-    map.h
+# UI 파일들
+set(UI_FILES
+    login.ui
+    layout.ui
+    dashboard.ui
+    log.ui
+    status.ui
+    map.ui
+    control_popup1.ui
+    control_popup2.ui
 )
 
-qt6_add_executable(BasicQtApp ${SOURCES} ${HEADERS})
+# 실행 파일 생성
+add_executable(BasicQtApp ${SOURCES} ${UI_FILES})
 
-target_link_libraries(BasicQtApp PRIVATE 
-    Qt6::Core 
-    Qt6::Widgets 
-    Qt6::UiTools
+# 헤더 파일 경로
+target_include_directories(BasicQtApp PRIVATE ${OpenCV_INCLUDE_DIRS})
+
+# 라이브러리 링크
+target_link_libraries(BasicQtApp
+    Qt6::Core
+    Qt6::Widgets
+    ${OpenCV_LIBS}
     rclcpp::rclcpp
     ${geometry_msgs_TARGETS}
-    ${OpenCV_LIBS}
+    ${sensor_msgs_TARGETS}
+    ${robot_interfaces_TARGETS}
+)
+
+# ROS2 의존성 설정
+ament_target_dependencies(BasicQtApp
+    rclcpp
+    geometry_msgs
+    sensor_msgs
+    robot_interfaces
 )

@@ -21,6 +21,7 @@
 .bg.grayc { background-color: #ccc; }
 .bg.graye { background-color: #eee; }
 .bg.grayf5 { background-color: #f5f5f5; }
+.bg.white { background-color: white; }
 .bg.primary_25p { background-color: rgba(0, 153, 153, 0.25); }
 .bg.primary_50p { background-color: rgba(0, 153, 153, 0.50); }
 .bg.primary_75p { background-color: rgba(0, 153, 153, 0.75); }
@@ -31,11 +32,13 @@
 
 /* outline */
 .otl.gray6 { border: 1px solid #666; }
+.otl-gray6 { border: 1px solid #666; }
 .otl.primary_dark { border: 1px solid {{primary_dark}}; }
 
 /* text color */
 .color-white { color: white; }
 .color-black { color: black; }
+.color-gray3 { color: #3;  }
 .color-gray6 { color: #666;  }
 .color-gray9 { color: #999;  }
 .color-gray9.active { color: #333; }

@@ -3,6 +3,8 @@
 #include "status.h"
 #include "map.h"
 #include "udp_image_receiver.h" 
+#include "control_popup1.h" 
+#include "control_popup2.h" 
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QDebug>
@@ -13,12 +15,16 @@ DashboardWidget::DashboardWidget(QWidget *parent)
     , status_widget(nullptr) 
     , map_widget(nullptr)
     , udp_receiver_(nullptr) 
+    , control_popup1_(nullptr) 
+    , control_popup2_(nullptr) 
+    , status_("대기중")
 {
     ui->setupUi(this);  // UI 파일 설정
     setWidgetClasses();
     setupStatusWidget();
     setupMapWidget();
     setupCameraWidget(); 
+    setupControlButton();  // 추가
 }
 
 DashboardWidget::~DashboardWidget()
@@ -27,7 +33,46 @@ DashboardWidget::~DashboardWidget()
         udp_receiver_->stop();
         delete udp_receiver_;
     }
+    if (control_popup1_) {  // 추가
+        delete control_popup1_;
+    }
+    if (control_popup2_) {
+        delete control_popup2_;
+    }
     delete ui;
+}
+
+void DashboardWidget::setStatus(const QString& newStatus)
+{
+    if (status_ != newStatus) {
+        QString oldStatus = status_;
+        status_ = newStatus;
+        
+        qDebug() << "로봇 상태 변경:" << oldStatus << "→" << newStatus;
+        
+        // 상태가 변경되면 열려있는 팝업들 닫기
+        if (control_popup1_ && control_popup1_->isVisible()) {
+            control_popup1_->hide();
+        }
+        if (control_popup2_ && control_popup2_->isVisible()) {
+            control_popup2_->hide();
+        }
+    }
+}
+
+QString DashboardWidget::getStatus() const
+{
+    return status_;
+}
+
+void DashboardWidget::setupControlButton()
+{
+    if (ui->controlBtn) {
+        connect(ui->controlBtn, &QPushButton::clicked,
+                this, &DashboardWidget::onControlButtonClicked);
+    } else {
+        qDebug() << "❌ controlBtn을 찾을 수 없습니다!";
+    }
 }
 
 void DashboardWidget::setupStatusWidget()
@@ -41,6 +86,58 @@ void DashboardWidget::setupStatusWidget()
     // StatusWidget 표시
     status_widget->show();
     
+}
+
+void DashboardWidget::onControlButtonClicked()
+{
+    qDebug() << "🎮 Control 버튼 클릭! 현재 상태:" << status_;
+    
+    if (status_ == "이동중") {
+        // 이동 중일 때 - control_popup1 표시
+        qDebug() << "이동 중 상태 → ControlPopup1 표시";
+        
+        // 다른 팝업이 열려있으면 닫기
+        if (control_popup2_ && control_popup2_->isVisible()) {
+            control_popup2_->hide();
+        }
+        
+        // control_popup1 표시
+        if (control_popup1_ && control_popup1_->isVisible()) {
+            control_popup1_->raise();
+            control_popup1_->activateWindow();
+            return;
+        }
+        
+        if (!control_popup1_) {
+            control_popup1_ = new ControlPopup1(this);
+        }
+        
+        control_popup1_->show();
+        control_popup1_->raise();
+        control_popup1_->activateWindow();
+        
+    } else {
+        // 다른 팝업이 열려있으면 닫기
+        if (control_popup1_ && control_popup1_->isVisible()) {
+            control_popup1_->hide();
+        }
+        
+        // control_popup2 표시 (임시로 popup1과 동일하게, 나중에 교체)
+        if (control_popup2_ && control_popup2_->isVisible()) {
+            control_popup2_->raise();
+            control_popup2_->activateWindow();
+            return;
+        }
+        
+        // ControlPopup2 생성 및 표시
+        if (!control_popup2_) {
+            control_popup2_ = new ControlPopup2(this);  // ← 실제로 ControlPopup2 생성
+        }
+        
+        control_popup2_->show();
+        control_popup2_->raise();
+        control_popup2_->activateWindow();
+    }
 }
 
 void DashboardWidget::setupMapWidget()
@@ -155,6 +252,7 @@ void DashboardWidget::setWidgetClasses()
     
     if (ui->status_label) {
         ui->status_label->setProperty("class", "label gray");
+        ui->status_label->setText(status_);
     }
 }
 

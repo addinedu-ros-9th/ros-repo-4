@@ -30,7 +30,6 @@ QStringList StyleManager::getQssFiles()
     QStringList files;
     files << "layout.qss"
           << "login.qss"
-          << "utils.qss"
           << "component/btn.qss"
           << "component/checkbox.qss"
           << "component/radiobox.qss"
@@ -42,7 +41,8 @@ QStringList StyleManager::getQssFiles()
           << "component/scrollbar.qss"
           << "contents/cctv.qss"
           << "contents/dashboard.qss"
-          << "contents/detect_log.qss";
+          << "contents/detect_log.qss"
+          << "utils.qss";
     
     return files;
 }
