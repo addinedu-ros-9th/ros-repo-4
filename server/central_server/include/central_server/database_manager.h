@@ -34,6 +34,13 @@ struct StationInfo {
     float location_y;
 };
 
+struct ReservationInfo {
+    int patient_id;
+    std::string datetime;
+    std::string reservation;
+    std::string time_hhmm;  // hh:mm 형식의 시간
+};
+
 class DatabaseManager
 {
 public:
@@ -56,6 +63,9 @@ public:
     // 정류장 정보
     bool getStationById(int station_id, StationInfo& station);
     std::vector<StationInfo> getAllStations();
+    
+    // 예약 정보 조회
+    bool getReservationByPatientId(int patient_id, ReservationInfo& reservation);
     
     // 로봇 로그
     bool insertRobotLog(int robot_id, int patient_id, const std::string& datetime, float orig, float dest);

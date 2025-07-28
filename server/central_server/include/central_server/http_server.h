@@ -51,7 +51,7 @@ private:
     // 유틸리티 함수들
     Json::Value parseJson(const std::string& jsonStr);
     std::string createSuccessResponse(const std::string& name, 
-                                    const std::string& datetime, 
+                                    const std::string& time_hhmm, 
                                     const std::string& reservation);
     std::string createErrorResponse(const std::string& message);
     std::string createStatusResponse(int status_code);

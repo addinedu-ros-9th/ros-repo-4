@@ -16,9 +16,9 @@ import androidx.fragment.app.DialogFragment
 class CheckinPopupDialog(
     private val userName: String,
     private val department: String,
-    private val reservationTime: String,
-    private val waitingNumber: String = "001",  // 기본 대기번호
-    private val onConfirm: (() -> Unit)? = null // 확인 콜백
+    private val reservationTime: String = "",
+    private val waitingNumber: String = "",
+    private val onConfirm: (() -> Unit)? = null
 ) : DialogFragment() {
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
@@ -32,8 +32,16 @@ class CheckinPopupDialog(
         val btnYes = dialog.findViewById<ImageView>(R.id.btn_yes)
         val btnNo = dialog.findViewById<ImageView>(R.id.btn_no)
 
-        // 메시지 구성
-        val message = "${userName}님 반갑습니다.\n오늘 ${reservationTime} ${department} 예약되어있습니다.\n접수해드릴까요?"
+        val messageBuilder = StringBuilder()
+        messageBuilder.append("${userName}님 반갑습니다.\n")
+        if (reservationTime.isNotBlank() && department.isNotBlank()) {
+            messageBuilder.append("오늘 ${reservationTime} ${department} 예약되어있습니다.\n")
+        } else if (department.isNotBlank()) {
+            messageBuilder.append("${department} 예약되어있습니다.\n")
+        }
+        messageBuilder.append("접수해드릴까요?")
+
+        val message = messageBuilder.toString()
         val spannable = SpannableString(message)
         val highlightColor = Color.parseColor("#00696D")
 
@@ -51,7 +59,6 @@ class CheckinPopupDialog(
 
         textView.text = spannable
 
-        // 확인 버튼
         btnYes.setOnClickListener {
             applyAlphaEffect(it) {
                 onConfirm?.invoke()
@@ -60,7 +67,6 @@ class CheckinPopupDialog(
             }
         }
 
-        // 취소 버튼
         btnNo.setOnClickListener {
             applyAlphaEffect(it) {
                 dismiss()

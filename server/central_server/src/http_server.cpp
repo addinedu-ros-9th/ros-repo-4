@@ -159,7 +159,14 @@ std::string HttpServer::handleAuthSSN(const Json::Value& request) {
     
     PatientInfo patient;
     if (db_manager_->getPatientBySSN(ssn, patient)) {
-        return createSuccessResponse(patient.name, "2025-06-24", "05");
+        // 환자의 예약 정보 조회
+        ReservationInfo reservation;
+        if (db_manager_->getReservationByPatientId(patient.patient_id, reservation)) {
+            return createSuccessResponse(patient.name, reservation.time_hhmm, reservation.reservation);
+        } else {
+            // 예약 정보가 없는 경우
+            return createSuccessResponse(patient.name, "00:00", "00");
+        }
     } else {
         return createErrorResponse("Patient not found");
     }
@@ -175,7 +182,14 @@ std::string HttpServer::handleAuthPatientId(const Json::Value& request) {
     
     PatientInfo patient;
     if (db_manager_->getPatientById(patient_id, patient)) {
-        return createSuccessResponse(patient.name, "2025-06-24", "05");
+        // 환자의 예약 정보 조회
+        ReservationInfo reservation;
+        if (db_manager_->getReservationByPatientId(patient.patient_id, reservation)) {
+            return createSuccessResponse(patient.name, reservation.time_hhmm, reservation.reservation);
+        } else {
+            // 예약 정보가 없는 경우
+            return createSuccessResponse(patient.name, "00:00", "00");
+        }
     } else {
         return createErrorResponse("Patient not found");
     }
@@ -191,7 +205,14 @@ std::string HttpServer::handleAuthRFID(const Json::Value& request) {
     
     PatientInfo patient;
     if (db_manager_->getPatientByRFID(rfid, patient)) {
-        return createSuccessResponse(patient.name, "2025-06-24", "05");
+        // 환자의 예약 정보 조회
+        ReservationInfo reservation;
+        if (db_manager_->getReservationByPatientId(patient.patient_id, reservation)) {
+            return createSuccessResponse(patient.name, reservation.time_hhmm, reservation.reservation);
+        } else {
+            // 예약 정보가 없는 경우
+            return createSuccessResponse(patient.name, "00:00", "00");
+        }
     } else {
         return createErrorResponse("Patient not found");
     }
@@ -267,11 +288,11 @@ Json::Value HttpServer::parseJson(const std::string& jsonStr) {
 }
 
 std::string HttpServer::createSuccessResponse(const std::string& name, 
-                                            const std::string& datetime, 
+                                            const std::string& time_hhmm, 
                                             const std::string& reservation) {
     Json::Value response;
     response["name"] = name;
-    response["datetime"] = datetime;
+    response["datetime"] = time_hhmm;  // hh:mm 형식
     response["reservation"] = reservation;
     
     Json::StreamWriterBuilder builder;

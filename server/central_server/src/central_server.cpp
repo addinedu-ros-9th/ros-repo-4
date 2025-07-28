@@ -81,26 +81,18 @@ void CentralServer::runDatabaseThread() {
     // DB 연결 시도
     if (db_manager_->connect()) {
         RCLCPP_INFO(this->get_logger(), "MySQL 데이터베이스 연결 성공!");
-        
-        // 간단한 테스트
-        auto stations = db_manager_->getAllStations();
-        RCLCPP_INFO(this->get_logger(), "정류장 개수: %zu", stations.size());
-        
     } else {
         RCLCPP_ERROR(this->get_logger(), "MySQL 데이터베이스 연결 실패!");
         RCLCPP_WARN(this->get_logger(), "DB 없이 계속 실행합니다...");
     }
     
     while (running_.load() && rclcpp::ok()) {
-        // DB 연결 상태 확인
-        if (db_manager_->isConnected()) {
-            RCLCPP_DEBUG(this->get_logger(), "DB 연결 상태 양호");
-        } else {
+        // DB 연결 상태 확인 (5초마다)
+        if (!db_manager_->isConnected()) {
             RCLCPP_WARN(this->get_logger(), "DB 연결 끊어짐. 재연결 시도...");
             db_manager_->connect();
         }
         
-        // 5초마다 체크
         std::this_thread::sleep_for(std::chrono::seconds(5));
     }
     
@@ -112,18 +104,15 @@ void CentralServer::runHttpThread() {
     
     // HTTP 서버 시작
     http_server_->start();
-    RCLCPP_INFO(this->get_logger(), "HTTP 서버가 포트 8080에서 시작되었습니다");
+    RCLCPP_INFO(this->get_logger(), "HTTP 서버 시작 완료 (포트: 8080)");
     
     while (running_.load() && rclcpp::ok()) {
         // HTTP 서버 상태 확인
-        if (http_server_->isRunning()) {
-            RCLCPP_DEBUG(this->get_logger(), "HTTP 서버 실행중...");
-        } else {
-            RCLCPP_WARN(this->get_logger(), "HTTP 서버가 중지됨!");
+        if (!http_server_->isRunning()) {
+            RCLCPP_ERROR(this->get_logger(), "HTTP 서버가 중지됨!");
             break;
         }
         
-        // 1초마다 체크
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
     
