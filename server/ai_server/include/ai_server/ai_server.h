@@ -11,6 +11,7 @@
 #include <thread>
 #include <atomic>
 #include <memory>
+#include <yaml-cpp/yaml.h>
 
 #include "ai_server/webcam_streamer.h"
 #include "ai_server/udp_image_sender.h"
@@ -29,6 +30,10 @@ private:
     // 실행 상태
     std::atomic<bool> running_;
     
+    std::string gui_client_ip_;
+    int gui_client_port_;
+    int max_packet_size_;
+
     // 웹캠 스트리머
     std::unique_ptr<WebcamStreamer> webcam_streamer_;
     
@@ -43,6 +48,8 @@ private:
     // 스레드들
     std::thread webcam_thread_;
     std::thread processing_thread_;
+    
+    void loadConfig();
     
     // 콜백 함수들
     void publishWebcamFrame(const cv::Mat& frame);

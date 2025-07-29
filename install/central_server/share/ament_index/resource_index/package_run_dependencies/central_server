@@ -1,1 +1,1 @@
-rclcpp;robot_interfaces
+rclcpp;robot_interfaces;sensor_msgs;cv_bridge;image_transport

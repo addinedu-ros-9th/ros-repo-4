@@ -24,17 +24,16 @@ void DatabaseManager::loadConnectionConfig() {
 
 bool DatabaseManager::connect() {
     std::lock_guard<std::mutex> lock(connection_mutex_);
-    
     try {
         driver_ = sql::mysql::get_mysql_driver_instance();
-        
-        std::string url = "unix:///var/run/mysqld/mysqld.sock";  // socket 연결
+
+        // config.yaml에서 읽은 host_, port_ 사용
+        std::string url = "tcp://" + host_ + ":" + std::to_string(port_);
         connection_.reset(driver_->connect(url, username_, password_));
         connection_->setSchema(database_);
-        
+
         std::cout << "[DB] MySQL 연결 성공: " << database_ << std::endl;
         return true;
-        
     } catch (sql::SQLException& e) {
         std::cerr << "[DB] MySQL 연결 실패: " << e.what() << std::endl;
         std::cerr << "[DB] Error Code: " << e.getErrorCode() << std::endl;

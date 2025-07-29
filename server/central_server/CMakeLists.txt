@@ -5,6 +5,8 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+find_package(yaml-cpp REQUIRED)
+
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -42,6 +44,7 @@ target_link_libraries(central_server_node
   pthread
   ${JSONCPP_LIBRARIES}
   ${OpenCV_LIBS}
+  yaml-cpp
 )
 
 # 헤더 파일 포함

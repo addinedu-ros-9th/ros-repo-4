@@ -1,15 +1,50 @@
 #include "ai_server/ai_server.h"
 #include <chrono>
-
+#include <yaml-cpp/yaml.h>  
 
 
 AIServer::AIServer() 
     : Node("ai_server"), 
       running_(false),
-      webcam_streamer_(std::make_unique<WebcamStreamer>(2)),
-      udp_sender_(std::make_unique<UdpImageSender>("127.0.0.1", 8888))
+      gui_client_ip_("127.0.0.1"),   
+      gui_client_port_(8888),        
+      max_packet_size_(60000),
+      webcam_streamer_(std::make_unique<WebcamStreamer>(2))
 {
     RCLCPP_INFO(this->get_logger(), "AI Server 노드 생성중...");
+
+    loadConfig();
+    udp_sender_ = std::make_unique<UdpImageSender>(gui_client_ip_, gui_client_port_);
+}
+
+void AIServer::loadConfig()
+{
+    try {
+        // 설정 파일 경로 (프로젝트 루트 기준)
+        std::string config_path = "../server/config.yaml";
+        YAML::Node config = YAML::LoadFile(config_path);
+        
+        // GUI 클라이언트 설정 읽기
+        if (config["ai_server"]["target_central_server"]) {
+            gui_client_ip_ = config["ai_server"]["target_central_server"]["ip"].as<std::string>();
+            gui_client_port_ = config["ai_server"]["target_central_server"]["port"].as<int>();
+        }
+        
+        // 최대 패킷 크기 읽기
+        if (config["ai_server"]["max_packet_size"]) {
+            max_packet_size_ = config["ai_server"]["max_packet_size"].as<int>();
+        }
+        
+        RCLCPP_INFO(this->get_logger(), "설정 파일 로드 완료:");
+        RCLCPP_INFO(this->get_logger(), "  - GUI 클라이언트: %s:%d", 
+                   gui_client_ip_.c_str(), gui_client_port_);
+        RCLCPP_INFO(this->get_logger(), "  - 최대 패킷 크기: %d", max_packet_size_);
+        
+    } catch (const std::exception& e) {
+        RCLCPP_WARN(this->get_logger(), "설정 파일 로드 실패: %s", e.what());
+        RCLCPP_WARN(this->get_logger(), "기본값 사용: %s:%d", 
+                   gui_client_ip_.c_str(), gui_client_port_);
+    }
 }
 
 void AIServer::initialize()

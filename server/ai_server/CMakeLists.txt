@@ -14,6 +14,9 @@ find_package(image_transport REQUIRED)
 find_package(robot_interfaces REQUIRED)
 find_package(OpenCV REQUIRED)
 
+# YAML 라이브러리 - find_package 방식
+find_package(yaml-cpp REQUIRED)
+
 # Include directories
 include_directories(include)
 
@@ -33,7 +36,11 @@ ament_target_dependencies(ai_server_node
   robot_interfaces
 )
 
-target_link_libraries(ai_server_node ${OpenCV_LIBS})
+# 라이브러리 링크
+target_link_libraries(ai_server_node 
+  ${OpenCV_LIBS}
+  yaml-cpp
+)
 
 # Install targets
 install(TARGETS
