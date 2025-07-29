@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- 전체 배경 -->
+    <ImageView
+        android:id="@+id/guidance_complete_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:src="@drawable/guidance_complete_bg"
+        android:contentDescription="길안내 배경" />
+
+    <!-- 상단 안내 문구 -->
+    <TextView
+        android:id="@+id/text_guidance_message"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="110dp"
+        android:contentDescription="안내 완료 문구"
+        android:fontFamily="@font/noto_sans_kr_bold"
+        android:gravity="center"
+        android:lineSpacingExtra="4dp"
+        android:text="대장암 센터에 도착했습니다.\n확인을 누르면 영웅이가 복귀합니다."
+        android:textColor="#333333"
+        android:textSize="24sp"
+        android:textStyle="bold" />
+
+    <!-- 지도 이미지 (텍스트 없음, 크기만 유지) -->
+    <ImageView
+        android:id="@+id/image_map"
+        android:layout_width="1020dp"
+        android:layout_height="519dp"
+        android:layout_marginHorizontal="60dp"
+        android:layout_marginTop="230dp"
+        android:layout_marginBottom="140dp"
+        android:background="#DDDDDD"
+        android:contentDescription="지도 이미지"
+        android:scaleType="fitXY" />
+
+    <!-- 오른쪽 하단 버튼 묶음 -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="50dp"
+        android:layout_marginBottom="50dp"
+        android:orientation="vertical">
+
+        <!-- 안내 시작 버튼 -->
+        <ImageView
+            android:id="@+id/btn_confirm_on"
+            android:layout_width="200dp"
+            android:layout_height="70dp"
+            android:scaleType="fitXY"
+            android:src="@drawable/btn_confirm_on"
+            android:contentDescription="확인 버튼" />
+    </LinearLayout>
+
+
+</FrameLayout>

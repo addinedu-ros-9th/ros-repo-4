@@ -30,6 +30,12 @@ class GuidanceWaitingActivity : AppCompatActivity() {
     private var currentVerticalOffset = 0.0
     private var targetVerticalOffset = 0.0
 
+    // ✅ 5초 후 자동 이동용 핸들러
+    private val inactivityHandler = Handler(Looper.getMainLooper())
+    private val inactivityRunnable = Runnable {
+        navigateToComplete()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_guidance_waiting)
@@ -38,13 +44,13 @@ class GuidanceWaitingActivity : AppCompatActivity() {
         rightEye = findViewById(R.id.right_eye)
         guidingText = findViewById(R.id.text_guiding)
         backButton = findViewById(R.id.btn_cancel)
-        touchHintText = findViewById(R.id.text_touch_hint) // 👈 하단 텍스트 연결
+        touchHintText = findViewById(R.id.text_touch_hint)
 
         startEyeAnimation()
-        startTouchHintBlink() // 👈 깜빡이기 시작
+        startTouchHintBlink()
 
-        // 취소 버튼 (현재는 안 쓰지만 남겨둠)
         backButton.setOnClickListener {
+            cancelInactivityTimer()
             applyAlphaEffect(backButton)
             backButton.postDelayed({
                 navigateToConfirm()
@@ -107,6 +113,7 @@ class GuidanceWaitingActivity : AppCompatActivity() {
     // ✅ 터치 시 안내 확인 화면으로 이동
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         if (event?.action == MotionEvent.ACTION_DOWN) {
+            cancelInactivityTimer()
             navigateToConfirm()
             return true
         }
@@ -119,9 +126,9 @@ class GuidanceWaitingActivity : AppCompatActivity() {
 
         if (selectedText != null) {
             intent.putExtra("selected_text", selectedText)
-            intent.putExtra("isFromCheckin", false) // 👈 길안내 흐름
+            intent.putExtra("isFromCheckin", false)
         } else {
-            intent.putExtra("isFromCheckin", true) // 👈 접수 흐름
+            intent.putExtra("isFromCheckin", true)
         }
 
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -130,5 +137,31 @@ class GuidanceWaitingActivity : AppCompatActivity() {
         finish()
     }
 
+    // ✅ 5초 후 자동으로 안내 완료 화면으로 이동
+    private fun navigateToComplete() {
+        val selectedText = intent.getStringExtra("selected_text")
+        val intent = Intent(this, GuidanceCompleteActivity::class.java)
+        intent.putExtra("selected_text", selectedText)
+        startActivity(intent)
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+        finish()
+    }
 
+    private fun startInactivityTimer() {
+        inactivityHandler.postDelayed(inactivityRunnable, 5000) // 5초 후 실행
+    }
+
+    private fun cancelInactivityTimer() {
+        inactivityHandler.removeCallbacks(inactivityRunnable)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        startInactivityTimer()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        cancelInactivityTimer()
+    }
 }

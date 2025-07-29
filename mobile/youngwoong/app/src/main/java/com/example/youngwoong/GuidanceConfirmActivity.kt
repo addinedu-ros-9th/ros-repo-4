@@ -56,7 +56,11 @@ class GuidanceConfirmActivity : AppCompatActivity() {
             applyAlphaEffect(confirmButton)
             confirmButton.postDelayed({
                 val intent = Intent(this, GuidanceWaitingActivity::class.java)
-                intent.putExtra("selected_text", selectedText)
+
+                // 👉 null 대비: selectedText 없으면 department 사용
+                val centerName = selectedText ?: department ?: "해당 센터"
+                intent.putExtra("selected_text", centerName)
+
                 startActivity(intent)
                 overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
                 finish()
@@ -65,7 +69,7 @@ class GuidanceConfirmActivity : AppCompatActivity() {
 
         // ✅ 안내 문구 표시
         if (isFromCheckin) {
-            val message = "${userName}님 ${department} 접수가 완료되었습니다."
+            val message = "${userName}님 ${department} 접수가 완료되었습니다.\n안내를 시작할까요?"
             val spannable = SpannableString(message)
             listOf(userName, department).forEach { it ->
                 it?.let { value ->
