@@ -20,6 +20,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.activity.OnBackPressedCallback
 import com.airbnb.lottie.LottieAnimationView
 import kotlinx.coroutines.*
 import okhttp3.*
@@ -32,29 +33,30 @@ import java.util.*
 class VoiceGuideActivity : AppCompatActivity() {
 
     private var isListening = false
+    private lateinit var voiceButton: ImageView
     private lateinit var voiceAnimation: LottieAnimationView
     private lateinit var dimView: View
     private lateinit var textPrompt: TextView
     private lateinit var textUserMessage: TextView
     private lateinit var textBotMessage: TextView
     private var blinkAnimation: AlphaAnimation? = null
+    private var loadingJob: Job? = null
 
     private lateinit var speechRecognizer: SpeechRecognizer
     private lateinit var speechIntent: Intent
     private lateinit var textToSpeech: TextToSpeech
-    
-    // LLM 서버 통신을 위한 변수들
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)
         .build()
-    
+
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
-    
+
     companion object {
         private const val TAG = "VoiceGuideActivity"
-        private const val BASE_URL = "http://192.168.0.31:5000" // Flask 서버 URL
+        private const val BASE_URL = "http://192.168.0.31:5000"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -71,31 +73,52 @@ class VoiceGuideActivity : AppCompatActivity() {
         textUserMessage = findViewById(R.id.text_user_message)
         textBotMessage = findViewById(R.id.text_bot_message)
 
-        findViewById<ImageView>(R.id.btn_back).setOnClickListener {
+        val backButton = findViewById<ImageView>(R.id.btn_back)
+        val voiceButton = findViewById<ImageView>(R.id.btn_voice)
+
+        // 🔐 나중에 제어를 위해 멤버 변수로 저장
+        this.voiceButton = voiceButton
+
+        // ✅ 뒤로가기 버튼 클릭 시 MainMenu로 이동
+        backButton.setOnClickListener {
             applyAlphaEffect(it)
-            returnToMainMenu()
+            val intent = Intent(this, MainMenuActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(intent)
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+            finish()
         }
 
-        findViewById<ImageView>(R.id.btn_voice).setOnClickListener {
+        // ✅ 휴대폰 물리 뒤로가기 버튼 처리
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                val intent = Intent(this@VoiceGuideActivity, MainMenuActivity::class.java)
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                startActivity(intent)
+                overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+                finish()
+            }
+        })
+
+        // ✅ 음성 버튼
+        voiceButton.setOnClickListener {
             applyAlphaEffect(it)
-            toggleListening(it as ImageView)
+            toggleListening(voiceButton)
         }
     }
+
 
     private fun checkPermissions() {
         val permissions = listOf(Manifest.permission.RECORD_AUDIO)
         val notGranted = permissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
-
         if (notGranted.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, notGranted.toTypedArray(), 1000)
         }
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
-    ) {
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 1000 && grantResults.any { it != PackageManager.PERMISSION_GRANTED }) {
             Toast.makeText(this, "🎙️ 음성 인식 권한이 필요합니다.", Toast.LENGTH_SHORT).show()
@@ -128,9 +151,7 @@ class VoiceGuideActivity : AppCompatActivity() {
             voiceAnimation.apply {
                 alpha = 0f
                 visibility = View.VISIBLE
-                animate().alpha(1f).setDuration(300).withStartAction {
-                    playAnimation()
-                }.start()
+                animate().alpha(1f).setDuration(300).withStartAction { playAnimation() }.start()
             }
 
             textPrompt.apply {
@@ -202,11 +223,8 @@ class VoiceGuideActivity : AppCompatActivity() {
                     SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "음성 입력 시간 초과"
                     else -> "알 수 없는 오류"
                 }
-                
                 Log.e("STT", "❌ 음성 인식 오류: $error ($errorMessage)")
-
                 if (isListening) {
-                    // 간단한 재시도 로직
                     speechRecognizer.cancel()
                     speechRecognizer.startListening(speechIntent)
                 } else {
@@ -217,23 +235,36 @@ class VoiceGuideActivity : AppCompatActivity() {
             }
 
             override fun onResults(results: Bundle?) {
-                val result = results
-                    ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    ?.getOrNull(0)
+                val result = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.getOrNull(0)
 
                 result?.let { userMessage ->
                     runOnUiThread {
-                        textUserMessage.text = userMessage
-                        textPrompt.text = "🤖 로봇이 응답하고 있습니다..."
-                        textBotMessage.text = ""
-                    }
-                    
-                    // LLM 서버로 메시지 전송
-                    sendMessageToLLM(userMessage)
-                }
+                        isListening = false
 
-                if (isListening) {
-                    speechRecognizer.startListening(speechIntent)
+                        dimView.animate().alpha(0f).setDuration(300).withEndAction {
+                            dimView.visibility = View.GONE
+                        }.start()
+
+                        voiceAnimation.animate().alpha(0f).setDuration(300).withEndAction {
+                            voiceAnimation.pauseAnimation()
+                            voiceAnimation.visibility = View.GONE
+                        }.start()
+
+                        textPrompt.apply {
+                            visibility = View.VISIBLE
+                            setTextColor(Color.parseColor("#000000"))
+                            stopBlinking(this)
+                        }
+
+                        findViewById<ImageView>(R.id.btn_voice).setImageResource(R.drawable.btn_voice_start)
+
+                        textUserMessage.text = userMessage
+                        startLoadingDots("🤖 로봇이 응답하고 있습니다", textPrompt)
+                        textBotMessage.text = ""
+
+                        voiceButton.isEnabled = false  // ✅ 버튼 비활성화
+                    }
+                    sendMessageToLLM(userMessage)
                 }
             }
 
@@ -244,104 +275,48 @@ class VoiceGuideActivity : AppCompatActivity() {
         speechIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR")
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1) // 최대 결과 수만 추가
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         }
     }
-    
+
     private fun setupTTS() {
         textToSpeech = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                Log.d(TAG, "TTS 초기화 성공")
-                
-                // 사용 가능한 언어 목록 확인
-                val availableLocales = textToSpeech.availableLanguages
-                Log.d(TAG, "사용 가능한 언어: $availableLocales")
-                
-                // 한국어 설정 시도 (여러 방법)
-                var languageSet = false
-                
-                // 1. Locale.KOREA 시도 (Java 예제와 동일)
                 val koreaResult = textToSpeech.setLanguage(Locale.KOREA)
-                if (koreaResult != TextToSpeech.LANG_MISSING_DATA && koreaResult != TextToSpeech.LANG_NOT_SUPPORTED) {
-                    Log.d(TAG, "한국어 설정 성공 (Locale.KOREA)")
-                    languageSet = true
-                } else {
-                    Log.d(TAG, "Locale.KOREA 설정 실패: $koreaResult")
-                    
-                    // 2. Locale.KOREAN 시도
-                    val koreanResult = textToSpeech.setLanguage(Locale.KOREAN)
-                    if (koreanResult != TextToSpeech.LANG_MISSING_DATA && koreanResult != TextToSpeech.LANG_NOT_SUPPORTED) {
-                        Log.d(TAG, "한국어 설정 성공 (Locale.KOREAN)")
-                        languageSet = true
-                    } else {
-                        Log.d(TAG, "Locale.KOREAN 설정 실패: $koreanResult")
-                        
-                        // 3. Locale("ko", "KR") 시도
-                        val koKRResult = textToSpeech.setLanguage(Locale("ko", "KR"))
-                        if (koKRResult != TextToSpeech.LANG_MISSING_DATA && koKRResult != TextToSpeech.LANG_NOT_SUPPORTED) {
-                            Log.d(TAG, "한국어 설정 성공 (ko-KR)")
-                            languageSet = true
-                        } else {
-                            Log.d(TAG, "ko-KR 설정 실패: $koKRResult")
-                            
-                            // 4. 기본 언어 사용
-                            val defaultResult = textToSpeech.setLanguage(Locale.getDefault())
-                            if (defaultResult != TextToSpeech.LANG_MISSING_DATA && defaultResult != TextToSpeech.LANG_NOT_SUPPORTED) {
-                                Log.d(TAG, "기본 언어 설정 성공: ${Locale.getDefault()}")
-                                languageSet = true
-                            }
-                        }
-                    }
+                if (koreaResult == TextToSpeech.LANG_MISSING_DATA || koreaResult == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    Toast.makeText(this, "TTS 언어 설정 실패", Toast.LENGTH_SHORT).show()
                 }
-                
-                if (languageSet) {
-                    // TTS 속도와 피치 설정
-                    textToSpeech.setSpeechRate(0.9f) // 약간 느리게
-                    textToSpeech.setPitch(1.0f) // 기본 피치
-                    Log.d(TAG, "TTS 설정 완료 - 속도: 0.9, 피치: 1.0")
-                } else {
-                    Log.e(TAG, "모든 언어 설정 시도 실패")
-                    Toast.makeText(this, "음성 합성 언어 설정에 실패했습니다.", Toast.LENGTH_SHORT).show()
-                }
-            } else {
-                Log.e(TAG, "TTS 초기화 실패: $status")
-                Toast.makeText(this, "음성 합성 초기화에 실패했습니다.", Toast.LENGTH_SHORT).show()
+                textToSpeech.setSpeechRate(0.9f)
+                textToSpeech.setPitch(1.0f)
             }
         }
-        
-        // TTS 진행 상태 리스너 설정
+
         textToSpeech.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) {
-                Log.d(TAG, "TTS 시작: $utteranceId")
-            }
-            
+            override fun onStart(utteranceId: String?) {}
             override fun onDone(utteranceId: String?) {
-                Log.d(TAG, "TTS 완료: $utteranceId")
+                runOnUiThread {
+                    voiceButton.isEnabled = true // ✅ TTS 끝나면 다시 버튼 활성화
+                }
             }
-            
-            override fun onError(utteranceId: String?) {
-                Log.e(TAG, "TTS 오류: $utteranceId")
-            }
+
+            override fun onError(utteranceId: String?) {}
         })
     }
-    
+
     private fun sendMessageToLLM(message: String) {
         lifecycleScope.launch {
             try {
-                Log.d(TAG, "LLM 서버로 메시지 전송: $message")
-                
                 val response = sendMessageToServer(message)
-                
                 runOnUiThread {
+                    stopLoadingDots()
                     textBotMessage.text = response
                     textPrompt.text = "터치로 대화를 시작합니다"
-                    // TTS로 응답 음성 출력
                     speakResponse(response)
                 }
-                
             } catch (e: Exception) {
-                Log.e(TAG, "LLM 서버 통신 오류: ${e.message}")
+                Log.e(TAG, "LLM 오류: ${e.message}")
                 runOnUiThread {
+                    stopLoadingDots()
                     textBotMessage.text = "죄송합니다. 서버 연결에 문제가 있습니다."
                     textPrompt.text = "터치로 대화를 시작합니다"
                     speakResponse("죄송합니다. 서버 연결에 문제가 있습니다.")
@@ -349,57 +324,45 @@ class VoiceGuideActivity : AppCompatActivity() {
             }
         }
     }
-    
+
     private suspend fun sendMessageToServer(message: String): String = withContext(Dispatchers.IO) {
-        try {
-            val jsonBody = JSONObject().apply {
-                put("message", message)
-            }
-            
-            val requestBody = jsonBody.toString().toRequestBody(jsonMediaType)
-            val request = Request.Builder()
-                .url("$BASE_URL/api/chat")
-                .post(requestBody)
-                .build()
-            
-            val response = client.newCall(request).execute()
-            if (response.isSuccessful) {
-                val responseBody = response.body?.string()
-                Log.d(TAG, "서버 응답 원본: $responseBody")
-                
-                val jsonResponse = JSONObject(responseBody ?: "{}")
-                Log.d(TAG, "JSON 응답: $jsonResponse")
-                
-                val reply = jsonResponse.optString("response", "응답이 없습니다.")
-                Log.d(TAG, "파싱된 응답: $reply")
-                Log.d(TAG, "LLM 응답 수신: ${reply.length}자")
-                return@withContext reply
-            } else {
-                Log.e(TAG, "LLM 서버 응답 실패: ${response.code}")
-                return@withContext "서버 오류가 발생했습니다."
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "LLM 서버 통신 오류: ${e.message}")
-            return@withContext "네트워크 오류가 발생했습니다."
+        val jsonBody = JSONObject().apply { put("message", message) }
+        val request = Request.Builder()
+            .url("$BASE_URL/api/chat")
+            .post(jsonBody.toString().toRequestBody(jsonMediaType))
+            .build()
+        val response = client.newCall(request).execute()
+        if (response.isSuccessful) {
+            val body = response.body?.string()
+            val reply = JSONObject(body ?: "{}").optString("response", "응답이 없습니다.")
+            return@withContext reply
+        } else {
+            return@withContext "서버 오류가 발생했습니다."
         }
     }
-    
+
     private fun speakResponse(text: String) {
-        try {
-            if (::textToSpeech.isInitialized) {
-                Log.d(TAG, "TTS로 음성 출력: $text")
-                val result = textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "response_utterance")
-                if (result == TextToSpeech.ERROR) {
-                    Log.e(TAG, "TTS 음성 출력 실패")
-                } else {
-                    Log.d(TAG, "TTS 음성 출력 성공")
-                }
-            } else {
-                Log.e(TAG, "TTS가 초기화되지 않았습니다.")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "TTS 오류: ${e.message}")
+        if (::textToSpeech.isInitialized) {
+            textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "response_utterance")
         }
+    }
+
+    private fun startLoadingDots(baseText: String, textView: TextView) {
+        loadingJob?.cancel()
+        loadingJob = lifecycleScope.launch {
+            var dotCount = 0
+            while (isActive) {
+                val dots = ".".repeat(dotCount % 4)
+                textView.text = baseText + dots
+                dotCount++
+                delay(500)
+            }
+        }
+    }
+
+    private fun stopLoadingDots() {
+        loadingJob?.cancel()
+        loadingJob = null
     }
 
     override fun onDestroy() {
@@ -409,5 +372,6 @@ class VoiceGuideActivity : AppCompatActivity() {
             textToSpeech.stop()
             textToSpeech.shutdown()
         }
+        stopLoadingDots()
     }
 }
