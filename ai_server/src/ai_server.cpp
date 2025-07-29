@@ -9,6 +9,7 @@ AIServer::AIServer()
       gui_client_ip_("127.0.0.1"),   
       gui_client_port_(8888),        
       max_packet_size_(60000),
+    //   webcam_streamer_(std::make_unique<WebcamStreamer>(0))
       webcam_streamer_(std::make_unique<WebcamStreamer>(2))
 {
     RCLCPP_INFO(this->get_logger(), "AI Server 노드 생성중...");
@@ -21,7 +22,7 @@ void AIServer::loadConfig()
 {
     try {
         // 설정 파일 경로 (프로젝트 루트 기준)
-        std::string config_path = "../server/config.yaml";
+        std::string config_path = "../config.yaml";
         YAML::Node config = YAML::LoadFile(config_path);
         
         // GUI 클라이언트 설정 읽기

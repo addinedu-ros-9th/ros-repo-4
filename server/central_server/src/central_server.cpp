@@ -31,7 +31,7 @@ void CentralServer::setupUdpRelay()
     try {
         // 설정 파일 로드
         const char* config_env = std::getenv("CENTRAL_SERVER_CONFIG");
-        std::string config_path = config_env ? config_env : "/home/wonho/ros-repo-4/server/config.yaml";
+        std::string config_path = config_env ? config_env : "/home/wonho/ros-repo-4/config.yaml";
         YAML::Node config = YAML::LoadFile(config_path);
         
         // AI Server로부터 수신할 설정

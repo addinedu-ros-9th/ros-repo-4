@@ -11,7 +11,7 @@ network:
 
 # AI 서버 설정
 ai_server:
-  ip: "127.0.0.1"
+  ip: "192.168.0.15"
   port: 5005
   max_packet_size: 60000
   
@@ -20,14 +20,14 @@ ai_server:
   status_port: 5006   # 상태 정보 전송용
 
   target_central_server:
-    ip: "127.0.0.1"
+    ip: "192.168.0.15"
     port: 5005 
 
 # Central 서버 설정
 central_server:
   udp_receive_port: 5005
 
-  ip: "127.0.0.1"
+  ip: "192.168.0.15"
   port: 6000
   
   # HTTP 서버 (웹 API용)
@@ -41,11 +41,11 @@ central_server:
   gui_port: 6007
 
   target_ros_gui:
-    ip: "127.0.0.1"
+    ip: "192.168.0.15"
     port: 8888
 
 ros_gui_client:
-  ip: "127.0.0.1"
+  ip: "192.168.0.15"
   udp_receive_port: 8888 # UDP 이미지를 받을 포트
   display_port: 8888 
 

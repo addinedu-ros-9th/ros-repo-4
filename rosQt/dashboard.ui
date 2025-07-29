@@ -84,8 +84,8 @@
   <widget class="QPushButton" name="controlBtn">
    <property name="geometry">
     <rect>
-     <x>1135</x>
-     <y>20</y>
+     <x>1090</x>
+     <y>514</y>
      <width>88</width>
      <height>27</height>
     </rect>
@@ -173,6 +173,43 @@
    </property>
    <property name="text">
     <string>이동중</string>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignCenter</set>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="destinationBtn">
+   <property name="geometry">
+    <rect>
+     <x>971</x>
+     <y>514</y>
+     <width>108</width>
+     <height>27</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 24pt</family>
+     <pointsize>14</pointsize>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string>목적지 선택</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="control_status">
+   <property name="geometry">
+    <rect>
+     <x>1193</x>
+     <y>514</y>
+     <width>37</width>
+     <height>28</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Off</string>
    </property>
    <property name="alignment">
     <set>Qt::AlignCenter</set>

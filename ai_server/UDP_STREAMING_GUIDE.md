@@ -29,7 +29,7 @@ ros2 run ai_server ai_server_node
 ### 2. UDP 이미지 수신 테스트
 다른 터미널에서 수신 클라이언트 실행:
 ```bash
-cd /home/wonho/ros-repo-4/server/ai_server
+cd /home/wonho/ros-repo-4/ai_server
 
 # Python 수신 클라이언트 실행
 python3 udp_image_receiver.py

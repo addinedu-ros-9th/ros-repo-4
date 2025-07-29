@@ -25,12 +25,16 @@ public:
     // 상태 관리 함수들 추가
     void setStatus(const QString& newStatus);
     QString getStatus() const;
+    void setControlStatus(const QString& newControlStatus);
+    QString getControlStatus() const;
+    
 
 private slots:
     void onImageReceived(const QPixmap& pixmap);
     void onConnectionError(const QString& error);
     void onConnectionEstablished();
     void onControlButtonClicked();
+    void onDestinationButtonClicked();
 
 private:
     Ui_DashboardWidget *ui;
@@ -41,6 +45,7 @@ private:
     ControlPopup2 *control_popup2_;
 
     QString status_;  // 상태 변수
+    QString control_status_;  // 제어 상태 변수
     
     void setupUI();
     void setWidgetClasses();

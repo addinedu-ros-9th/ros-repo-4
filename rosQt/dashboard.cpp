@@ -17,7 +17,8 @@ DashboardWidget::DashboardWidget(QWidget *parent)
     , udp_receiver_(nullptr) 
     , control_popup1_(nullptr) 
     , control_popup2_(nullptr) 
-    , status_("대기중")
+    , status_("이동중")
+    , control_status_("OFF")
 {
     ui->setupUi(this);  // UI 파일 설정
     setWidgetClasses();
@@ -60,9 +61,33 @@ void DashboardWidget::setStatus(const QString& newStatus)
     }
 }
 
+void DashboardWidget::setControlStatus(const QString& newControlStatus)
+{
+    if (control_status_ != newControlStatus) {
+        control_status_ = newControlStatus;
+        qDebug() << "제어 상태 변경:" << control_status_;
+        
+        if (ui->control_status) {
+            if(control_status_ == "ON") {
+                ui->control_status->setProperty("class", "radius bg graye color-gray3");
+                ui->control_status->setText("ON");
+            } else if (control_status_ == "OFF") {
+                ui->control_status->setProperty("class", "radius bg error_10p color-error");
+                ui->control_status->setText("OFF");
+            } 
+            
+        }
+    }
+}
+
 QString DashboardWidget::getStatus() const
 {
     return status_;
+}
+
+QString DashboardWidget::getControlStatus() const
+{
+    return control_status_;
 }
 
 void DashboardWidget::setupControlButton()
@@ -72,6 +97,12 @@ void DashboardWidget::setupControlButton()
                 this, &DashboardWidget::onControlButtonClicked);
     } else {
         qDebug() << "❌ controlBtn을 찾을 수 없습니다!";
+    }
+    if (ui->destinationBtn) {
+        connect(ui->destinationBtn, &QPushButton::clicked,
+                this, &DashboardWidget::onDestinationButtonClicked);
+    } else {
+        qDebug() << "❌ destinationBtn을 찾을 수 없습니다!";
     }
 }
 
@@ -92,6 +123,39 @@ void DashboardWidget::onControlButtonClicked()
 {
     qDebug() << "🎮 Control 버튼 클릭! 현재 상태:" << status_;
     
+    if (status_ == "이동중") {
+        // 이동 중일 때 - control_popup1 표시
+        qDebug() << "이동 중 상태 → ControlPopup1 표시";
+        
+        // 다른 팝업이 열려있으면 닫기
+        if (control_popup2_ && control_popup2_->isVisible()) {
+            control_popup2_->hide();
+        }
+        
+        // control_popup1 표시
+        if (control_popup1_ && control_popup1_->isVisible()) {
+            control_popup1_->raise();
+            control_popup1_->activateWindow();
+            return;
+        }
+        
+        if (!control_popup1_) {
+            control_popup1_ = new ControlPopup1(this);
+        }
+        
+        control_popup1_->show();
+        control_popup1_->raise();
+        control_popup1_->activateWindow();
+        
+    } else {
+        setControlStatus(control_status_ == "ON" ? "OFF" : "ON");
+    }
+}
+
+void DashboardWidget::onDestinationButtonClicked()
+{
+    qDebug() << "🎮 Destination 버튼 클릭! 현재 상태:" << status_;
+
     if (status_ == "이동중") {
         // 이동 중일 때 - control_popup1 표시
         qDebug() << "이동 중 상태 → ControlPopup1 표시";
@@ -240,8 +304,14 @@ void DashboardWidget::setWidgetClasses()
     if (ui->title3) {
         ui->title3->setProperty("class", "size16 weight700");
     }
+    if (ui->destinationBtn) {
+        ui->destinationBtn->setProperty("class", "btn outlined primary_dark small");
+    }
     if (ui->controlBtn) {
         ui->controlBtn->setProperty("class", "btn outlined primary_dark small");
+    }
+    if (ui->control_status) {
+        ui->control_status->setProperty("class", "radius bg error_10p color-error");
     }
     if (ui->camera_bg) {
         ui->camera_bg->setProperty("class", "bg green_gray1 radius");
