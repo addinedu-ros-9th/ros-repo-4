@@ -6,8 +6,16 @@
 #include <thread>
 #include <atomic>
 #include <map>
+#include <vector>
+#include <mutex>
 #include <json/json.h>
 #include "central_server/database_manager.h"
+
+// WebSocket 관련 헤더
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
 
 class HttpServer {
 public:
@@ -27,11 +35,18 @@ public:
     void stop();
     bool isRunning() const;
     
+    // 실시간 통신을 위한 브로드캐스트 기능
+    void broadcastToClients(const std::string& message);
+    
 private:
     std::shared_ptr<DatabaseManager> db_manager_;
     int port_;
     std::atomic<bool> running_;
     std::thread server_thread_;
+    
+    // WebSocket 클라이언트 관리
+    std::vector<int> websocket_clients_;
+    std::mutex websocket_clients_mutex_;
     
     // HTTP 서버 메인 루프
     void serverLoop();
@@ -47,6 +62,15 @@ private:
     std::string handleRobotReturn(const Json::Value& request);
     std::string handleWithoutAuthDirection(const Json::Value& request);
     std::string handleRobotStatus(const Json::Value& request);
+    std::string handleWebSocketUpgrade(const HttpRequest& request, int client_socket);
+    std::string handleGetLLMConfig(const Json::Value& request);
+    
+    // WebSocket 관련 함수들
+    void handleWebSocketClient(int client_socket);
+    bool isWebSocketRequest(const HttpRequest& request);
+    std::string generateWebSocketAcceptKey(const std::string& client_key);
+    void sendWebSocketFrame(int client_socket, const std::string& message);
+    void removeWebSocketClient(int client_socket);
     
     // 유틸리티 함수들
     Json::Value parseJson(const std::string& jsonStr);
@@ -60,7 +84,8 @@ private:
     HttpRequest parseHttpRequest(const std::string& request);
     std::string createHttpResponse(int status_code, 
                                   const std::string& content_type,
-                                  const std::string& body);
+                                  const std::string& body,
+                                  const std::string& additional_headers = "");
 };
 
 #endif // HTTP_SERVER_H 

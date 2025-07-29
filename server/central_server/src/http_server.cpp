@@ -6,6 +6,10 @@
 #include <unistd.h>
 #include <cstring>
 #include <json/json.h> // Added for JSON parsing/writing
+#include <openssl/sha.h>
+#include <openssl/bio.h>
+#include <openssl/evp.h>
+#include <openssl/buffer.h>
 
 HttpServer::HttpServer(std::shared_ptr<DatabaseManager> db_manager, int port)
     : db_manager_(db_manager), port_(port), running_(false) {
@@ -31,6 +35,16 @@ void HttpServer::stop() {
     }
     
     running_ = false;
+    
+    // WebSocket 클라이언트들 정리
+    {
+        std::lock_guard<std::mutex> lock(websocket_clients_mutex_);
+        for (int client_socket : websocket_clients_) {
+            close(client_socket);
+        }
+        websocket_clients_.clear();
+    }
+    
     if (server_thread_.joinable()) {
         server_thread_.join();
     }
@@ -39,6 +53,24 @@ void HttpServer::stop() {
 
 bool HttpServer::isRunning() const {
     return running_;
+}
+
+void HttpServer::broadcastToClients(const std::string& message) {
+    std::lock_guard<std::mutex> lock(websocket_clients_mutex_);
+    
+    auto it = websocket_clients_.begin();
+    while (it != websocket_clients_.end()) {
+        int client_socket = *it;
+        
+        try {
+            sendWebSocketFrame(client_socket, message);
+            ++it;
+        } catch (const std::exception& e) {
+            std::cout << "[HTTP] WebSocket 클라이언트 전송 실패: " << e.what() << std::endl;
+            close(client_socket);
+            it = websocket_clients_.erase(it);
+        }
+    }
 }
 
 void HttpServer::serverLoop() {
@@ -96,56 +128,198 @@ void HttpServer::serverLoop() {
             std::string request_str(buffer, bytes_read);
             HttpRequest request = parseHttpRequest(request_str);
             
-            std::string response = processRequest(request);
-            
-            // 응답 전송
-            send(client_fd, response.c_str(), response.length(), 0);
+            // WebSocket 업그레이드 요청인지 확인
+            if (isWebSocketRequest(request)) {
+                std::string response = handleWebSocketUpgrade(request, client_fd);
+                write(client_fd, response.c_str(), response.length());
+                
+                // WebSocket 클라이언트로 등록하고 별도 스레드에서 처리
+                {
+                    std::lock_guard<std::mutex> lock(websocket_clients_mutex_);
+                    websocket_clients_.push_back(client_fd);
+                }
+                
+                std::thread ws_thread(&HttpServer::handleWebSocketClient, this, client_fd);
+                ws_thread.detach();
+                
+                std::cout << "[HTTP] WebSocket 클라이언트 연결됨: " << client_fd << std::endl;
+            } else {
+                // 일반 HTTP 요청 처리
+                std::string response = processRequest(request);
+                write(client_fd, response.c_str(), response.length());
+                close(client_fd);
+            }
+        } else {
+            close(client_fd);
         }
-        
-        close(client_fd);
     }
     
     close(server_fd);
 }
 
 std::string HttpServer::processRequest(const HttpRequest& request) {
-    try {
-        std::cout << "[HTTP] " << request.method << " " << request.path << std::endl;
-        
-        if (request.method != "POST") {
-            return createHttpResponse(405, "application/json", 
-                createErrorResponse("Method not allowed"));
-        }
-        
-        Json::Value json_request = parseJson(request.body);
-        std::string response_body;
-        
-        if (request.path == "/auth/ssn") {
-            response_body = handleAuthSSN(json_request);
-        } else if (request.path == "/auth/patient_id") {
-            response_body = handleAuthPatientId(json_request);
-        } else if (request.path == "/auth/rfid") {
-            response_body = handleAuthRFID(json_request);
-        } else if (request.path == "/auth/direction") {
-            response_body = handleAuthDirection(json_request);
-        } else if (request.path == "/status/robot_return") {
-            response_body = handleRobotReturn(json_request);
-        } else if (request.path == "/without_auth/direction") {
-            response_body = handleWithoutAuthDirection(json_request);
-        } else if (request.path == "/robot_status") {
-            response_body = handleRobotStatus(json_request);
-        } else {
-            response_body = createErrorResponse("Not found");
-            return createHttpResponse(404, "application/json", response_body);
-        }
-        
-        return createHttpResponse(200, "application/json", response_body);
-        
-    } catch (const std::exception& e) {
-        std::cerr << "[HTTP] 요청 처리 오류: " << e.what() << std::endl;
-        return createHttpResponse(500, "application/json", 
-            createErrorResponse("Internal server error"));
+    std::cout << "[HTTP] 요청 처리: " << request.method << " " << request.path << std::endl;
+    
+    // CORS 헤더 추가
+    std::string cors_headers = "Access-Control-Allow-Origin: *\r\n"
+                              "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
+                              "Access-Control-Allow-Headers: Content-Type\r\n";
+    
+    // OPTIONS 요청 처리 (CORS preflight)
+    if (request.method == "OPTIONS") {
+        return createHttpResponse(200, "text/plain", "", cors_headers);
     }
+    
+    // API 엔드포인트 라우팅
+    if (request.path == "/api/auth/ssn" && request.method == "POST") {
+        Json::Value json_request = parseJson(request.body);
+        std::string response = handleAuthSSN(json_request);
+        return createHttpResponse(200, "application/json", response, cors_headers);
+    }
+    else if (request.path == "/api/auth/patient_id" && request.method == "POST") {
+        Json::Value json_request = parseJson(request.body);
+        std::string response = handleAuthPatientId(json_request);
+        return createHttpResponse(200, "application/json", response, cors_headers);
+    }
+    else if (request.path == "/api/auth/rfid" && request.method == "POST") {
+        Json::Value json_request = parseJson(request.body);
+        std::string response = handleAuthRFID(json_request);
+        return createHttpResponse(200, "application/json", response, cors_headers);
+    }
+    else if (request.path == "/api/auth/direction" && request.method == "POST") {
+        Json::Value json_request = parseJson(request.body);
+        std::string response = handleAuthDirection(json_request);
+        return createHttpResponse(200, "application/json", response, cors_headers);
+    }
+    else if (request.path == "/api/robot/return" && request.method == "POST") {
+        Json::Value json_request = parseJson(request.body);
+        std::string response = handleRobotReturn(json_request);
+        return createHttpResponse(200, "application/json", response, cors_headers);
+    }
+    else if (request.path == "/api/robot/status" && request.method == "POST") {
+        Json::Value json_request = parseJson(request.body);
+        std::string response = handleRobotStatus(json_request);
+        return createHttpResponse(200, "application/json", response, cors_headers);
+    }
+    else if (request.path == "/api/config/llm" && request.method == "GET") {
+        Json::Value json_request;
+        std::string response = handleGetLLMConfig(json_request);
+        return createHttpResponse(200, "application/json", response, cors_headers);
+    }
+    else if (request.path == "/ws" && request.method == "GET") {
+        // WebSocket 연결 요청은 이미 위에서 처리됨
+        return createHttpResponse(400, "text/plain", "WebSocket upgrade failed");
+    }
+    else {
+        return createHttpResponse(404, "text/plain", "Not Found");
+    }
+}
+
+bool HttpServer::isWebSocketRequest(const HttpRequest& request) {
+    return request.method == "GET" && 
+           request.path == "/ws" && 
+           request.headers.find("Upgrade") != request.headers.end() &&
+           request.headers.at("Upgrade") == "websocket";
+}
+
+std::string HttpServer::handleWebSocketUpgrade(const HttpRequest& request, int client_socket) {
+    std::string client_key = request.headers.at("Sec-WebSocket-Key");
+    std::string accept_key = generateWebSocketAcceptKey(client_key);
+    
+    std::string response = "HTTP/1.1 101 Switching Protocols\r\n"
+                          "Upgrade: websocket\r\n"
+                          "Connection: Upgrade\r\n"
+                          "Sec-WebSocket-Accept: " + accept_key + "\r\n"
+                          "\r\n";
+    
+    return response;
+}
+
+std::string HttpServer::generateWebSocketAcceptKey(const std::string& client_key) {
+    const std::string magic_string = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+    std::string concatenated = client_key + magic_string;
+    
+    unsigned char hash[SHA_DIGEST_LENGTH];
+    SHA1(reinterpret_cast<const unsigned char*>(concatenated.c_str()), concatenated.length(), hash);
+    
+    // Base64 인코딩
+    BIO* bio = BIO_new(BIO_s_mem());
+    BIO* b64 = BIO_new(BIO_f_base64());
+    bio = BIO_push(b64, bio);
+    
+    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
+    BIO_write(bio, hash, SHA_DIGEST_LENGTH);
+    BIO_flush(bio);
+    
+    BUF_MEM* bufferPtr;
+    BIO_get_mem_ptr(bio, &bufferPtr);
+    
+    std::string result(bufferPtr->data, bufferPtr->length);
+    
+    BIO_free_all(bio);
+    
+    return result;
+}
+
+void HttpServer::handleWebSocketClient(int client_socket) {
+    char buffer[1024];
+    
+    while (running_) {
+        ssize_t bytes_read = recv(client_socket, buffer, sizeof(buffer), 0);
+        
+        if (bytes_read <= 0) {
+            break;
+        }
+        
+        // WebSocket 프레임 파싱 (간단한 구현)
+        // 실제로는 더 복잡한 WebSocket 프로토콜 파싱이 필요
+        std::cout << "[HTTP] WebSocket 메시지 수신: " << std::string(buffer, bytes_read) << std::endl;
+    }
+    
+    removeWebSocketClient(client_socket);
+    std::cout << "[HTTP] WebSocket 클라이언트 연결 종료: " << client_socket << std::endl;
+}
+
+void HttpServer::sendWebSocketFrame(int client_socket, const std::string& message) {
+    // 간단한 WebSocket 텍스트 프레임 생성
+    std::vector<unsigned char> frame;
+    
+    // FIN + RSV + Opcode (텍스트 프레임)
+    frame.push_back(0x81);
+    
+    // Payload length
+    if (message.length() < 126) {
+        frame.push_back(message.length());
+    } else if (message.length() < 65536) {
+        frame.push_back(126);
+        frame.push_back((message.length() >> 8) & 0xFF);
+        frame.push_back(message.length() & 0xFF);
+    } else {
+        frame.push_back(127);
+        for (int i = 7; i >= 0; --i) {
+            frame.push_back((message.length() >> (i * 8)) & 0xFF);
+        }
+    }
+    
+    // Payload
+    frame.insert(frame.end(), message.begin(), message.end());
+    
+    send(client_socket, frame.data(), frame.size(), 0);
+}
+
+void HttpServer::removeWebSocketClient(int client_socket) {
+    std::lock_guard<std::mutex> lock(websocket_clients_mutex_);
+    auto it = std::find(websocket_clients_.begin(), websocket_clients_.end(), client_socket);
+    if (it != websocket_clients_.end()) {
+        websocket_clients_.erase(it);
+    }
+}
+
+std::string HttpServer::handleGetLLMConfig(const Json::Value& request) {
+    Json::Value response;
+    response["ip"] = "192.168.0.31";  // minje_pc
+    response["port"] = 5000;
+    return response.toStyledString();
 }
 
 // API 핸들러들
@@ -355,7 +529,8 @@ HttpServer::HttpRequest HttpServer::parseHttpRequest(const std::string& request)
 
 std::string HttpServer::createHttpResponse(int status_code, 
                                           const std::string& content_type,
-                                          const std::string& body) {
+                                          const std::string& body,
+                                          const std::string& additional_headers) {
     std::ostringstream response;
     
     std::string status_text;
@@ -370,9 +545,17 @@ std::string HttpServer::createHttpResponse(int status_code,
     response << "HTTP/1.1 " << status_code << " " << status_text << "\r\n";
     response << "Content-Type: " << content_type << "\r\n";
     response << "Content-Length: " << body.length() << "\r\n";
+    
+    // 기본 CORS 헤더
     response << "Access-Control-Allow-Origin: *\r\n";
     response << "Access-Control-Allow-Methods: POST, GET, OPTIONS\r\n";
     response << "Access-Control-Allow-Headers: Content-Type\r\n";
+    
+    // 추가 헤더가 있으면 추가
+    if (!additional_headers.empty()) {
+        response << additional_headers;
+    }
+    
     response << "\r\n";
     response << body;
     
