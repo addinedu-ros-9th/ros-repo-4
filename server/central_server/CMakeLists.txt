@@ -15,6 +15,13 @@ find_package(sensor_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(image_transport REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(nav2_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 
 # HTTP 서버를 위한 라이브러리들
 find_package(PkgConfig REQUIRED)
@@ -35,6 +42,13 @@ ament_target_dependencies(central_server_node
   sensor_msgs
   cv_bridge
   image_transport
+  geometry_msgs
+  nav_msgs
+  sensor_msgs
+  std_msgs
+  nav2_msgs
+  tf2
+  tf2_geometry_msgs
 )
 
 # MySQL 라이브러리 직접 링크
