@@ -171,39 +171,105 @@ std::string HttpServer::processRequest(const HttpRequest& request) {
     }
     
     // API 엔드포인트 라우팅
-    if (request.path == "/api/auth/ssn" && request.method == "POST") {
+    if (request.path == "/auth/ssn" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
         std::string response = handleAuthSSN(json_request);
         return createHttpResponse(200, "application/json", response, cors_headers);
     }
-    else if (request.path == "/api/auth/patient_id" && request.method == "POST") {
+    else if (request.path == "/auth/patient_id" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
         std::string response = handleAuthPatientId(json_request);
         return createHttpResponse(200, "application/json", response, cors_headers);
     }
-    else if (request.path == "/api/auth/rfid" && request.method == "POST") {
+    else if (request.path == "/auth/rfid" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
         std::string response = handleAuthRFID(json_request);
         return createHttpResponse(200, "application/json", response, cors_headers);
     }
-    else if (request.path == "/api/auth/direction" && request.method == "POST") {
+    else if (request.path == "/auth/direction" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
         std::string response = handleAuthDirection(json_request);
         return createHttpResponse(200, "application/json", response, cors_headers);
     }
-    else if (request.path == "/api/robot/return" && request.method == "POST") {
+    else if (request.path == "/status/robot_return" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
         std::string response = handleRobotReturn(json_request);
         return createHttpResponse(200, "application/json", response, cors_headers);
     }
-    else if (request.path == "/api/robot/status" && request.method == "POST") {
+    else if (request.path == "/robot_status" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
         std::string response = handleRobotStatus(json_request);
+        return createHttpResponse(200, "application/json", response, cors_headers);
+    }
+    else if (request.path == "/without_auth/direction" && request.method == "POST") {
+        Json::Value json_request = parseJson(request.body);
+        std::string response = handleWithoutAuthDirection(json_request);
         return createHttpResponse(200, "application/json", response, cors_headers);
     }
     else if (request.path == "/api/config/llm" && request.method == "GET") {
         Json::Value json_request;
         std::string response = handleGetLLMConfig(json_request);
+        return createHttpResponse(200, "application/json", response, cors_headers);
+    }
+    // 테이블 API 엔드포인트들 (실제 명세)
+    else if (request.path == "/auth/login" && request.method == "POST") {
+        Json::Value json_request = parseJson(request.body);
+        std::string response = handleAuthLogin(json_request);
+        return createHttpResponse(200, "text/plain", response, cors_headers);
+    }
+    else if (request.path == "/auth/detail" && request.method == "POST") {
+        Json::Value json_request = parseJson(request.body);
+        std::string response = handleAuthDetail(json_request);
+        return createHttpResponse(200, "application/json", response, cors_headers);
+    }
+    else if (request.path == "/get/robot_location" && request.method == "POST") {
+        Json::Value json_request = parseJson(request.body);
+        std::string response = handleGetRobotLocation(json_request);
+        return createHttpResponse(200, "application/json", response, cors_headers);
+    }
+    else if (request.path == "/change/camera" && request.method == "POST") {
+        Json::Value json_request = parseJson(request.body);
+        std::string response = handleChangeCamera(json_request);
+        return createHttpResponse(200, "text/plain", response, cors_headers);
+    }
+    else if (request.path == "/get/robot_status" && request.method == "POST") {
+        Json::Value json_request = parseJson(request.body);
+        std::string response = handleGetRobotStatus(json_request);
+        return createHttpResponse(200, "application/json", response, cors_headers);
+    }
+    else if (request.path == "/get/patient_info" && request.method == "POST") {
+        Json::Value json_request = parseJson(request.body);
+        std::string response = handleGetPatientInfo(json_request);
+        return createHttpResponse(200, "application/json", response, cors_headers);
+    }
+    else if (request.path == "/stop/status_moving" && request.method == "POST") {
+        Json::Value json_request = parseJson(request.body);
+        std::string response = handleStopStatusMoving(json_request);
+        return createHttpResponse(200, "text/plain", response, cors_headers);
+    }
+    else if (request.path == "/cancel_command" && request.method == "POST") {
+        Json::Value json_request = parseJson(request.body);
+        std::string response = handleCancelCommand(json_request);
+        return createHttpResponse(200, "text/plain", response, cors_headers);
+    }
+    else if (request.path == "/command/move_teleop" && request.method == "POST") {
+        Json::Value json_request = parseJson(request.body);
+        std::string response = handleCommandMoveTeleop(json_request);
+        return createHttpResponse(200, "text/plain", response, cors_headers);
+    }
+    else if (request.path == "/command/move_dest" && request.method == "POST") {
+        Json::Value json_request = parseJson(request.body);
+        std::string response = handleCommandMoveDest(json_request);
+        return createHttpResponse(200, "text/plain", response, cors_headers);
+    }
+    else if (request.path == "/get/log_data" && request.method == "POST") {
+        Json::Value json_request = parseJson(request.body);
+        std::string response = handleGetLogData(json_request);
+        return createHttpResponse(200, "application/json", response, cors_headers);
+    }
+    else if (request.path == "/get/heatmap" && request.method == "POST") {
+        Json::Value json_request = parseJson(request.body);
+        std::string response = handleGetHeatmap(json_request);
         return createHttpResponse(200, "application/json", response, cors_headers);
     }
     else if (request.path == "/ws" && request.method == "GET") {
@@ -322,6 +388,35 @@ std::string HttpServer::handleGetLLMConfig(const Json::Value& request) {
     return response.toStyledString();
 }
 
+// 공통 인증 로직
+std::string HttpServer::handleCommonAuth(const PatientInfo& patient) {
+    // 오늘 날짜 조회
+    std::string current_date = db_manager_->getCurrentDate();
+    
+    // Series 정보와 Department 이름 조회 (series_id = 0)
+    SeriesInfo series;
+    std::string department_name;
+    if (db_manager_->getSeriesWithDepartmentName(patient.patient_id, current_date, series, department_name)) {
+        // 변경 전 상태 저장
+        std::string original_status = series.status;
+        
+        // status가 '예약' 상태일 때 '접수'로 변경
+        if (series.status == "예약") {
+            if (db_manager_->updateSeriesStatus(patient.patient_id, current_date, "접수")) {
+                std::cout << "[HTTP] 환자 상태 변경: 예약 -> 접수" << std::endl;
+            }
+        }
+        
+        // dttm 값을 그대로 사용 (YYYY-MM-DD HH:MM:SS 형식)
+        std::string datetime = series.dttm;
+        
+        return createSuccessResponse(patient.name, datetime, department_name, original_status);
+    } else {
+        // Series 정보가 없는 경우
+        return createErrorResponse("Reservation not found");
+    }
+}
+
 // API 핸들러들
 std::string HttpServer::handleAuthSSN(const Json::Value& request) {
     if (!request.isMember("robot_id") || !request.isMember("ssn")) {
@@ -333,14 +428,7 @@ std::string HttpServer::handleAuthSSN(const Json::Value& request) {
     
     PatientInfo patient;
     if (db_manager_->getPatientBySSN(ssn, patient)) {
-        // 환자의 예약 정보 조회
-        ReservationInfo reservation;
-        if (db_manager_->getReservationByPatientId(patient.patient_id, reservation)) {
-            return createSuccessResponse(patient.name, reservation.time_hhmm, reservation.reservation);
-        } else {
-            // 예약 정보가 없는 경우
-            return createSuccessResponse(patient.name, "00:00", "00");
-        }
+        return handleCommonAuth(patient);
     } else {
         return createErrorResponse("Patient not found");
     }
@@ -356,14 +444,7 @@ std::string HttpServer::handleAuthPatientId(const Json::Value& request) {
     
     PatientInfo patient;
     if (db_manager_->getPatientById(patient_id, patient)) {
-        // 환자의 예약 정보 조회
-        ReservationInfo reservation;
-        if (db_manager_->getReservationByPatientId(patient.patient_id, reservation)) {
-            return createSuccessResponse(patient.name, reservation.time_hhmm, reservation.reservation);
-        } else {
-            // 예약 정보가 없는 경우
-            return createSuccessResponse(patient.name, "00:00", "00");
-        }
+        return handleCommonAuth(patient);
     } else {
         return createErrorResponse("Patient not found");
     }
@@ -379,14 +460,7 @@ std::string HttpServer::handleAuthRFID(const Json::Value& request) {
     
     PatientInfo patient;
     if (db_manager_->getPatientByRFID(rfid, patient)) {
-        // 환자의 예약 정보 조회
-        ReservationInfo reservation;
-        if (db_manager_->getReservationByPatientId(patient.patient_id, reservation)) {
-            return createSuccessResponse(patient.name, reservation.time_hhmm, reservation.reservation);
-        } else {
-            // 예약 정보가 없는 경우
-            return createSuccessResponse(patient.name, "00:00", "00");
-        }
+        return handleCommonAuth(patient);
     } else {
         return createErrorResponse("Patient not found");
     }
@@ -462,12 +536,14 @@ Json::Value HttpServer::parseJson(const std::string& jsonStr) {
 }
 
 std::string HttpServer::createSuccessResponse(const std::string& name, 
-                                            const std::string& time_hhmm, 
-                                            const std::string& reservation) {
+                                            const std::string& datetime, 
+                                            const std::string& department,
+                                            const std::string& status) {
     Json::Value response;
     response["name"] = name;
-    response["datetime"] = time_hhmm;  // hh:mm 형식
-    response["reservation"] = reservation;
+    response["datetime"] = datetime;  // YY:DD:HH:MM 형식
+    response["department"] = department;
+    response["status"] = status;
     
     Json::StreamWriterBuilder builder;
     return Json::writeString(builder, response);
@@ -560,4 +636,335 @@ std::string HttpServer::createHttpResponse(int status_code,
     response << body;
     
     return response.str();
+}
+
+// 테이블 API 핸들러들 구현 (실제 명세)
+
+std::string HttpServer::handleAuthLogin(const Json::Value& request) {
+    std::cout << "[HTTP] 로그인 요청 처리 (IF-01)" << std::endl;
+    
+    // 요청 데이터 검증
+    if (!request.isMember("patient_id") || !request.isMember("password")) {
+        return "400"; // Bad Request
+    }
+    
+    std::string patient_id = request["patient_id"].asString();
+    std::string password = request["password"].asString();
+    
+    // 실제 데이터베이스에서 로그인 검증
+    AdminInfo admin;
+    if (db_manager_->authenticateAdmin(patient_id, password, admin)) {
+        return "200"; // 성공
+    } else {
+        return "401"; // 인증 실패
+    }
+}
+
+std::string HttpServer::handleAuthDetail(const Json::Value& request) {
+    std::cout << "[HTTP] 세부 정보 요청 처리 (IF-02)" << std::endl;
+    
+    // 요청 데이터 검증
+    if (!request.isMember("patient_id")) {
+        return createErrorResponse("필수 필드가 누락되었습니다: patient_id");
+    }
+    
+    std::string patient_id = request["patient_id"].asString();
+    
+    // 실제 데이터베이스에서 환자 정보 조회
+    PatientInfo patient;
+    if (db_manager_->getPatientById(std::stoi(patient_id), patient)) {
+        Json::Value response;
+        response["name"] = patient.name;
+        response["email"] = "hero@mail.com"; // TODO: 환자 테이블에 email 필드 추가 필요
+        response["hospital_name"] = "서울아산병원"; // TODO: 환자 테이블에 hospital_name 필드 추가 필요
+        
+        Json::StreamWriterBuilder builder;
+        return Json::writeString(builder, response);
+    } else {
+        return createErrorResponse("환자를 찾을 수 없습니다");
+    }
+}
+
+std::string HttpServer::handleGetRobotLocation(const Json::Value& request) {
+    std::cout << "[HTTP] 로봇 위치 요청 처리 (IF-03)" << std::endl;
+    
+    // 요청 데이터 검증
+    if (!request.isMember("robot_id")) {
+        return createErrorResponse("필수 필드가 누락되었습니다: robot_id");
+    }
+    
+    int robot_id = request["robot_id"].asInt();
+    
+    // TODO: 실제 로봇 시스템에서 위치 정보 조회
+    // IF-03 명세에 따라 응답
+    Json::Value response;
+    response["x"] = 5.0;
+    response["y"] = -1.0;
+    response["yaw"] = -0.532151;
+    
+    Json::StreamWriterBuilder builder;
+    return Json::writeString(builder, response);
+}
+
+std::string HttpServer::handleChangeCamera(const Json::Value& request) {
+    std::cout << "[HTTP] 카메라 변경 요청 처리 (IF-04)" << std::endl;
+    
+    // 요청 데이터 검증
+    if (!request.isMember("robot_id") || !request.isMember("camera")) {
+        return "400"; // Bad Request
+    }
+    
+    int robot_id = request["robot_id"].asInt();
+    std::string camera = request["camera"].asString();
+    
+    // TODO: 실제 로봇 시스템에서 카메라 변경 명령 전송
+    // IF-04 명세에 따라 status code 반환
+    return "200"; // 성공
+}
+
+std::string HttpServer::handleGetRobotStatus(const Json::Value& request) {
+    std::cout << "[HTTP] 로봇 상태 요청 처리 (IF-05)" << std::endl;
+    
+    // 요청 데이터 검증
+    if (!request.isMember("robot_id")) {
+        return createErrorResponse("필수 필드가 누락되었습니다: robot_id");
+    }
+    
+    int robot_id = request["robot_id"].asInt();
+    
+    // TODO: 실제 로봇 시스템에서 상태 정보 조회
+    // IF-05 명세에 따라 응답
+    Json::Value response;
+    response["status"] = "moving";
+    response["orig"] = 0;
+    response["dest"] = 3;
+    response["battery"] = 70;
+    response["network"] = 4;
+    
+    Json::StreamWriterBuilder builder;
+    return Json::writeString(builder, response);
+}
+
+std::string HttpServer::handleGetPatientInfo(const Json::Value& request) {
+    std::cout << "[HTTP] 환자 정보 요청 처리 (IF-06)" << std::endl;
+    
+    // 요청 데이터 검증
+    if (!request.isMember("robot_id")) {
+        return createErrorResponse("필수 필드가 누락되었습니다: robot_id");
+    }
+    
+    int robot_id = request["robot_id"].asInt();
+    
+    // TODO: 실제 데이터베이스에서 해당 로봇을 이용중인 환자 정보 조회
+    // IF-06 명세에 따라 응답 (ohone은 phone의 오타로 보임)
+    Json::Value response;
+    response["patient_id"] = "00000000";
+    response["phone"] = "010-1111-1111";
+    response["rfid"] = "33F7ADEC";
+    response["name"] = "김환자";
+    
+    Json::StreamWriterBuilder builder;
+    return Json::writeString(builder, response);
+}
+
+std::string HttpServer::handleStopStatusMoving(const Json::Value& request) {
+    std::cout << "[HTTP] 이동 중 정지 요청 처리 (IF-07)" << std::endl;
+    
+    // 요청 데이터 검증
+    if (!request.isMember("robot_id")) {
+        return "400"; // Bad Request
+    }
+    
+    int robot_id = request["robot_id"].asInt();
+    
+    // TODO: 실제 로봇 시스템에서 moving → assigned 상태 변경
+    // IF-07 명세에 따라 status code 반환
+    return "200"; // 성공
+}
+
+std::string HttpServer::handleCancelCommand(const Json::Value& request) {
+    std::cout << "[HTTP] 원격 제어 취소 요청 처리 (IF-08)" << std::endl;
+    
+    // 요청 데이터 검증
+    if (!request.isMember("robot_id")) {
+        return "400"; // Bad Request
+    }
+    
+    int robot_id = request["robot_id"].asInt();
+    
+    // TODO: 실제 로봇 시스템에서 assigned/moving → idle 상태 변경 및 대기장소로 이동
+    // IF-08 명세에 따라 status code 반환
+    return "200"; // 성공
+}
+
+std::string HttpServer::handleCommandMoveTeleop(const Json::Value& request) {
+    std::cout << "[HTTP] teleop 이동 명령 처리 (IF-09)" << std::endl;
+    
+    // 요청 데이터 검증
+    if (!request.isMember("robot_id") || !request.isMember("teleop_key")) {
+        return "400"; // Bad Request
+    }
+    
+    int robot_id = request["robot_id"].asInt();
+    int teleop_key = request["teleop_key"].asInt();
+    
+    // TODO: 실제 로봇 시스템에서 teleop 키에 따른 이동 명령 전송
+    // teleop_key 매핑: 123=uio, 456=jkl, 789=m,.
+    // IF-09 명세에 따라 status code 반환
+    return "200"; // 성공
+}
+
+std::string HttpServer::handleCommandMoveDest(const Json::Value& request) {
+    std::cout << "[HTTP] 목적지 이동 명령 처리 (IF-10)" << std::endl;
+    
+    // 요청 데이터 검증
+    if (!request.isMember("robot_id") || !request.isMember("dest")) {
+        return "400"; // Bad Request
+    }
+    
+    int robot_id = request["robot_id"].asInt();
+    int dest = request["dest"].asInt();
+    
+    // TODO: 실제 로봇 시스템에서 목적지로 이동 명령 전송
+    // IF-10 명세에 따라 status code 반환
+    return "200"; // 성공
+}
+
+std::string HttpServer::handleGetLogData(const Json::Value& request) {
+    std::cout << "[HTTP] 로봇 로그 데이터 요청 처리 (IF-11)" << std::endl;
+    
+    // 요청 데이터 검증 및 파라미터 처리
+    std::string period = "";
+    std::string start_date = "";
+    std::string end_date = "";
+    
+    // period 파라미터 처리
+    if (request.isMember("period")) {
+        if (request["period"].isString()) {
+            std::string period_str = request["period"].asString();
+            if (period_str != "None" && period_str != "null" && !period_str.empty()) {
+                period = period_str;
+            }
+        }
+    }
+    
+    // start_date 파라미터 처리
+    if (request.isMember("start_date")) {
+        if (request["start_date"].isString()) {
+            std::string start_date_str = request["start_date"].asString();
+            if (start_date_str != "None" && start_date_str != "null" && !start_date_str.empty()) {
+                start_date = start_date_str;
+            }
+        }
+    }
+    
+    // end_date 파라미터 처리
+    if (request.isMember("end_date")) {
+        if (request["end_date"].isString()) {
+            std::string end_date_str = request["end_date"].asString();
+            if (end_date_str != "None" && end_date_str != "null" && !end_date_str.empty()) {
+                end_date = end_date_str;
+            }
+        }
+    }
+    
+    // 에러 검증: period와 start_date/end_date가 동시에 값이 있으면 에러
+    if (!period.empty() && (!start_date.empty() || !end_date.empty())) {
+        return createErrorResponse("period와 start_date/end_date는 동시에 사용할 수 없습니다");
+    }
+    
+    // TODO: 실제 데이터베이스에서 로그 데이터 조회
+    // 현재는 더미 데이터로 응답
+    Json::Value response = Json::Value(Json::arrayValue);
+    
+    // 더미 로그 데이터 생성
+    for (int i = 0; i < 3; i++) {
+        Json::Value log_entry;
+        log_entry["patient_id"] = 00000000;
+        log_entry["orig"] = 0;
+        log_entry["dest"] = 3;
+        log_entry["date"] = "2024-01-15 14:30:00";
+        log_entry["is_checked"] = 0;
+        log_entry["video_url"] = "video_34.mp4";
+        log_entry["favorite"] = 0;
+        
+        response.append(log_entry);
+    }
+    
+    Json::StreamWriterBuilder builder;
+    return Json::writeString(builder, response);
+}
+
+std::string HttpServer::handleGetHeatmap(const Json::Value& request) {
+    std::cout << "[HTTP] 히트맵 데이터 요청 처리 (IF-12)" << std::endl;
+    
+    // 요청 데이터 검증 및 파라미터 처리
+    std::string period = "";
+    std::string start_date = "";
+    std::string end_date = "";
+    
+    // period 파라미터 처리
+    if (request.isMember("period")) {
+        if (request["period"].isString()) {
+            std::string period_str = request["period"].asString();
+            if (period_str != "None" && period_str != "null" && !period_str.empty()) {
+                period = period_str;
+            }
+        }
+    }
+    
+    // start_date 파라미터 처리
+    if (request.isMember("start_date")) {
+        if (request["start_date"].isString()) {
+            std::string start_date_str = request["start_date"].asString();
+            if (start_date_str != "None" && start_date_str != "null" && !start_date_str.empty()) {
+                start_date = start_date_str;
+            }
+        }
+    }
+    
+    // end_date 파라미터 처리
+    if (request.isMember("end_date")) {
+        if (request["end_date"].isString()) {
+            std::string end_date_str = request["end_date"].asString();
+            if (end_date_str != "None" && end_date_str != "null" && !end_date_str.empty()) {
+                end_date = end_date_str;
+            }
+        }
+    }
+    
+    // 에러 검증: period와 start_date/end_date가 동시에 값이 있으면 에러
+    if (!period.empty() && (!start_date.empty() || !end_date.empty())) {
+        return createErrorResponse("period와 start_date/end_date는 동시에 사용할 수 없습니다");
+    }
+    
+    // TODO: 실제 데이터베이스에서 히트맵 데이터 조회
+    // 현재는 더미 데이터로 응답
+    Json::Value response;
+    Json::Value matrix = Json::Value(Json::arrayValue);
+    
+    // 8x8 히트맵 매트릭스 생성 (더미 데이터)
+    int heatmap_data[8][8] = {
+        {0, 4, 2, 0, 0, 0, 1, 0},
+        {2, 0, 3, 0, 1, 0, 0, 0},
+        {1, 1, 0, 0, 0, 2, 0, 0},
+        {0, 0, 0, 0, 5, 0, 1, 0},
+        {0, 0, 0, 3, 0, 2, 0, 1},
+        {0, 0, 1, 0, 1, 0, 4, 0},
+        {2, 0, 0, 0, 0, 1, 0, 2},
+        {0, 0, 0, 0, 0, 0, 1, 0}
+    };
+    
+    for (int i = 0; i < 8; i++) {
+        Json::Value row = Json::Value(Json::arrayValue);
+        for (int j = 0; j < 8; j++) {
+            row.append(heatmap_data[i][j]);
+        }
+        matrix.append(row);
+    }
+    
+    response["matrix"] = matrix;
+    
+    Json::StreamWriterBuilder builder;
+    return Json::writeString(builder, response);
 } 

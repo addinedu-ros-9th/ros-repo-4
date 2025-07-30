@@ -58,12 +58,29 @@ private:
     std::string handleAuthSSN(const Json::Value& request);
     std::string handleAuthPatientId(const Json::Value& request);
     std::string handleAuthRFID(const Json::Value& request);
+    
+    // 공통 인증 로직
+    std::string handleCommonAuth(const PatientInfo& patient);
     std::string handleAuthDirection(const Json::Value& request);
     std::string handleRobotReturn(const Json::Value& request);
     std::string handleWithoutAuthDirection(const Json::Value& request);
     std::string handleRobotStatus(const Json::Value& request);
     std::string handleWebSocketUpgrade(const HttpRequest& request, int client_socket);
     std::string handleGetLLMConfig(const Json::Value& request);
+    
+    // 테이블 API 핸들러들 (실제 명세)
+    std::string handleAuthLogin(const Json::Value& request);
+    std::string handleAuthDetail(const Json::Value& request);
+    std::string handleGetRobotLocation(const Json::Value& request);
+    std::string handleChangeCamera(const Json::Value& request);
+    std::string handleGetRobotStatus(const Json::Value& request);
+    std::string handleGetPatientInfo(const Json::Value& request);
+    std::string handleStopStatusMoving(const Json::Value& request);
+    std::string handleCancelCommand(const Json::Value& request);
+    std::string handleCommandMoveTeleop(const Json::Value& request);
+    std::string handleCommandMoveDest(const Json::Value& request);
+    std::string handleGetLogData(const Json::Value& request);
+    std::string handleGetHeatmap(const Json::Value& request);
     
     // WebSocket 관련 함수들
     void handleWebSocketClient(int client_socket);
@@ -75,8 +92,9 @@ private:
     // 유틸리티 함수들
     Json::Value parseJson(const std::string& jsonStr);
     std::string createSuccessResponse(const std::string& name, 
-                                    const std::string& time_hhmm, 
-                                    const std::string& reservation);
+                                    const std::string& datetime, 
+                                    const std::string& department,
+                                    const std::string& status);
     std::string createErrorResponse(const std::string& message);
     std::string createStatusResponse(int status_code);
     

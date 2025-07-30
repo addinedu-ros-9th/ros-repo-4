@@ -41,6 +41,15 @@ struct ReservationInfo {
     std::string time_hhmm;  // hh:mm 형식의 시간
 };
 
+struct SeriesInfo {
+    int series_id;
+    int department_id;
+    std::string dttm;
+    std::string status;
+    int patient_id;
+    std::string reservation_date;
+};
+
 class DatabaseManager
 {
 public:
@@ -66,9 +75,13 @@ public:
     
     // 예약 정보 조회
     bool getReservationByPatientId(int patient_id, ReservationInfo& reservation);
-    
-    // 로봇 로그
     bool insertRobotLog(int robot_id, int patient_id, const std::string& datetime, float orig, float dest);
+    
+    // Series 테이블 관련 메서드들
+    bool getSeriesByPatientAndDate(int patient_id, const std::string& reservation_date, SeriesInfo& series);
+    bool getSeriesWithDepartmentName(int patient_id, const std::string& reservation_date, SeriesInfo& series, std::string& department_name);
+    bool updateSeriesStatus(int patient_id, const std::string& reservation_date, const std::string& new_status);
+    std::string getCurrentDate();
 
 private:
     // MySQL 연결 정보
