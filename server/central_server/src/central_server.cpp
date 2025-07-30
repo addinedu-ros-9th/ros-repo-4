@@ -34,9 +34,9 @@ CentralServer::CentralServer() : Node("central_server") {
     
     // 상태 업데이트 타이머
     status_timer_ = this->create_wall_timer(
-        1s, std::bind(&SimpleCentralServer::statusTimerCallback, this));
+        1s, std::bind(&CentralServer::statusTimerCallback, this));
     
-    RCLCPP_INFO(this->get_logger(), "Simple Central Server with Nearest Waypoint Start Point initialized");
+    RCLCPP_INFO(this->get_logger(), "Central Server with Nearest Waypoint Start Point initialized");
     publishCommandLog("Central Server started - Start point will be set to nearest waypoint");
     
     // 사용 가능한 waypoint 목록 출력
@@ -291,7 +291,7 @@ void CentralServer::init() {
     RCLCPP_INFO(this->get_logger(), "ROS2 토픽 및 서비스 설정 완료");
 }
 
-void SimpleCentralServer::initializeWaypoints()
+void CentralServer::initializeWaypoints()
 {
     // 미리 정의된 웨이포인트들
     waypoints_["lobby_station"] = {"Main Lobby", 9.53, -1.76, 90.0, "병원 로비 스테이션"};
@@ -315,7 +315,7 @@ void SimpleCentralServer::initializeWaypoints()
     }
 }
 
-void SimpleCentralServer::initializeRobotSubscribers()
+void CentralServer::initializeRobotSubscribers()
 {
     std::vector<std::string> robot_ids = {"robot1"};
     
@@ -355,7 +355,7 @@ void SimpleCentralServer::initializeRobotSubscribers()
     }
 }
 
-void SimpleCentralServer::setupActionClients()
+void CentralServer::setupActionClients()
 {
     for (const auto& [robot_id, robot_info] : robots_) {
         try {
@@ -369,7 +369,7 @@ void SimpleCentralServer::setupActionClients()
     }
 }
 
-void SimpleCentralServer::setupIndividualPublishers()
+void CentralServer::setupIndividualPublishers()
 {
     for (const auto& [robot_id, robot_info] : robots_) {
         // 개별 토픽 퍼블리셔들 생성
@@ -397,11 +397,11 @@ void SimpleCentralServer::setupIndividualPublishers()
     }
 }
 
-void SimpleCentralServer::setupNavigationCommandSubscriber()
+void CentralServer::setupNavigationCommandSubscriber()
 {
     nav_command_subscriber_ = this->create_subscription<std_msgs::msg::String>(
         "navigation_command", 10,
-        std::bind(&SimpleCentralServer::navigationCommandCallback, this, _1));
+        std::bind(&CentralServer::navigationCommandCallback, this, _1));
     
     RCLCPP_INFO(this->get_logger(), "Navigation command subscriber created: /navigation_command");
     RCLCPP_INFO(this->get_logger(), "Available commands:");
@@ -413,7 +413,7 @@ void SimpleCentralServer::setupNavigationCommandSubscriber()
     RCLCPP_INFO(this->get_logger(), "Note: Start point is automatically updated upon reaching destinations");
 }
 
-std::string SimpleCentralServer::findNearestWaypoint(double x, double y) const
+std::string CentralServer::findNearestWaypoint(double x, double y) const
 {
     double best_distance = std::numeric_limits<double>::max();
     std::string nearest_waypoint = "lobby_station";  // 기본값
@@ -435,7 +435,7 @@ std::string SimpleCentralServer::findNearestWaypoint(double x, double y) const
     return nearest_waypoint;
 }
 
-void SimpleCentralServer::setStartPoint(const std::string& robot_id, const std::string& waypoint_name)
+void CentralServer::setStartPoint(const std::string& robot_id, const std::string& waypoint_name)
 {
     std::lock_guard<std::mutex> lock(robots_mutex_);
     
@@ -452,7 +452,7 @@ void SimpleCentralServer::setStartPoint(const std::string& robot_id, const std::
     }
 }
 
-bool SimpleCentralServer::sendRobotToStartPoint(const std::string& robot_id)
+bool CentralServer::sendRobotToStartPoint(const std::string& robot_id)
 {
     std::lock_guard<std::mutex> lock(robots_mutex_);
     
@@ -476,7 +476,7 @@ bool SimpleCentralServer::sendRobotToStartPoint(const std::string& robot_id)
     return sendNavigationGoal(robot_id, start_waypoint);
 }
 
-void SimpleCentralServer::amclCallback(const std::string& robot_id, 
+void CentralServer::amclCallback(const std::string& robot_id, 
                                       const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg)
 {
     std::lock_guard<std::mutex> lock(robots_mutex_);
@@ -506,7 +506,7 @@ void SimpleCentralServer::amclCallback(const std::string& robot_id,
     }
 }
 
-void SimpleCentralServer::cmdVelCallback(const std::string& robot_id,
+void CentralServer::cmdVelCallback(const std::string& robot_id,
                                         const geometry_msgs::msg::Twist::SharedPtr msg)
 {
     std::lock_guard<std::mutex> lock(robots_mutex_);
@@ -517,7 +517,7 @@ void SimpleCentralServer::cmdVelCallback(const std::string& robot_id,
     }
 }
 
-void SimpleCentralServer::navigationCommandCallback(const std_msgs::msg::String::SharedPtr msg)
+void CentralServer::navigationCommandCallback(const std_msgs::msg::String::SharedPtr msg)
 {
     std::string command = msg->data;
     RCLCPP_INFO(this->get_logger(), "Received navigation command: '%s'", command.c_str());
@@ -593,7 +593,7 @@ void SimpleCentralServer::navigationCommandCallback(const std_msgs::msg::String:
     }
 }
 
-bool SimpleCentralServer::sendNavigationGoal(const std::string& robot_id, const std::string& waypoint_name)
+bool CentralServer::sendNavigationGoal(const std::string& robot_id, const std::string& waypoint_name)
 {
     if (waypoints_.find(waypoint_name) == waypoints_.end()) {
         RCLCPP_ERROR(this->get_logger(), "Waypoint '%s' not found", waypoint_name.c_str());
@@ -651,7 +651,7 @@ bool SimpleCentralServer::sendNavigationGoal(const std::string& robot_id, const 
     return true;
 }
 
-geometry_msgs::msg::PoseStamped SimpleCentralServer::createPoseStamped(double x, double y, double yaw)
+geometry_msgs::msg::PoseStamped CentralServer::createPoseStamped(double x, double y, double yaw)
 {
     geometry_msgs::msg::PoseStamped pose;
     pose.header.frame_id = "map";
@@ -667,7 +667,7 @@ geometry_msgs::msg::PoseStamped SimpleCentralServer::createPoseStamped(double x,
     return pose;
 }
 
-tf2::Quaternion SimpleCentralServer::getQuaternionFromYaw(double yaw_degrees)
+tf2::Quaternion CentralServer::getQuaternionFromYaw(double yaw_degrees)
 {
     tf2::Quaternion quaternion;
     double yaw_radians = yaw_degrees * M_PI / 180.0;
@@ -675,7 +675,7 @@ tf2::Quaternion SimpleCentralServer::getQuaternionFromYaw(double yaw_degrees)
     return quaternion;
 }
 
-void SimpleCentralServer::goalResponseCallback(const std::string& robot_id, const GoalHandleNavigate::SharedPtr& goal_handle)
+void CentralServer::goalResponseCallback(const std::string& robot_id, const GoalHandleNavigate::SharedPtr& goal_handle)
 {
     if (!goal_handle) {
         RCLCPP_ERROR(this->get_logger(), "Goal rejected for robot %s", robot_id.c_str());
@@ -690,14 +690,14 @@ void SimpleCentralServer::goalResponseCallback(const std::string& robot_id, cons
     }
 }
 
-void SimpleCentralServer::feedbackCallback(const std::string& robot_id, const GoalHandleNavigate::SharedPtr,
+void CentralServer::feedbackCallback(const std::string& robot_id, const GoalHandleNavigate::SharedPtr,
                                           const std::shared_ptr<const NavigateToPose::Feedback> feedback)
 {
     RCLCPP_INFO(this->get_logger(), "Robot %s navigation feedback: distance remaining %.2fm", 
                robot_id.c_str(), feedback->distance_remaining);
 }
 
-void SimpleCentralServer::resultCallback(const std::string& robot_id, const GoalHandleNavigate::WrappedResult& result)
+void CentralServer::resultCallback(const std::string& robot_id, const GoalHandleNavigate::WrappedResult& result)
 {
     std::lock_guard<std::mutex> lock(robots_mutex_);
     
@@ -747,12 +747,12 @@ void SimpleCentralServer::resultCallback(const std::string& robot_id, const Goal
     }
 }
 
-void SimpleCentralServer::statusTimerCallback()
+void CentralServer::statusTimerCallback()
 {
     publishIndividualRobotData();
 }
 
-void SimpleCentralServer::publishIndividualRobotData()
+void CentralServer::publishIndividualRobotData()
 {
     std::lock_guard<std::mutex> lock(robots_mutex_);
     
@@ -800,7 +800,7 @@ void SimpleCentralServer::publishIndividualRobotData()
     }
 }
 
-void SimpleCentralServer::publishCommandLog(const std::string& message)
+void CentralServer::publishCommandLog(const std::string& message)
 {
     std_msgs::msg::String log_msg;
     auto now = std::chrono::system_clock::now();
@@ -815,7 +815,7 @@ void SimpleCentralServer::publishCommandLog(const std::string& message)
     RCLCPP_INFO(this->get_logger(), "%s", message.c_str());
 }
 
-void SimpleCentralServer::publishAvailableWaypoints()
+void CentralServer::publishAvailableWaypoints()
 {
     std::stringstream ss;
     ss << "Available commands: ";
