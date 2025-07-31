@@ -52,8 +52,10 @@ INSERT INTO `department` (`department_id`, `department_name`, `location_x`, `loc
 (4, '위암 센터', 3.84, -2.3, 0.0),          -- Stomach Cancer
 (5, '폐암 센터', 5.32, -2.27, 0.0),         -- Lung Cancer
 (6, '뇌종양 센터', 5.97, 1.46, 180.0),       -- Brain Tumor (180도)
-(7, '유방암 센터', 7.64, 1.63, 180.0);       -- Breast Cancer (180도)
-
+(7, '유방암 센터', 7.64, 1.63, 180.0),       -- Breast Cancer (180도)
+(8, '병원 로비', 9.53, -1.76, 90.0),        -- Lobby Station (90도)
+(9, '통로 A', 0.09, 4.0, 180.0),             -- Gateway A (180도)
+(10, '통로 B', -2.6, 4.18, 0.0);           -- Gateway B (0도)
 
 -- 예약 데이터 (reservations 테이블 - patient_id, reservation_date만)
 INSERT INTO `reservations` (`patient_id`, `reservation_date`) VALUES
