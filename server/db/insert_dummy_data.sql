@@ -11,10 +11,11 @@ DELETE FROM `reservations`;
 DELETE FROM `robot`;
 DELETE FROM `department`;
 DELETE FROM `patient`;
-DELETE FROM `Admin`;
+DELETE FROM `admin`;
+DELETE FROM `log_type`; 
 
 -- 관리자 데이터
-INSERT INTO `Admin` (`admin_id`, `password`, `name`, `email`, `hospital_name`) VALUES
+INSERT INTO `admin` (`admin_id`, `password`, `name`, `email`, `hospital_name`) VALUES
 ('admin1', '0000', '김관리', 'admin1@hero.com', '서울아산병원'),
 ('admin2', '0000', '박운영', 'admin2@hero.com', '히어로병원');
 
@@ -59,8 +60,21 @@ INSERT INTO `series` (`series_id`, `department_id`, `dttm`, `status`, `patient_i
 (0, 2, '2025-01-25 15:30:00', '접수', 10041004, '2025-01-25');  -- 최환자: X-ray 접수
 
 -- 로봇 로그 샘플 데이터
-INSERT INTO `robot_log` (`robot_id`, `patient_id`, `dttm`, `orig`, `dest`) VALUES
-(3, 10011001, '2025-01-25 08:50:00', 8, 0),  -- 김환자: 로비 → CT
-(3, 10021002, '2025-01-25 10:20:00', 8, 0),  -- 이환자: 로비 → CT  
-(3, 10021002, '2025-01-25 11:00:00', 0, 3),  -- 이환자: CT → 대장암센터
-(3, 10031003, '2025-01-25 13:50:00', 8, 1);  -- 박환자: 로비 → 초음파
+INSERT INTO `robot_log` (`robot_id`, `patient_id`, `dttm`, `orig`, `dest`, `log_type`) VALUES
+(3, 10011001, '2025-01-25 08:50:00', 8, 0, 'moving_by_patient'),  -- 김환자: 로비 → CT
+(3, 10021002, '2025-01-25 10:20:00', 8, 0, 'moving_by_patient'),  -- 이환자: 로비 → CT  
+(3, 10021002, '2025-01-25 11:00:00', 0, 3, 'moving_by_patient'),  -- 이환자: CT → 대장암센터
+(3, 10031003, '2025-01-25 13:50:00', 8, 1, 'moving_by_patient');  -- 박환자: 로비 → 초음파
+
+INSERT INTO `log_type` (`type`, `description`) VALUES
+('moving_by_patient', '환자 이동'),
+('moving_by_robot', '로봇 이동'),
+('moving_by_admin', '관리자 이동'),
+('moving_by_unknown', '본인 인증 없이 이동'),
+('return_by_patient', '환자 반환'),
+('return_by_robot', '로봇 반환'),
+('return_by_admin', '관리자 반환'),
+('return_by_unknown', '본인 인증 없이 반환'),
+('assigned_by_unknown', '사용자 호출'),
+('interruption', '장애물 감지 중단'),
+
