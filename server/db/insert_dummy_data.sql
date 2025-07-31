@@ -76,5 +76,5 @@ INSERT INTO `log_type` (`type`, `description`) VALUES
 ('return_by_admin', '관리자 반환'),
 ('return_by_unknown', '본인 인증 없이 반환'),
 ('assigned_by_unknown', '사용자 호출'),
-('interruption', '장애물 감지 중단'),
+('interruption', '장애물 감지 중단');
 
