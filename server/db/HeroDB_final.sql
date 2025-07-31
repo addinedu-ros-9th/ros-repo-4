@@ -33,6 +33,18 @@ COLLATE = utf8mb4_0900_ai_ci;
 
 
 -- -----------------------------------------------------
+-- Table `HeroDB`.`department`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `HeroDB`.`department` (
+  `department_id` INT NOT NULL,
+  `department_name` VARCHAR(45) NOT NULL,
+  PRIMARY KEY (`department_id`))
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8mb4
+COLLATE = utf8mb4_0900_ai_ci;
+
+
+-- -----------------------------------------------------
 -- Table `HeroDB`.`patient`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `HeroDB`.`patient` (
@@ -82,19 +94,29 @@ COLLATE = utf8mb4_0900_ai_ci;
 
 
 -- -----------------------------------------------------
--- Table `HeroDB`.`department`
+-- Table `HeroDB`.`station`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `HeroDB`.`department` (
-  `department_id` INT NOT NULL,
-  `department_name` VARCHAR(32) NOT NULL,
+CREATE TABLE IF NOT EXISTS `HeroDB`.`station` (
+  `station_id` INT NOT NULL,
+  `station_name` VARCHAR(32) NOT NULL,
   `location_x` FLOAT NOT NULL,
   `location_y` FLOAT NOT NULL,
   `yaw` FLOAT NOT NULL,
-  PRIMARY KEY (`department_id`),
-  UNIQUE INDEX `station_id_UNIQUE` (`department_id` ASC) VISIBLE)
+  PRIMARY KEY (`station_id`),
+  UNIQUE INDEX `station_id_UNIQUE` (`station_id` ASC) VISIBLE)
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb4
 COLLATE = utf8mb4_0900_ai_ci;
+
+
+-- -----------------------------------------------------
+-- Table `HeroDB`.`type`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `HeroDB`.`type` (
+  `log_type` VARCHAR(45) NOT NULL,
+  `description` VARCHAR(128) NULL,
+  PRIMARY KEY (`log_type`))
+ENGINE = InnoDB;
 
 
 -- -----------------------------------------------------
@@ -105,11 +127,13 @@ CREATE TABLE IF NOT EXISTS `HeroDB`.`robot_log` (
   `patient_id` INT NULL DEFAULT NULL,
   `dttm` DATETIME NOT NULL,
   `orig` INT NULL DEFAULT NULL,
-  `dest` INT NULL DEFAULT NULL,
+  `dest` INT NULL,
+  `log_type` VARCHAR(45) NOT NULL,
   PRIMARY KEY (`robot_id`, `dttm`),
   INDEX `fk_robot_log_1_idx` (`patient_id` ASC) VISIBLE,
   INDEX `fk_robot_log_3_idx` (`orig` ASC) VISIBLE,
   INDEX `fk_robot_log_4_idx` (`dest` ASC) VISIBLE,
+  INDEX `fk_robot_log_5_idx` (`log_type` ASC) VISIBLE,
   CONSTRAINT `fk_robot_log_1`
     FOREIGN KEY (`patient_id`)
     REFERENCES `HeroDB`.`patient` (`patient_id`)
@@ -122,17 +146,20 @@ CREATE TABLE IF NOT EXISTS `HeroDB`.`robot_log` (
     ON UPDATE CASCADE,
   CONSTRAINT `fk_robot_log_3`
     FOREIGN KEY (`orig`)
-    REFERENCES `HeroDB`.`department` (`department_id`)
+    REFERENCES `HeroDB`.`station` (`station_id`)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
   CONSTRAINT `fk_robot_log_4`
     FOREIGN KEY (`dest`)
-    REFERENCES `HeroDB`.`department` (`department_id`)
+    REFERENCES `HeroDB`.`station` (`station_id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_robot_log_5`
+    FOREIGN KEY (`log_type`)
+    REFERENCES `HeroDB`.`type` (`log_type`)
     ON DELETE CASCADE
     ON UPDATE CASCADE)
-ENGINE = InnoDB
-DEFAULT CHARACTER SET = utf8mb4
-COLLATE = utf8mb4_0900_as_ci;
+ENGINE = InnoDB;
 
 
 -- -----------------------------------------------------
@@ -142,17 +169,15 @@ CREATE TABLE IF NOT EXISTS `HeroDB`.`series` (
   `series_id` INT NOT NULL,
   `department_id` INT NOT NULL,
   `dttm` DATETIME NOT NULL,
-  `status` VARCHAR(16) NOT NULL,
+  `status` TINYINT NOT NULL DEFAULT '0',
   `patient_id` INT NOT NULL,
   `reservation_date` DATE NOT NULL,
   PRIMARY KEY (`series_id`, `patient_id`, `reservation_date`),
-  INDEX `fk_series_1_idx` (`patient_id` ASC, `reservation_date` ASC) VISIBLE,
   INDEX `fk_series_2_idx` (`department_id` ASC) VISIBLE,
+  INDEX `fk_series_1_idx` (`patient_id` ASC, `reservation_date` ASC) VISIBLE,
   CONSTRAINT `fk_series_1`
     FOREIGN KEY (`patient_id` , `reservation_date`)
-    REFERENCES `HeroDB`.`reservations` (`patient_id` , `reservation_date`)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
+    REFERENCES `HeroDB`.`reservations` (`patient_id` , `reservation_date`),
   CONSTRAINT `fk_series_2`
     FOREIGN KEY (`department_id`)
     REFERENCES `HeroDB`.`department` (`department_id`)

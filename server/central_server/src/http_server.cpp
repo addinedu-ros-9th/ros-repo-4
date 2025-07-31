@@ -467,15 +467,15 @@ std::string HttpServer::handleAuthRFID(const Json::Value& request) {
 }
 
 std::string HttpServer::handleAuthDirection(const Json::Value& request) {
-    if (!request.isMember("robot_id") || !request.isMember("station_id")) {
-        return createErrorResponse("Missing robot_id or station_id");
+    if (!request.isMember("robot_id") || !request.isMember("department_id")) {
+        return createErrorResponse("Missing robot_id or department_id");
     }
     
     int robot_id = request["robot_id"].asInt();
-    int station_id = request["station_id"].asInt();
+    int department_id = request["department_id"].asInt();
     
     // TODO: 네비게이션 명령 처리
-    std::cout << "[HTTP] 네비게이션 명령: Robot " << robot_id << " -> Station " << station_id << std::endl;
+    std::cout << "[HTTP] 네비게이션 명령: Robot " << robot_id << " -> Department " << department_id << std::endl;
     
     return createStatusResponse(200);
 }
@@ -494,15 +494,15 @@ std::string HttpServer::handleRobotReturn(const Json::Value& request) {
 }
 
 std::string HttpServer::handleWithoutAuthDirection(const Json::Value& request) {
-    if (!request.isMember("robot_id") || !request.isMember("station_id")) {
-        return createErrorResponse("Missing robot_id or station_id");
+    if (!request.isMember("robot_id") || !request.isMember("department_id")) {
+        return createErrorResponse("Missing robot_id or department_id");
     }
     
     int robot_id = request["robot_id"].asInt();
-    int station_id = request["station_id"].asInt();
+    int department_id = request["department_id"].asInt();
     
     // TODO: 인증 없는 네비게이션 명령 처리
-    std::cout << "[HTTP] 인증 없는 네비게이션: Robot " << robot_id << " -> Station " << station_id << std::endl;
+    std::cout << "[HTTP] 인증 없는 네비게이션: Robot " << robot_id << " -> Department " << department_id << std::endl;
     
     return createStatusResponse(200);
 }
@@ -644,16 +644,16 @@ std::string HttpServer::handleAuthLogin(const Json::Value& request) {
     std::cout << "[HTTP] 로그인 요청 처리 (IF-01)" << std::endl;
     
     // 요청 데이터 검증
-    if (!request.isMember("patient_id") || !request.isMember("password")) {
+    if (!request.isMember("admin_id") || !request.isMember("password")) {
         return "400"; // Bad Request
     }
     
-    std::string patient_id = request["patient_id"].asString();
+    std::string admin_id = request["admin_id"].asString(); // 명세서에서는 patient_id로 오지만 실제로는 admin_id
     std::string password = request["password"].asString();
     
-    // 실제 데이터베이스에서 로그인 검증
+    // Admin 테이블에서 로그인 검증
     AdminInfo admin;
-    if (db_manager_->authenticateAdmin(patient_id, password, admin)) {
+    if (db_manager_->authenticateAdmin(admin_id, password, admin)) {
         return "200"; // 성공
     } else {
         return "401"; // 인증 실패
@@ -664,24 +664,24 @@ std::string HttpServer::handleAuthDetail(const Json::Value& request) {
     std::cout << "[HTTP] 세부 정보 요청 처리 (IF-02)" << std::endl;
     
     // 요청 데이터 검증
-    if (!request.isMember("patient_id")) {
-        return createErrorResponse("필수 필드가 누락되었습니다: patient_id");
+    if (!request.isMember("admin_id")) {
+        return createErrorResponse("필수 필드가 누락되었습니다: admin_id");
     }
     
-    std::string patient_id = request["patient_id"].asString();
+    std::string admin_id = request["admin_id"].asString(); // 명세서에서는 patient_id로 오지만 실제로는 admin_id
     
-    // 실제 데이터베이스에서 환자 정보 조회
-    PatientInfo patient;
-    if (db_manager_->getPatientById(std::stoi(patient_id), patient)) {
+    // Admin 테이블에서 관리자 정보 조회
+    AdminInfo admin;
+    if (db_manager_->getAdminById(admin_id, admin)) {
         Json::Value response;
-        response["name"] = patient.name;
-        response["email"] = "hero@mail.com"; // TODO: 환자 테이블에 email 필드 추가 필요
-        response["hospital_name"] = "서울아산병원"; // TODO: 환자 테이블에 hospital_name 필드 추가 필요
+        response["name"] = admin.name;
+        response["email"] = admin.email;
+        response["hospital_name"] = admin.hospital_name;
         
         Json::StreamWriterBuilder builder;
         return Json::writeString(builder, response);
     } else {
-        return createErrorResponse("환자를 찾을 수 없습니다");
+        return createErrorResponse("관리자를 찾을 수 없습니다");
     }
 }
 

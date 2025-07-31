@@ -194,7 +194,7 @@ bool DatabaseManager::authenticateAdmin(const std::string& admin_id, const std::
     }
 }
 
-bool DatabaseManager::getStationById(int station_id, StationInfo& station) {
+bool DatabaseManager::getAdminById(const std::string& admin_id, AdminInfo& admin) {
     if (!isConnected()) {
         return false;
     }
@@ -203,17 +203,52 @@ bool DatabaseManager::getStationById(int station_id, StationInfo& station) {
         std::lock_guard<std::mutex> lock(connection_mutex_);
         
         std::unique_ptr<sql::PreparedStatement> pstmt(
-            connection_->prepareStatement("SELECT station_id, station_name, location_x, location_y FROM station WHERE station_id = ?")
+            connection_->prepareStatement("SELECT admin_id, name, email, hospital_name FROM Admin WHERE admin_id = ?")
         );
-        pstmt->setInt(1, station_id);
+        pstmt->setString(1, admin_id);
         
         std::unique_ptr<sql::ResultSet> res(pstmt->executeQuery());
         
         if (res->next()) {
-            station.station_id = res->getInt("station_id");
-            station.station_name = res->getString("station_name");
-            station.location_x = res->getDouble("location_x");
-            station.location_y = res->getDouble("location_y");
+            admin.admin_id = res->getString("admin_id");
+            admin.name = res->getString("name");
+            admin.email = res->getString("email");
+            admin.hospital_name = res->getString("hospital_name");
+            
+            std::cout << "[DB] 관리자 정보 조회 성공: " << admin.name << std::endl;
+            return true;
+        }
+        
+        std::cout << "[DB] 관리자 정보 조회 실패: " << admin_id << std::endl;
+        return false;
+        
+    } catch (sql::SQLException& e) {
+        std::cerr << "[DB] 관리자 정보 조회 오류: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool DatabaseManager::getDepartmentById(int department_id, DepartmentInfo& department) {
+    if (!isConnected()) {
+        return false;
+    }
+    
+    try {
+        std::lock_guard<std::mutex> lock(connection_mutex_);
+        
+        std::unique_ptr<sql::PreparedStatement> pstmt(
+            connection_->prepareStatement("SELECT department_id, department_name, location_x, location_y, yaw FROM department WHERE department_id = ?")
+        );
+        pstmt->setInt(1, department_id);
+        
+        std::unique_ptr<sql::ResultSet> res(pstmt->executeQuery());
+        
+        if (res->next()) {
+            department.department_id = res->getInt("department_id");
+            department.department_name = res->getString("department_name");
+            department.location_x = res->getDouble("location_x");
+            department.location_y = res->getDouble("location_y");
+            department.yaw = res->getDouble("yaw");
             
             return true;
         }
@@ -221,16 +256,16 @@ bool DatabaseManager::getStationById(int station_id, StationInfo& station) {
         return false;
         
     } catch (sql::SQLException& e) {
-        std::cerr << "[DB] 정류장 조회 실패: " << e.what() << std::endl;
+        std::cerr << "[DB] 부서 조회 실패: " << e.what() << std::endl;
         return false;
     }
 }
 
-std::vector<StationInfo> DatabaseManager::getAllStations() {
-    std::vector<StationInfo> stations;
+std::vector<DepartmentInfo> DatabaseManager::getAllDepartments() {
+    std::vector<DepartmentInfo> departments;
     
     if (!isConnected()) {
-        return stations;
+        return departments;
     }
     
     try {
@@ -238,24 +273,25 @@ std::vector<StationInfo> DatabaseManager::getAllStations() {
         
         std::unique_ptr<sql::Statement> stmt(connection_->createStatement());
         std::unique_ptr<sql::ResultSet> res(
-            stmt->executeQuery("SELECT station_id, station_name, location_x, location_y FROM station")
+            stmt->executeQuery("SELECT department_id, department_name, location_x, location_y, yaw FROM department")
         );
         
         while (res->next()) {
-            StationInfo station;
-            station.station_id = res->getInt("station_id");
-            station.station_name = res->getString("station_name");
-            station.location_x = res->getDouble("location_x");
-            station.location_y = res->getDouble("location_y");
+            DepartmentInfo department;
+            department.department_id = res->getInt("department_id");
+            department.department_name = res->getString("department_name");
+            department.location_x = res->getDouble("location_x");
+            department.location_y = res->getDouble("location_y");
+            department.yaw = res->getDouble("yaw");
             
-            stations.push_back(station);
+            departments.push_back(department);
         }
         
     } catch (sql::SQLException& e) {
-        std::cerr << "[DB] 정류장 목록 조회 실패: " << e.what() << std::endl;
+        std::cerr << "[DB] 부서 목록 조회 실패: " << e.what() << std::endl;
     }
     
-    return stations;
+    return departments;
 }
 
 bool DatabaseManager::getReservationByPatientId(int patient_id, ReservationInfo& reservation) {

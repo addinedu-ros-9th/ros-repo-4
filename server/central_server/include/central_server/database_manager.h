@@ -27,11 +27,12 @@ struct AdminInfo {
     std::string hospital_name;
 };
 
-struct StationInfo {
-    int station_id;
-    std::string station_name;
+struct DepartmentInfo {
+    int department_id;
+    std::string department_name;
     float location_x;
     float location_y;
+    float yaw;
 };
 
 struct ReservationInfo {
@@ -68,10 +69,11 @@ public:
     
     // 관리자 인증
     bool authenticateAdmin(const std::string& admin_id, const std::string& password, AdminInfo& admin);
+    bool getAdminById(const std::string& admin_id, AdminInfo& admin);
     
-    // 정류장 정보
-    bool getStationById(int station_id, StationInfo& station);
-    std::vector<StationInfo> getAllStations();
+    // 부서 정보
+    bool getDepartmentById(int department_id, DepartmentInfo& department);
+    std::vector<DepartmentInfo> getAllDepartments();
     
     // 예약 정보 조회
     bool getReservationByPatientId(int patient_id, ReservationInfo& reservation);
