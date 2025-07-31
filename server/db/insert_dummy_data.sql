@@ -29,6 +29,19 @@ INSERT INTO `patient` (`patient_id`, `name`, `ssn`, `phone`, `rfid`) VALUES
 -- 로봇 데이터
 INSERT INTO `robot` (`robot_id`) VALUES (3);
 
+-- 로그 타입 데이터
+INSERT INTO `log_type` (`type`, `description`) VALUES
+('moving_by_patient', '환자 이동'),
+('moving_by_robot', '로봇 이동'),
+('moving_by_admin', '관리자 이동'),
+('moving_by_unknown', '본인 인증 없이 이동'),
+('return_by_patient', '환자 반환'),
+('return_by_robot', '로봇 반환'),
+('return_by_admin', '관리자 반환'),
+('return_by_unknown', '본인 인증 없이 반환'),
+('assigned_by_unknown', '사용자 호출'),
+('interruption', '장애물 감지 중단');
+
 -- 부서 데이터 (department 테이블)
 -- 번호: 0=CT, 1=초음파, 2=X-ray, 3=대장암, 4=위암, 5=폐암, 6=뇌종양, 7=유방암
 INSERT INTO `department` (`department_id`, `department_name`, `location_x`, `location_y`, `yaw`) VALUES
@@ -55,17 +68,18 @@ INSERT INTO `reservations` (`patient_id`, `reservation_date`) VALUES
 INSERT INTO `series` (`series_id`, `department_id`, `dttm`, `status`, `patient_id`, `reservation_date`) VALUES
 (0, 0, '2025-01-25 09:00:00', '예약', 10011001, '2025-01-25'),  -- 김환자: CT 예약
 (0, 0, '2025-01-25 10:30:00', '접수', 10021002, '2025-01-25'),  -- 이환자: CT 접수
-(0, 3, '2025-01-25 11:00:00', '접수', 10021002, '2025-01-25'),  -- 이환자: 대장암센터 접수
+(1, 3, '2025-01-25 11:00:00', '접수', 10021002, '2025-01-25'),  -- 이환자: 대장암센터 접수 (다른 series_id)
 (0, 1, '2025-01-25 14:00:00', '완료', 10031003, '2025-01-25'),  -- 박환자: 초음파 완료
 (0, 2, '2025-01-25 15:30:00', '접수', 10041004, '2025-01-25');  -- 최환자: X-ray 접수
 
 -- 로봇 로그 샘플 데이터
-INSERT INTO `robot_log` (`robot_id`, `patient_id`, `dttm`, `orig`, `dest`, `log_type`) VALUES
+INSERT INTO `robot_log` (`robot_id`, `patient_id`, `dttm`, `orig`, `dest`, `type`) VALUES
 (3, 10011001, '2025-01-25 08:50:00', 8, 0, 'moving_by_patient'),  -- 김환자: 로비 → CT
 (3, 10021002, '2025-01-25 10:20:00', 8, 0, 'moving_by_patient'),  -- 이환자: 로비 → CT  
 (3, 10021002, '2025-01-25 11:00:00', 0, 3, 'moving_by_patient'),  -- 이환자: CT → 대장암센터
 (3, 10031003, '2025-01-25 13:50:00', 8, 1, 'moving_by_patient');  -- 박환자: 로비 → 초음파
 
+<<<<<<< HEAD
 INSERT INTO `log_type` (`type`, `description`) VALUES
 ('moving_by_patient', '환자 이동'),
 ('moving_by_robot', '로봇 이동'),
@@ -78,3 +92,5 @@ INSERT INTO `log_type` (`type`, `description`) VALUES
 ('assigned_by_unknown', '사용자 호출'),
 ('interruption', '장애물 감지 중단');
 
+=======
+>>>>>>> adcb64b8fee4f617c0b00126157e936ecd635c82
