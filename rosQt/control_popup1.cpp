@@ -74,6 +74,10 @@ void ControlPopup1::setupConnections()
     if (ui->closeBtn) {
         connect(ui->closeBtn, &QPushButton::clicked, this, &ControlPopup1::onCloseButtonClicked);
     }
+    if (ui->stopBtn) {
+        connect(ui->stopBtn, &QPushButton::clicked, this, &ControlPopup1::onStopButtonClicked);
+    }
+
     
     // 다른 버튼들도 필요에 따라 연결
     // if (ui->startBtn) {
@@ -90,6 +94,7 @@ void ControlPopup1::onCloseButtonClicked()
 void ControlPopup1::onStopButtonClicked()
 {
     qDebug() << "정지 버튼 클릭됨";
+    emit stopRequested(); // 시그널 발생
     close();  // 창 닫기
     // 로봇 정지 명령 전송 로직
 }

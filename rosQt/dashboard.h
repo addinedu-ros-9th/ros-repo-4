@@ -7,6 +7,8 @@
 
 class Ui_DashboardWidget;  // UI 클래스 전방 선언
 class StatusWidget;
+class Status2Widget;
+class Status3Widget;
 class MapWidget;
 class ControlPopup1;
 class ControlPopup2;
@@ -35,10 +37,13 @@ private slots:
     void onConnectionEstablished();
     void onControlButtonClicked();
     void onDestinationButtonClicked();
+    void setStatusToIdle();
 
 private:
     Ui_DashboardWidget *ui;
-    StatusWidget *status_widget; 
+    StatusWidget *status_widget;
+    Status2Widget *status_widget2;
+    Status3Widget *status_widget3;
     MapWidget *map_widget;
     UdpImageReceiver *udp_receiver_;
     ControlPopup1 *control_popup1_;
@@ -46,13 +51,17 @@ private:
 
     QString status_;  // 상태 변수
     QString control_status_;  // 제어 상태 변수
-    
+    QString camera_toggle_status_;
+
     void setupUI();
     void setWidgetClasses();
     void setupStatusWidget(); 
     void setupMapWidget();
     void setupCameraWidget();
     void setupControlButton();
+    void setCameraToggleStatus();
+    void onCameraToggle1Clicked();
+    void onCameraToggle2Clicked();
 };
 
 #endif // DASHBOARDWIDGET_H

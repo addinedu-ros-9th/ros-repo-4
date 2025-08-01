@@ -1,5 +1,6 @@
 #include "control_popup2.h"
 #include "ui_control_popup2.h"
+#include "status2.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -8,13 +9,15 @@
 #include <QDebug>
 #include <QStyle>
 
-ControlPopup2::ControlPopup2(QWidget *parent)
+ControlPopup2::ControlPopup2(Status2Widget* status2Widget, QWidget *parent)
     : QWidget(parent)
     , ui(new Ui_ControlPopup2)
+    , status2_(status2Widget)
     , current_status_("대기중")
     , selected_button_(nullptr) 
 {
     ui->setupUi(this);
+    selected_destination_ = ""; 
     setWindowProperties();
     setupConnections();
     setWidgetClasses();
@@ -131,48 +134,56 @@ void ControlPopup2::onBtn1Clicked()
 {
     selected_button_ = ui->btn1;
     updateButtonStyles();
+    selected_destination_ = "대장암 센터"; 
 }
 
 void ControlPopup2::onBtn2Clicked()
 {
     selected_button_ = ui->btn2;
     updateButtonStyles();
+    selected_destination_ = "위암 센터";
 }
 
 void ControlPopup2::onBtn3Clicked()
 {
     selected_button_ = ui->btn3;
     updateButtonStyles();
+    selected_destination_ = "폐암 센터";
 }
 
 void ControlPopup2::onBtn4Clicked()
 {
     selected_button_ = ui->btn4;
     updateButtonStyles();
+    selected_destination_ = "유방암 센터"; 
 }
 
 void ControlPopup2::onBtn5Clicked()
 {
     selected_button_ = ui->btn5;
     updateButtonStyles();
+    selected_destination_ = "뇌종양 센터"; 
 }
 
 void ControlPopup2::onBtn6Clicked()
 {
     selected_button_ = ui->btn6;
     updateButtonStyles();
+    selected_destination_ = "X-ray 검사실"; 
 }
 
 void ControlPopup2::onBtn7Clicked()
 {
     selected_button_ = ui->btn7;
     updateButtonStyles();
+    selected_destination_ = "CT 검사실";
 }
 
 void ControlPopup2::onBtn8Clicked()
 {
     selected_button_ = ui->btn8;
     updateButtonStyles();
+    selected_destination_ = "초음파 검사실"; 
 }
 
 void ControlPopup2::onCloseButtonClicked()
@@ -184,8 +195,12 @@ void ControlPopup2::onCloseButtonClicked()
 void ControlPopup2::onStartButtonClicked()
 {
     qDebug() << "start 버튼 클릭됨";
-    close();  // 창 닫기
-    // 로봇 정지 명령 전송 로직
+    if (selected_destination_ != "") {
+        if (status2_) {
+            status2_->setMoveFirstText(selected_destination_);
+        }
+        close();  // 창 닫기
+    }
 }
 
 void ControlPopup2::resetAllButtonStyles()

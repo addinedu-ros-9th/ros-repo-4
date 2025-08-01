@@ -51,3 +51,47 @@
     background: transparent;
     border-radius: {{radius}};
 }
+
+.arrowBtn {
+    border-radius: 2px;
+    background-color: rgba(0,0,0,0.06);
+}
+
+.arrowBtn:hover {
+    background-color: rgba(0,0,0,0.12);
+}
+
+.arrowBtn.active {
+    background-color: rgba(0,0,0,0.15);
+}
+.arrowBtn.active:hover {
+    background-color: rgba(0,0,0,0.21);
+}
+
+.arrowBtn-key1 {
+    background: url("./style/images/key1.png") no-repeat center center;
+}
+.arrowBtn-key2 {
+    background: url("./style/images/key2.png") no-repeat center center;
+}
+.arrowBtn-key3 {
+    background: url("./style/images/key3.png") no-repeat center center;
+}
+.arrowBtn-key4 {
+    background: url("./style/images/key4.png") no-repeat center center;
+}
+.arrowBtn-key5 {
+    background: url("./style/images/key5.png") no-repeat center center;
+}
+.arrowBtn-key6 {
+    background: url("./style/images/key6.png") no-repeat center center;
+}
+.arrowBtn-key7 {
+    background: url("./style/images/key7.png") no-repeat center center;
+}
+.arrowBtn-key8 {
+    background: url("./style/images/key8.png") no-repeat center center;
+}
+.arrowBtn-key9 {
+    background: url("./style/images/key9.png") no-repeat center center;
+}

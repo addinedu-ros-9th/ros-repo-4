@@ -14,6 +14,12 @@ LoginWindow::LoginWindow(QWidget *parent)
     if (ui->login_btn) {
         connect(ui->login_btn, &QPushButton::clicked, this, &LoginWindow::handleLogin);
     }
+    if (ui->login_textfield1) {
+        connect(ui->login_textfield1, &QLineEdit::returnPressed, this, &LoginWindow::handleLogin);
+    }
+    if (ui->login_textfield2) {
+        connect(ui->login_textfield2, &QLineEdit::returnPressed, this, &LoginWindow::handleLogin);
+    }
     
     // 테스트용: 다른 버튼이라도 연결해보기
     // login.ui에 있는 실제 버튼 이름을 확인하고 사용
@@ -87,4 +93,14 @@ void LoginWindow::setWidgetClasses()
     this->style()->polish(this);
     this->update();
     
+}
+
+void LoginWindow::check_login()
+{
+    QString user_id = ui->login_textfield1->text();
+    QString user_password = ui->login_textfield2->text();
+
+    // QString url = QString("http://%1:%2/auth/login")
+    //                 .arg(CENTRAL_IP)
+    //                 .arg(CENTRAL_GUI_PORT);
 }

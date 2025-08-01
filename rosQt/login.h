@@ -26,6 +26,7 @@ private:
     void setWidgetClasses();
     
     Ui_LoginWidget *ui;
+    void check_login();  // 로그인 정보 확인 함수
 };
 
 #endif // LOGINWINDOW_H

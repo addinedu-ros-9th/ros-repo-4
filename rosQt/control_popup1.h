@@ -17,6 +17,9 @@ private slots:
     void onCloseButtonClicked();
     void onStopButtonClicked();   // 정지 버튼용
 
+signals:
+    void stopRequested();
+
 private:
     void setWindowProperties();
     void setupConnections();

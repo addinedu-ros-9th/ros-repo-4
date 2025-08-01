@@ -113,7 +113,7 @@
      </widget>
     </item>
     <item>
-     <widget class="QPushButton" name="btn8">
+     <widget class="QPushButton" name="btn7">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
         <horstretch>0</horstretch>
@@ -129,7 +129,7 @@
      </widget>
     </item>
     <item>
-     <widget class="QPushButton" name="btn7">
+     <widget class="QPushButton" name="btn8">
       <property name="enabled">
        <bool>true</bool>
       </property>

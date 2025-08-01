@@ -10,12 +10,17 @@ find_package(Qt6 REQUIRED COMPONENTS Core Widgets)
 # OpenCV 찾기
 find_package(OpenCV REQUIRED)
 
+find_package(Python3 COMPONENTS Development REQUIRED)
+include_directories(${Python3_INCLUDE_DIRS})
+include_directories(/usr/lib/python3/dist-packages/numpy/core/include)
+
 # ROS2 패키지들 찾기
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(robot_interfaces REQUIRED)
+
 
 # Qt 자동 생성 활성화
 set(CMAKE_AUTOMOC ON)
@@ -30,6 +35,8 @@ set(SOURCES
     dashboard.cpp
     log.cpp
     status.cpp
+    status2.cpp
+    status3.cpp
     style.cpp
     map.cpp
     udp_image_receiver.cpp
@@ -44,6 +51,8 @@ set(UI_FILES
     dashboard.ui
     log.ui
     status.ui
+    status2.ui
+    status3.ui
     map.ui
     control_popup1.ui
     control_popup2.ui
@@ -57,6 +66,7 @@ target_include_directories(BasicQtApp PRIVATE ${OpenCV_INCLUDE_DIRS})
 
 # 라이브러리 링크
 target_link_libraries(BasicQtApp
+    ${Python3_LIBRARIES}
     Qt6::Core
     Qt6::Widgets
     ${OpenCV_LIBS}

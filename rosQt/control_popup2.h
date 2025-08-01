@@ -6,13 +6,13 @@
 #include <QPushButton>
 
 class Ui_ControlPopup2;  // UI 클래스 전방 선언
-
+class Status2Widget;  // Status2Widget 클래스 전방 선언
 class ControlPopup2 : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit ControlPopup2(QWidget *parent = nullptr);
+    explicit ControlPopup2(Status2Widget* status2, QWidget *parent = nullptr);
     ~ControlPopup2();
 
     void setCurrentStatus(const QString& status);
@@ -37,8 +37,10 @@ private:
     void resetAllButtonStyles(); 
     
 private:
+    Status2Widget* status2_;
     Ui_ControlPopup2 *ui;
     QString current_status_;
+    QString selected_destination_;
     QPushButton* selected_button_;
 };
 

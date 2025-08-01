@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>StatusWidget</class>
- <widget class="QWidget" name="StatusWidget">
+ <class>Status2Widget</class>
+ <widget class="QWidget" name="Status2Widget">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -16,10 +16,10 @@
   <widget class="QLabel" name="move_bg">
    <property name="geometry">
     <rect>
-     <x>0</x>
+     <x>331</x>
      <y>0</y>
-     <width>753</width>
-     <height>138</height>
+     <width>422</width>
+     <height>77</height>
     </rect>
    </property>
    <property name="text">
@@ -29,9 +29,9 @@
   <widget class="QLabel" name="move_first">
    <property name="geometry">
     <rect>
-     <x>172</x>
-     <y>47</y>
-     <width>180</width>
+     <x>440</x>
+     <y>16</y>
+     <width>204</width>
      <height>44</height>
     </rect>
    </property>
@@ -43,53 +43,7 @@
     </font>
    </property>
    <property name="text">
-    <string>대장암 센터</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
-   </property>
-  </widget>
-  <widget class="QLabel" name="move_last">
-   <property name="geometry">
-    <rect>
-     <x>401</x>
-     <y>47</y>
-     <width>180</width>
-     <height>44</height>
-    </rect>
-   </property>
-   <property name="font">
-    <font>
-     <family>Inter 18pt</family>
-     <weight>75</weight>
-     <bold>true</bold>
-    </font>
-   </property>
-   <property name="text">
-    <string>CT 검사실</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
-   </property>
-  </widget>
-  <widget class="QLabel" name="move_arrow">
-   <property name="geometry">
-    <rect>
-     <x>367</x>
-     <y>59</y>
-     <width>18</width>
-     <height>20</height>
-    </rect>
-   </property>
-   <property name="font">
-    <font>
-     <family>Inter 18pt</family>
-     <weight>75</weight>
-     <bold>true</bold>
-    </font>
-   </property>
-   <property name="text">
-    <string/>
+    <string>대장암 센터 이동 중</string>
    </property>
    <property name="alignment">
     <set>Qt::AlignCenter</set>
@@ -98,77 +52,8 @@
   <widget class="QLabel" name="point1">
    <property name="geometry">
     <rect>
-     <x>2</x>
-     <y>170</y>
-     <width>4</width>
-     <height>4</height>
-    </rect>
-   </property>
-   <property name="font">
-    <font>
-     <family>Inter 18pt</family>
-     <weight>75</weight>
-     <bold>true</bold>
-    </font>
-   </property>
-   <property name="text">
-    <string/>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
-   </property>
-  </widget>
-  <widget class="QLabel" name="point2">
-   <property name="geometry">
-    <rect>
-     <x>2</x>
-     <y>198</y>
-     <width>4</width>
-     <height>4</height>
-    </rect>
-   </property>
-   <property name="font">
-    <font>
-     <family>Inter 18pt</family>
-     <weight>75</weight>
-     <bold>true</bold>
-    </font>
-   </property>
-   <property name="text">
-    <string/>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
-   </property>
-  </widget>
-  <widget class="QLabel" name="point3">
-   <property name="geometry">
-    <rect>
-     <x>2</x>
-     <y>227</y>
-     <width>4</width>
-     <height>4</height>
-    </rect>
-   </property>
-   <property name="font">
-    <font>
-     <family>Inter 18pt</family>
-     <weight>75</weight>
-     <bold>true</bold>
-    </font>
-   </property>
-   <property name="text">
-    <string/>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
-   </property>
-  </widget>
-  <widget class="QLabel" name="point4">
-   <property name="geometry">
-    <rect>
-     <x>2</x>
-     <y>256</y>
+     <x>331</x>
+     <y>111</y>
      <width>4</width>
      <height>4</height>
     </rect>
@@ -190,8 +75,8 @@
   <widget class="QLabel" name="title1">
    <property name="geometry">
     <rect>
-     <x>16</x>
-     <y>163</y>
+     <x>345</x>
+     <y>105</y>
      <width>100</width>
      <height>17</height>
     </rect>
@@ -204,76 +89,7 @@
     </font>
    </property>
    <property name="text">
-    <string>환자 이름</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-   </property>
-  </widget>
-  <widget class="QLabel" name="title2">
-   <property name="geometry">
-    <rect>
-     <x>16</x>
-     <y>192</y>
-     <width>100</width>
-     <height>17</height>
-    </rect>
-   </property>
-   <property name="font">
-    <font>
-     <family>Inter 18pt</family>
-     <weight>75</weight>
-     <bold>true</bold>
-    </font>
-   </property>
-   <property name="text">
-    <string>전화번호</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-   </property>
-  </widget>
-  <widget class="QLabel" name="title3">
-   <property name="geometry">
-    <rect>
-     <x>16</x>
-     <y>221</y>
-     <width>100</width>
-     <height>17</height>
-    </rect>
-   </property>
-   <property name="font">
-    <font>
-     <family>Inter 18pt</family>
-     <weight>75</weight>
-     <bold>true</bold>
-    </font>
-   </property>
-   <property name="text">
-    <string>카드 번호</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-   </property>
-  </widget>
-  <widget class="QLabel" name="title4">
-   <property name="geometry">
-    <rect>
-     <x>16</x>
-     <y>250</y>
-     <width>100</width>
-     <height>17</height>
-    </rect>
-   </property>
-   <property name="font">
-    <font>
-     <family>Inter 18pt</family>
-     <weight>75</weight>
-     <bold>true</bold>
-    </font>
-   </property>
-   <property name="text">
-    <string>환자 번호</string>
+    <string>위치 정보</string>
    </property>
    <property name="alignment">
     <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
@@ -282,9 +98,9 @@
   <widget class="QLabel" name="content1">
    <property name="geometry">
     <rect>
-     <x>126</x>
-     <y>163</y>
-     <width>100</width>
+     <x>455</x>
+     <y>105</y>
+     <width>221</width>
      <height>17</height>
     </rect>
    </property>
@@ -296,76 +112,7 @@
     </font>
    </property>
    <property name="text">
-    <string>김00</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-   </property>
-  </widget>
-  <widget class="QLabel" name="content2">
-   <property name="geometry">
-    <rect>
-     <x>126</x>
-     <y>192</y>
-     <width>151</width>
-     <height>17</height>
-    </rect>
-   </property>
-   <property name="font">
-    <font>
-     <family>Inter 18pt</family>
-     <weight>50</weight>
-     <bold>false</bold>
-    </font>
-   </property>
-   <property name="text">
-    <string>010-1234-5678</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-   </property>
-  </widget>
-  <widget class="QLabel" name="content3">
-   <property name="geometry">
-    <rect>
-     <x>126</x>
-     <y>221</y>
-     <width>151</width>
-     <height>17</height>
-    </rect>
-   </property>
-   <property name="font">
-    <font>
-     <family>Inter 18pt</family>
-     <weight>50</weight>
-     <bold>false</bold>
-    </font>
-   </property>
-   <property name="text">
-    <string>BC 00 00 00 00</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-   </property>
-  </widget>
-  <widget class="QLabel" name="content4">
-   <property name="geometry">
-    <rect>
-     <x>126</x>
-     <y>250</y>
-     <width>151</width>
-     <height>17</height>
-    </rect>
-   </property>
-   <property name="font">
-    <font>
-     <family>Inter 18pt</family>
-     <weight>50</weight>
-     <bold>false</bold>
-    </font>
-   </property>
-   <property name="text">
-    <string>00 00 00 00</string>
+    <string>x: 0.0 / y: 0.0 / yaw : 0.0</string>
    </property>
    <property name="alignment">
     <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
@@ -730,6 +477,286 @@
     <string/>
    </property>
   </widget>
+  <widget class="QPushButton" name="arrowBtn1">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>91</width>
+     <height>85</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="arrowBtn2">
+   <property name="geometry">
+    <rect>
+     <x>104</x>
+     <y>0</y>
+     <width>91</width>
+     <height>85</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="arrowBtn3">
+   <property name="geometry">
+    <rect>
+     <x>208</x>
+     <y>0</y>
+     <width>91</width>
+     <height>85</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="arrowBtn4">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>97</y>
+     <width>91</width>
+     <height>85</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="arrowBtn5">
+   <property name="geometry">
+    <rect>
+     <x>104</x>
+     <y>97</y>
+     <width>91</width>
+     <height>85</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="arrowBtn6">
+   <property name="geometry">
+    <rect>
+     <x>208</x>
+     <y>97</y>
+     <width>91</width>
+     <height>85</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="arrowBtn7">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>195</y>
+     <width>91</width>
+     <height>85</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="arrowBtn8">
+   <property name="geometry">
+    <rect>
+     <x>104</x>
+     <y>195</y>
+     <width>91</width>
+     <height>85</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="arrowBtn9">
+   <property name="geometry">
+    <rect>
+     <x>208</x>
+     <y>195</y>
+     <width>91</width>
+     <height>85</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="arrowBtn_key1">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>91</width>
+     <height>85</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="arrowBtn_key2">
+   <property name="geometry">
+    <rect>
+     <x>104</x>
+     <y>0</y>
+     <width>91</width>
+     <height>85</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="arrowBtn_key3">
+   <property name="geometry">
+    <rect>
+     <x>208</x>
+     <y>0</y>
+     <width>91</width>
+     <height>85</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="arrowBtn_key4">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>97</y>
+     <width>91</width>
+     <height>85</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="arrowBtn_key5">
+   <property name="geometry">
+    <rect>
+     <x>104</x>
+     <y>97</y>
+     <width>91</width>
+     <height>85</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="arrowBtn_key6">
+   <property name="geometry">
+    <rect>
+     <x>208</x>
+     <y>97</y>
+     <width>91</width>
+     <height>85</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="arrowBtn_key7">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>195</y>
+     <width>91</width>
+     <height>85</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="arrowBtn_key8">
+   <property name="geometry">
+    <rect>
+     <x>104</x>
+     <y>195</y>
+     <width>91</width>
+     <height>85</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="arrowBtn_key9">
+   <property name="geometry">
+    <rect>
+     <x>208</x>
+     <y>195</y>
+     <width>91</width>
+     <height>85</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <zorder>move_bg</zorder>
+  <zorder>move_first</zorder>
+  <zorder>point1</zorder>
+  <zorder>title1</zorder>
+  <zorder>content1</zorder>
+  <zorder>machine_box</zorder>
+  <zorder>battery_img</zorder>
+  <zorder>network_img</zorder>
+  <zorder>title5</zorder>
+  <zorder>title6</zorder>
+  <zorder>title5_status</zorder>
+  <zorder>title6_status</zorder>
+  <zorder>title5_box</zorder>
+  <zorder>title6_box</zorder>
+  <zorder>title5_box_cell1</zorder>
+  <zorder>title5_box_cell2</zorder>
+  <zorder>title5_box_cell3</zorder>
+  <zorder>title5_box_cell4</zorder>
+  <zorder>title5_box_cell5</zorder>
+  <zorder>title5_box_cell6</zorder>
+  <zorder>title5_box_cell7</zorder>
+  <zorder>title5_box_cell8</zorder>
+  <zorder>title5_box_cell9</zorder>
+  <zorder>title5_box_cell10</zorder>
+  <zorder>title6_box_cell1</zorder>
+  <zorder>title6_box_cell2</zorder>
+  <zorder>title6_box_cell3</zorder>
+  <zorder>title6_box_cell4</zorder>
+  <zorder>arrowBtn_key1</zorder>
+  <zorder>arrowBtn_key2</zorder>
+  <zorder>arrowBtn_key3</zorder>
+  <zorder>arrowBtn_key4</zorder>
+  <zorder>arrowBtn_key5</zorder>
+  <zorder>arrowBtn_key6</zorder>
+  <zorder>arrowBtn_key7</zorder>
+  <zorder>arrowBtn_key8</zorder>
+  <zorder>arrowBtn_key9</zorder>
+  <zorder>arrowBtn1</zorder>
+  <zorder>arrowBtn2</zorder>
+  <zorder>arrowBtn3</zorder>
+  <zorder>arrowBtn4</zorder>
+  <zorder>arrowBtn5</zorder>
+  <zorder>arrowBtn6</zorder>
+  <zorder>arrowBtn7</zorder>
+  <zorder>arrowBtn8</zorder>
+  <zorder>arrowBtn9</zorder>
  </widget>
  <resources/>
  <connections/>
