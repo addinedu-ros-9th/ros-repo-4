@@ -11,6 +11,7 @@
 
 #include "database_manager.h"
 #include "http_server.h"
+#include "robot_navigation_manager.h"
 
 #include <thread>
 #include <atomic>
@@ -50,6 +51,7 @@ private:
     
     std::unique_ptr<DatabaseManager> db_manager_;
     std::unique_ptr<HttpServer> http_server_;
+    std::unique_ptr<RobotNavigationManager> nav_manager_;
     
     std::shared_ptr<image_transport::ImageTransport> image_transport_;
     image_transport::Subscriber image_subscriber_;

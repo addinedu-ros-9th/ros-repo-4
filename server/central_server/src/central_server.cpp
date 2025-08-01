@@ -16,9 +16,16 @@ CentralServer::CentralServer() : Node("central_server") {
     // DatabaseManager 생성
     db_manager_ = std::make_unique<DatabaseManager>();
     
+    // RobotNavigationManager 생성
+    nav_manager_ = std::make_unique<RobotNavigationManager>();
+    
     // HttpServer 생성 (DatabaseManager를 shared_ptr로 전달)
     auto shared_db_manager = std::shared_ptr<DatabaseManager>(db_manager_.get(), [](DatabaseManager*){});
     http_server_ = std::make_unique<HttpServer>(shared_db_manager, http_port_);
+    
+    // HttpServer와 RobotNavigationManager 연결
+    auto shared_nav_manager = std::shared_ptr<RobotNavigationManager>(nav_manager_.get(), [](RobotNavigationManager*){});
+    http_server_->setRobotNavigationManager(shared_nav_manager);
 }
 
 CentralServer::~CentralServer() {

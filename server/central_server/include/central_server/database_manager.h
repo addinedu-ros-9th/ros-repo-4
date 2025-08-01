@@ -11,6 +11,32 @@
 #include <string>
 #include <memory>
 #include <mutex>
+#include <vector>
+#include <queue>
+
+// RAII Connection 관리 클래스
+class ConnectionGuard {
+public:
+    ConnectionGuard(DatabaseManager* db_manager, sql::Connection* connection)
+        : db_manager_(db_manager), connection_(connection) {}
+    
+    ~ConnectionGuard() {
+        if (db_manager_ && connection_) {
+            db_manager_->releaseConnection(connection_);
+        }
+    }
+    
+    sql::Connection* get() const { return connection_; }
+    sql::Connection* operator->() const { return connection_; }
+    
+private:
+    DatabaseManager* db_manager_;
+    sql::Connection* connection_;
+    
+    // 복사 방지
+    ConnectionGuard(const ConnectionGuard&) = delete;
+    ConnectionGuard& operator=(const ConnectionGuard&) = delete;
+};
 
 struct PatientInfo {
     int patient_id;
@@ -79,6 +105,11 @@ public:
     bool getReservationByPatientId(int patient_id, ReservationInfo& reservation);
     bool insertRobotLog(int robot_id, int patient_id, const std::string& datetime, float orig, float dest);
     
+    // 로봇 로그 관련 메서드들
+    bool insertRobotLogWithType(int robot_id, int* patient_id, const std::string& datetime, 
+                               int orig_department_id, int dest_department_id, const std::string& type);
+    int findNearestDepartment(float x, float y);
+    
     // Series 테이블 관련 메서드들
     bool getSeriesByPatientAndDate(int patient_id, const std::string& reservation_date, SeriesInfo& series);
     bool getSeriesWithDepartmentName(int patient_id, const std::string& reservation_date, SeriesInfo& series, std::string& department_name);
@@ -93,15 +124,23 @@ private:
     std::string database_;
     int port_;
     
-    // MySQL 연결 객체들
+    // Connection Pool 관련
     sql::mysql::MySQL_Driver* driver_;
-    std::unique_ptr<sql::Connection> connection_;
-    std::mutex connection_mutex_;
+    std::vector<std::unique_ptr<sql::Connection>> connection_pool_;
+    std::queue<sql::Connection*> available_connections_;
+    std::mutex pool_mutex_;
+    size_t pool_size_;
     
     // 내부 유틸리티 함수들
     void loadConnectionConfig();
     bool executeQuery(const std::string& query);
     std::unique_ptr<sql::ResultSet> executeSelect(const std::string& query);
+    
+    // Connection Pool 관리 함수들
+    bool initializeConnectionPool();
+    sql::Connection* getConnection();
+    void releaseConnection(sql::Connection* connection);
+    void cleanupConnectionPool();
 };
 
 #endif // DATABASE_MANAGER_H 

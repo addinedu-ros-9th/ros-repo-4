@@ -13,6 +13,12 @@
 
 HttpServer::HttpServer(std::shared_ptr<DatabaseManager> db_manager, int port)
     : db_manager_(db_manager), port_(port), running_(false) {
+    
+    // 로봇 위치 초기화
+    current_robot_position_.x = 0.0;
+    current_robot_position_.y = 0.0;
+    current_robot_position_.yaw = 0.0;
+    current_robot_position_.valid = false;
 }
 
 HttpServer::~HttpServer() {
@@ -191,9 +197,14 @@ std::string HttpServer::processRequest(const HttpRequest& request) {
         std::string response = handleAuthDirection(json_request);
         return createHttpResponse(200, "application/json", response, cors_headers);
     }
-    else if (request.path == "/status/robot_return" && request.method == "POST") {
+    else if (request.path == "/auth/robot_return" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
         std::string response = handleRobotReturn(json_request);
+        return createHttpResponse(200, "application/json", response, cors_headers);
+    }
+    else if (request.path == "/without_auth/robot_return" && request.method == "POST") {
+        Json::Value json_request = parseJson(request.body);
+        std::string response = handleWithoutAuthRobotReturn(json_request);
         return createHttpResponse(200, "application/json", response, cors_headers);
     }
     else if (request.path == "/robot_status" && request.method == "POST") {
@@ -410,7 +421,7 @@ std::string HttpServer::handleCommonAuth(const PatientInfo& patient) {
         // dttm 값을 그대로 사용 (YYYY-MM-DD HH:MM:SS 형식)
         std::string datetime = series.dttm;
         
-        return createSuccessResponse(patient.name, datetime, department_name, original_status);
+        return createSuccessResponse(patient.name, datetime, department_name, original_status, patient.patient_id);
     } else {
         // Series 정보가 없는 경우
         return createErrorResponse("Reservation not found");
@@ -467,30 +478,30 @@ std::string HttpServer::handleAuthRFID(const Json::Value& request) {
 }
 
 std::string HttpServer::handleAuthDirection(const Json::Value& request) {
-    if (!request.isMember("robot_id") || !request.isMember("department_id")) {
-        return createErrorResponse("Missing robot_id or department_id");
+    if (!request.isMember("robot_id") || !request.isMember("department_id") || !request.isMember("patient_id")) {
+        return createErrorResponse("Missing robot_id, department_id, or patient_id");
     }
     
     int robot_id = request["robot_id"].asInt();
     int department_id = request["department_id"].asInt();
+    int patient_id = request["patient_id"].asInt();
     
-    // TODO: 네비게이션 명령 처리
-    std::cout << "[HTTP] 네비게이션 명령: Robot " << robot_id << " -> Department " << department_id << std::endl;
-    
-    return createStatusResponse(200);
+    return processDirectionRequest(robot_id, department_id, &patient_id, "moving_by_patient");
 }
 
 std::string HttpServer::handleRobotReturn(const Json::Value& request) {
-    if (!request.isMember("robot_id")) {
-        return createErrorResponse("Missing robot_id");
+    std::cout << "[HTTP] 로봇 복귀 요청 처리 (IF-06)" << std::endl;
+    
+    // 요청 데이터 검증
+    if (!request.isMember("robot_id") || !request.isMember("patient_id")) {
+        return createErrorResponse("필수 필드가 누락되었습니다: robot_id, patient_id");
     }
     
     int robot_id = request["robot_id"].asInt();
+    std::string patient_id_str = request["patient_id"].asString();
+    int patient_id = std::stoi(patient_id_str);
     
-    // TODO: 로봇 복귀 명령 처리
-    std::cout << "[HTTP] 로봇 복귀 명령: Robot " << robot_id << std::endl;
-    
-    return createStatusResponse(200);
+    return processRobotReturnRequest(robot_id, &patient_id, "return_by_patient");
 }
 
 std::string HttpServer::handleWithoutAuthDirection(const Json::Value& request) {
@@ -501,10 +512,7 @@ std::string HttpServer::handleWithoutAuthDirection(const Json::Value& request) {
     int robot_id = request["robot_id"].asInt();
     int department_id = request["department_id"].asInt();
     
-    // TODO: 인증 없는 네비게이션 명령 처리
-    std::cout << "[HTTP] 인증 없는 네비게이션: Robot " << robot_id << " -> Department " << department_id << std::endl;
-    
-    return createStatusResponse(200);
+    return processDirectionRequest(robot_id, department_id, nullptr, "moving_by_unknown");
 }
 
 std::string HttpServer::handleRobotStatus(const Json::Value& request) {
@@ -538,12 +546,14 @@ Json::Value HttpServer::parseJson(const std::string& jsonStr) {
 std::string HttpServer::createSuccessResponse(const std::string& name, 
                                             const std::string& datetime, 
                                             const std::string& department,
-                                            const std::string& status) {
+                                            const std::string& status,
+                                            int patient_id) {
     Json::Value response;
     response["name"] = name;
     response["datetime"] = datetime;  // YY:DD:HH:MM 형식
     response["department"] = department;
     response["status"] = status;
+    response["patient_id"] = patient_id;
     
     Json::StreamWriterBuilder builder;
     return Json::writeString(builder, response);
@@ -695,12 +705,20 @@ std::string HttpServer::handleGetRobotLocation(const Json::Value& request) {
     
     int robot_id = request["robot_id"].asInt();
     
-    // TODO: 실제 로봇 시스템에서 위치 정보 조회
-    // IF-03 명세에 따라 응답
+    // 실제 로봇 위치 정보 조회 (amcl_pose에서 받은 데이터)
+    std::lock_guard<std::mutex> lock(robot_position_mutex_);
+    if (!current_robot_position_.valid) {
+        return createErrorResponse("로봇 위치 정보를 사용할 수 없습니다");
+    }
+    
     Json::Value response;
-    response["x"] = 5.0;
-    response["y"] = -1.0;
-    response["yaw"] = -0.532151;
+    response["x"] = current_robot_position_.x;
+    response["y"] = current_robot_position_.y;
+    response["yaw"] = current_robot_position_.yaw;
+    
+    std::cout << "[HTTP] 로봇 위치 정보 반환: Robot " << robot_id 
+              << " - 위치: (" << current_robot_position_.x << ", " << current_robot_position_.y 
+              << "), 방향: " << current_robot_position_.yaw << std::endl;
     
     Json::StreamWriterBuilder builder;
     return Json::writeString(builder, response);
@@ -777,8 +795,16 @@ std::string HttpServer::handleStopStatusMoving(const Json::Value& request) {
     
     int robot_id = request["robot_id"].asInt();
     
-    // TODO: 실제 로봇 시스템에서 moving → assigned 상태 변경
-    // IF-07 명세에 따라 status code 반환
+    // 실제 로봇 시스템에서 정지 명령 전송
+    if (nav_manager_) {
+        if (!nav_manager_->sendStopCommand()) {
+            return "500"; // Internal Server Error
+        }
+        std::cout << "[HTTP] 로봇 정지 명령 전송 완료: Robot " << robot_id << std::endl;
+    } else {
+        return "503"; // Service Unavailable
+    }
+    
     return "200"; // 성공
 }
 
@@ -792,8 +818,28 @@ std::string HttpServer::handleCancelCommand(const Json::Value& request) {
     
     int robot_id = request["robot_id"].asInt();
     
-    // TODO: 실제 로봇 시스템에서 assigned/moving → idle 상태 변경 및 대기장소로 이동
-    // IF-08 명세에 따라 status code 반환
+    // 실제 로봇 시스템에서 취소 명령 전송 (정지 후 대기장소로 이동)
+    if (nav_manager_) {
+        // 1. 먼저 정지
+        if (!nav_manager_->sendStopCommand()) {
+            return "500"; // Internal Server Error
+        }
+        
+        // 2. 병원 로비로 이동
+        DepartmentInfo lobby_department;
+        if (!db_manager_->getDepartmentById(8, lobby_department)) {
+            return "500"; // Internal Server Error
+        }
+        
+        if (!nav_manager_->sendWaypointCommand(lobby_department.department_name)) {
+            return "500"; // Internal Server Error
+        }
+        
+        std::cout << "[HTTP] 로봇 원격 제어 취소 명령 전송 완료: Robot " << robot_id << " (정지 후 " << lobby_department.department_name << "로 이동)" << std::endl;
+    } else {
+        return "503"; // Service Unavailable
+    }
+    
     return "200"; // 성공
 }
 
@@ -808,9 +854,33 @@ std::string HttpServer::handleCommandMoveTeleop(const Json::Value& request) {
     int robot_id = request["robot_id"].asInt();
     int teleop_key = request["teleop_key"].asInt();
     
-    // TODO: 실제 로봇 시스템에서 teleop 키에 따른 이동 명령 전송
-    // teleop_key 매핑: 123=uio, 456=jkl, 789=m,.
-    // IF-09 명세에 따라 status code 반환
+    // teleop 키에 따른 이동 명령 매핑 (teleop_twist_keyboard moveBindings 기반)
+    std::string teleop_command;
+    switch (teleop_key) {
+        case 1: teleop_command = "1"; break;   // u: 앞으로 가면서 좌회전
+        case 2: teleop_command = "2"; break;   // i: 전진
+        case 3: teleop_command = "3"; break;   // o: 앞으로 가면서 우회전
+        case 4: teleop_command = "4"; break;   // j: 제자리에서 왼쪽으로 회전
+        case 5: teleop_command = "5"; break;   // k: 정지
+        case 6: teleop_command = "6"; break;   // l: 제자리에서 오른쪽으로 회전
+        case 7: teleop_command = "7"; break;   // m: 뒤로 가면서 좌회전
+        case 8: teleop_command = "8"; break;   // ,: 후진
+        case 9: teleop_command = "9"; break;   // .: 뒤로 가면서 우회전
+        default:
+            return "400"; // Bad Request - 잘못된 teleop_key
+    }
+    
+    // 실제 로봇 시스템에서 teleop 명령 전송
+    if (nav_manager_) {
+        if (!nav_manager_->sendTeleopCommand(teleop_command)) {
+            return "500"; // Internal Server Error
+        }
+        std::cout << "[HTTP] 로봇 teleop 명령 전송 완료: Robot " << robot_id 
+                  << ", Key: " << teleop_key << ", Command: " << teleop_command << std::endl;
+    } else {
+        return "503"; // Service Unavailable
+    }
+    
     return "200"; // 성공
 }
 
@@ -825,8 +895,24 @@ std::string HttpServer::handleCommandMoveDest(const Json::Value& request) {
     int robot_id = request["robot_id"].asInt();
     int dest = request["dest"].asInt();
     
-    // TODO: 실제 로봇 시스템에서 목적지로 이동 명령 전송
-    // IF-10 명세에 따라 status code 반환
+    // 목적지 ID를 department_name으로 변환
+    DepartmentInfo department;
+    if (!db_manager_->getDepartmentById(dest, department)) {
+        return "400"; // Bad Request - 잘못된 목적지 ID
+    }
+    std::string waypoint_name = department.department_name;
+    
+    // 실제 로봇 시스템에서 목적지 이동 명령 전송
+    if (nav_manager_) {
+        if (!nav_manager_->sendWaypointCommand(waypoint_name)) {
+            return "500"; // Internal Server Error
+        }
+        std::cout << "[HTTP] 로봇 목적지 이동 명령 전송 완료: Robot " << robot_id 
+                  << ", Dest: " << dest << ", Waypoint: " << waypoint_name << std::endl;
+    } else {
+        return "503"; // Service Unavailable
+    }
+    
     return "200"; // 성공
 }
 
@@ -966,5 +1052,150 @@ std::string HttpServer::handleGetHeatmap(const Json::Value& request) {
     response["matrix"] = matrix;
     
     Json::StreamWriterBuilder builder;
+        return Json::writeString(builder, response);
+}
+
+std::string HttpServer::processRobotReturnRequest(int robot_id, int* patient_id, const std::string& log_type) {
+    // 1. 현재 로봇 위치 확인 (amcl_pose)
+    double current_x, current_y;
+    {
+        std::lock_guard<std::mutex> lock(robot_position_mutex_);
+        if (!current_robot_position_.valid) {
+            return createErrorResponse("로봇 위치 정보를 사용할 수 없습니다");
+        }
+        current_x = current_robot_position_.x;
+        current_y = current_robot_position_.y;
+    }
+    
+    // 2. 현재 위치에서 가장 가까운 부서 찾기 (orig)
+    int orig_department_id = db_manager_->findNearestDepartment(current_x, current_y);
+    if (orig_department_id == -1) {
+        return createErrorResponse("가장 가까운 부서를 찾을 수 없습니다");
+    }
+    
+    // 3. 복귀 명령 전송 (destination_id = 8, 병원 로비)
+    DepartmentInfo lobby_department;
+    if (!db_manager_->getDepartmentById(8, lobby_department)) {
+        return createErrorResponse("병원 로비 정보를 찾을 수 없습니다");
+    }
+    
+    if (nav_manager_) {
+        if (!nav_manager_->sendWaypointCommand(lobby_department.department_name)) {
+            return createErrorResponse("복귀 명령 전송 실패");
+        }
+        std::cout << "[HTTP] 로봇 복귀 명령 전송 완료: " << lobby_department.department_name << "로 이동" << std::endl;
+    } else {
+        return createErrorResponse("네비게이션 관리자를 사용할 수 없습니다");
+    }
+    
+    // 4. robot_log에 데이터 저장
+    std::string current_datetime = db_manager_->getCurrentDate();
+    if (current_datetime.empty()) {
+        return createErrorResponse("현재 날짜/시간을 가져올 수 없습니다");
+    }
+    
+    bool log_success = db_manager_->insertRobotLogWithType(robot_id, patient_id, current_datetime, 
+                                                         orig_department_id, 8, log_type);
+    if (!log_success) {
+        return createErrorResponse("로봇 로그 저장 실패");
+    }
+    
+    std::cout << "[HTTP] 로봇 복귀 명령 처리 완료: Robot " << robot_id 
+              << " -> 대기장소 (ID: 8), Patient: " << (patient_id ? std::to_string(*patient_id) : "NULL") 
+              << ", Type: " << log_type << std::endl;
+    
+    // 5. 응답 반환
+    Json::Value response;
+    response["status_code"] = 200;
+    response["dest"] = 8;  // 대기장소의 목적지 ID
+    
+    Json::StreamWriterBuilder builder;
     return Json::writeString(builder, response);
+}
+
+std::string HttpServer::processDirectionRequest(int robot_id, int department_id, int* patient_id, const std::string& log_type) {
+    // 1. department_id를 department_name으로 변환
+    DepartmentInfo department;
+    if (!db_manager_->getDepartmentById(department_id, department)) {
+        return createErrorResponse("Department not found: " + std::to_string(department_id));
+    }
+    
+    // 2. 로봇에게 navigation 명령 전송
+    if (nav_manager_) {
+        if (!nav_manager_->sendWaypointCommand(department.department_name)) {
+            return createErrorResponse("Failed to send navigation command");
+        }
+        std::cout << "[HTTP] 로봇 네비게이션 명령 전송 완료: " << department.department_name << "로 이동" << std::endl;
+    } else {
+        return createErrorResponse("Navigation manager not available");
+    }
+    
+    // 3. 현재 로봇 위치 확인 (읽기만 하므로 mutex 불필요)
+    double current_x, current_y;
+    {
+        std::lock_guard<std::mutex> lock(robot_position_mutex_);
+        if (!current_robot_position_.valid) {
+            return createErrorResponse("Robot position not available");
+        }
+        current_x = current_robot_position_.x;
+        current_y = current_robot_position_.y;
+    } // mutex 해제
+    
+    // 4. 가장 가까운 부서 찾기 (출발지)
+    int orig_department_id = db_manager_->findNearestDepartment(current_x, current_y);
+    
+    if (orig_department_id == -1) {
+        return createErrorResponse("Failed to find nearest department");
+    }
+    
+    // 5. robot_log에 insert
+    std::string current_datetime = db_manager_->getCurrentDate();
+    if (current_datetime.empty()) {
+        return createErrorResponse("Failed to get current datetime");
+    }
+    
+    // patient_id 저장 (nullptr이면 NULL, 아니면 실제 patient_id)
+    bool success = db_manager_->insertRobotLogWithType(robot_id, patient_id, current_datetime, 
+                                                     orig_department_id, department_id, log_type);
+    
+    if (!success) {
+        return createErrorResponse("Failed to insert robot log");
+    }
+    
+    std::cout << "[HTTP] 네비게이션 명령 처리 완료: Robot " << robot_id 
+              << " -> Department " << department.department_name << " (ID: " << department_id 
+              << "), Patient: " << (patient_id ? std::to_string(*patient_id) : "NULL") 
+              << ", Type: " << log_type << std::endl;
+    
+    return createStatusResponse(200);
+}
+
+void HttpServer::setRobotNavigationManager(std::shared_ptr<RobotNavigationManager> nav_manager) {
+    nav_manager_ = nav_manager;
+    
+    if (nav_manager_) {
+        // 로봇 위치 콜백 설정
+        nav_manager_->setRobotPoseCallback([this](double x, double y, double yaw) {
+            std::lock_guard<std::mutex> lock(robot_position_mutex_);
+            current_robot_position_.x = x;
+            current_robot_position_.y = y;
+            current_robot_position_.yaw = yaw;
+            current_robot_position_.valid = true;
+        });
+        
+        std::cout << "[HTTP] 로봇 네비게이션 관리자 설정 완료" << std::endl;
+    }
+}
+
+std::string HttpServer::handleWithoutAuthRobotReturn(const Json::Value& request) {
+    std::cout << "[HTTP] 비인증 로봇 복귀 요청 처리" << std::endl;
+    
+    // 요청 데이터 검증
+    if (!request.isMember("robot_id")) {
+        return createErrorResponse("필수 필드가 누락되었습니다: robot_id");
+    }
+    
+    int robot_id = request["robot_id"].asInt();
+    
+    return processRobotReturnRequest(robot_id, nullptr, "return_by_unknown");
 } 
