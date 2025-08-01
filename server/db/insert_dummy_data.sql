@@ -60,7 +60,8 @@ INSERT INTO `reservations` (`patient_id`, `reservation_date`) VALUES
 (10011001, '2025-01-25'),
 (10021002, '2025-01-25'),
 (10031003, '2025-01-25'),
-(10041004, '2025-01-25');
+(10041004, '2025-01-25'),
+(10011001, '2025-08-01');
 
 -- 시리즈 데이터 (series 테이블)
 INSERT INTO `series` (`series_id`, `department_id`, `dttm`, `status`, `patient_id`, `reservation_date`) VALUES
@@ -69,6 +70,7 @@ INSERT INTO `series` (`series_id`, `department_id`, `dttm`, `status`, `patient_i
 (1, 3, '2025-01-25 11:00:00', '접수', 10021002, '2025-01-25'),  -- 이환자: 대장암센터 접수 (다른 series_id)
 (0, 1, '2025-01-25 14:00:00', '완료', 10031003, '2025-01-25'),  -- 박환자: 초음파 완료
 (0, 2, '2025-01-25 15:30:00', '접수', 10041004, '2025-01-25');  -- 최환자: X-ray 접수
+(0, 0, '2025-01-25 09:00:00', '예약', 10011001, '2025-08-01'),  -- 김환자: CT 예약
 
 -- 로봇 로그 샘플 데이터
 INSERT INTO `robot_log` (`robot_id`, `patient_id`, `dttm`, `orig`, `dest`, `type`) VALUES

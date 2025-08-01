@@ -4,7 +4,7 @@
 
 std::shared_ptr<CentralServer> server_node;
 
-void signalHandler(int signum) {
+void signalHandler(int) {
     if (server_node) {
         server_node->stop();
     }
@@ -19,9 +19,9 @@ int main(int argc, char* argv[]) {
     signal(SIGTERM, signalHandler);
 
     try {
-        RCLCPP_INFO(rclcpp::get_logger("central_server"), "[main] Before make_shared, server_node ptr: %p", server_node.get());
+        RCLCPP_INFO(rclcpp::get_logger("central_server"), "[main] Before make_shared, server_node ptr: %p", static_cast<void*>(server_node.get()));
         server_node = std::make_shared<CentralServer>();
-        RCLCPP_INFO(rclcpp::get_logger("central_server"), "[main] After make_shared, server_node ptr: %p", server_node.get());
+        RCLCPP_INFO(rclcpp::get_logger("central_server"), "[main] After make_shared, server_node ptr: %p", static_cast<void*>(server_node.get()));
         RCLCPP_INFO(rclcpp::get_logger("central_server"), "[main] Before init()");
         server_node->init();
         RCLCPP_INFO(rclcpp::get_logger("central_server"), "[main] After init()");

@@ -119,7 +119,12 @@ void CentralServer::runDatabaseThread() {
             db_manager_->connect();
         }
         
-        std::this_thread::sleep_for(std::chrono::seconds(5));
+        // RobotNavigationManager의 콜백들 처리
+        if (nav_manager_) {
+            rclcpp::spin_some(nav_manager_);
+        }
+        
+        std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 100ms 간격으로 스핀
     }
     
     RCLCPP_INFO(this->get_logger(), "DB 스레드 종료중...");

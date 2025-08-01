@@ -598,7 +598,7 @@ std::string DatabaseManager::getCurrentDate() {
     
     try {
         std::unique_ptr<sql::Statement> stmt(connection->createStatement());
-        std::unique_ptr<sql::ResultSet> res(stmt->executeQuery("SELECT CURDATE() as current_date"));
+        std::unique_ptr<sql::ResultSet> res(stmt->executeQuery("SELECT CURDATE() as `current_date`"));
         
         if (res->next()) {
             return res->getString("current_date");
@@ -711,7 +711,7 @@ int DatabaseManager::findNearestDepartment(float x, float y) {
     }
 } 
 
-bool DatabaseManager::getSeriesWithDepartmentName(int patient_id, const std::string& reservation_date, SeriesInfo& series, std::string& department_name) {
+bool DatabaseManager::getTodayReservationWithDepartmentName(int patient_id, SeriesInfo& series, std::string& department_name) {
     if (!isConnected()) {
         return false;
     }
@@ -725,11 +725,11 @@ bool DatabaseManager::getSeriesWithDepartmentName(int patient_id, const std::str
     ConnectionGuard connection(this, raw_connection);
     
     try {
+        // 오늘 날짜의 "예약" 상태인 건을 찾는 쿼리
         std::unique_ptr<sql::PreparedStatement> pstmt(
-            connection->prepareStatement("SELECT s.series_id, s.department_id, s.dttm, s.status, s.patient_id, s.reservation_date, d.department_name FROM series s JOIN department d ON s.department_id = d.department_id WHERE s.patient_id = ? AND s.reservation_date = ? AND s.series_id = 0")
+            connection->prepareStatement("SELECT s.series_id, s.department_id, s.dttm, s.status, s.patient_id, s.reservation_date, d.department_name FROM series s JOIN department d ON s.department_id = d.department_id WHERE s.patient_id = ? AND s.reservation_date = CURDATE() AND s.series_id = 0")
         );
         pstmt->setInt(1, patient_id);
-        pstmt->setString(2, reservation_date);
         
         std::unique_ptr<sql::ResultSet> res(pstmt->executeQuery());
         
@@ -742,15 +742,15 @@ bool DatabaseManager::getSeriesWithDepartmentName(int patient_id, const std::str
             series.reservation_date = res->getString("reservation_date");
             department_name = res->getString("department_name");
             
-            std::cout << "[DB] Series 정보 조회 성공: Patient " << patient_id << ", Department " << department_name << ", Status " << series.status << std::endl;
+            std::cout << "[DB] 오늘 예약 정보 조회 성공: Patient " << patient_id << ", Department " << department_name << ", Status " << series.status << ", Date " << series.reservation_date << std::endl;
             return true;
         }
         
-        std::cout << "[DB] Series 정보 없음: Patient " << patient_id << ", Date " << reservation_date << std::endl;
+        std::cout << "[DB] 오늘 예약 정보 없음: Patient " << patient_id << std::endl;
         return false;
         
     } catch (sql::SQLException& e) {
-        std::cerr << "[DB] Series 조회 실패: " << e.what() << std::endl;
+        std::cerr << "[DB] 오늘 예약 조회 실패: " << e.what() << std::endl;
         return false;
     }
 }

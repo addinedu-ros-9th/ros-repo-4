@@ -114,7 +114,7 @@ public:
     
     // Series 테이블 관련 메서드들
     bool getSeriesByPatientAndDate(int patient_id, const std::string& reservation_date, SeriesInfo& series);
-    bool getSeriesWithDepartmentName(int patient_id, const std::string& reservation_date, SeriesInfo& series, std::string& department_name);
+    bool getTodayReservationWithDepartmentName(int patient_id, SeriesInfo& series, std::string& department_name);
     bool updateSeriesStatus(int patient_id, const std::string& reservation_date, const std::string& new_status);
     std::string getCurrentDate();
     

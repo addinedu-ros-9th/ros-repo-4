@@ -176,6 +176,8 @@ std::string HttpServer::processRequest(const HttpRequest& request) {
         return createHttpResponse(200, "text/plain", "", cors_headers);
     }
     
+    try {
+    
     // API 엔드포인트 라우팅
     if (request.path == "/auth/ssn" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
@@ -297,6 +299,14 @@ std::string HttpServer::processRequest(const HttpRequest& request) {
     else {
         return createHttpResponse(404, "text/plain", "Not Found");
     }
+    
+    } catch (const std::exception& e) {
+        std::cerr << "[HTTP] 요청 처리 중 예외 발생: " << e.what() << std::endl;
+        return createHttpResponse(500, "application/json", createErrorResponse("Internal server error: " + std::string(e.what())), cors_headers);
+    } catch (...) {
+        std::cerr << "[HTTP] 요청 처리 중 알 수 없는 예외 발생" << std::endl;
+        return createHttpResponse(500, "application/json", createErrorResponse("Internal server error"), cors_headers);
+    }
 }
 
 bool HttpServer::isWebSocketRequest(const HttpRequest& request) {
@@ -306,7 +316,7 @@ bool HttpServer::isWebSocketRequest(const HttpRequest& request) {
            request.headers.at("Upgrade") == "websocket";
 }
 
-std::string HttpServer::handleWebSocketUpgrade(const HttpRequest& request, int client_socket) {
+std::string HttpServer::handleWebSocketUpgrade(const HttpRequest& request, int) {
     std::string client_key = request.headers.at("Sec-WebSocket-Key");
     std::string accept_key = generateWebSocketAcceptKey(client_key);
     
@@ -399,7 +409,7 @@ void HttpServer::removeWebSocketClient(int client_socket) {
     }
 }
 
-std::string HttpServer::handleGetLLMConfig(const Json::Value& request) {
+std::string HttpServer::handleGetLLMConfig(const Json::Value&) {
     Json::Value response;
     response["ip"] = "192.168.0.31";  // minje_pc
     response["port"] = 5000;
@@ -408,19 +418,16 @@ std::string HttpServer::handleGetLLMConfig(const Json::Value& request) {
 
 // 공통 인증 로직
 std::string HttpServer::handleCommonAuth(const PatientInfo& patient) {
-    // 오늘 날짜 조회
-    std::string current_date = db_manager_->getCurrentDate();
-    
-    // Series 정보와 Department 이름 조회 (series_id = 0)
+    // 오늘 날짜의 "예약" 상태인 건을 조회
     SeriesInfo series;
     std::string department_name;
-    if (db_manager_->getSeriesWithDepartmentName(patient.patient_id, current_date, series, department_name)) {
+    if (db_manager_->getTodayReservationWithDepartmentName(patient.patient_id, series, department_name)) {
         // 변경 전 상태 저장
         std::string original_status = series.status;
         
         // status가 '예약' 상태일 때 '접수'로 변경
         if (series.status == "예약") {
-            if (db_manager_->updateSeriesStatus(patient.patient_id, current_date, "접수")) {
+            if (db_manager_->updateSeriesStatus(patient.patient_id, series.reservation_date, "접수")) {
                 std::cout << "[HTTP] 환자 상태 변경: 예약 -> 접수" << std::endl;
             }
         }
@@ -441,7 +448,6 @@ std::string HttpServer::handleAuthSSN(const Json::Value& request) {
         return createErrorResponse("Missing robot_id or ssn");
     }
     
-    int robot_id = request["robot_id"].asInt();
     std::string ssn = request["ssn"].asString();
     
     PatientInfo patient;
@@ -457,7 +463,6 @@ std::string HttpServer::handleAuthPatientId(const Json::Value& request) {
         return createErrorResponse("Missing robot_id or patient_id");
     }
     
-    int robot_id = request["robot_id"].asInt();
     int patient_id = request["patient_id"].asInt();
     
     PatientInfo patient;
@@ -473,7 +478,6 @@ std::string HttpServer::handleAuthRFID(const Json::Value& request) {
         return createErrorResponse("Missing robot_id or rfid");
     }
     
-    int robot_id = request["robot_id"].asInt();
     std::string rfid = request["rfid"].asString();
     
     PatientInfo patient;
@@ -719,8 +723,16 @@ std::string HttpServer::handleGetRobotLocation(const Json::Value& request) {
     if (!request.isMember("robot_id")) {
         return createErrorResponse("필수 필드가 누락되었습니다: robot_id");
     }
+
     
-    int robot_id = request["robot_id"].asInt();
+    int robot_id;
+    if (request["robot_id"].isString()) {
+        robot_id = std::stoi(request["robot_id"].asString());
+    } else if (request["robot_id"].isInt()) {
+        robot_id = request["robot_id"].asInt();
+    } else {
+        return createErrorResponse("robot_id는 정수 또는 문자열이어야 합니다");
+    }
     
     // 실제 로봇 위치 정보 조회 (amcl_pose에서 받은 데이터)
     std::lock_guard<std::mutex> lock(robot_position_mutex_);
@@ -749,7 +761,6 @@ std::string HttpServer::handleChangeCamera(const Json::Value& request) {//AI 서
         return "400"; // Bad Request
     }
     
-    int robot_id = request["robot_id"].asInt();
     std::string camera = request["camera"].asString();
     
     // TODO: 실제 로봇 시스템에서 카메라 변경 명령 전송
@@ -796,8 +807,6 @@ std::string HttpServer::handleGetPatientInfo(const Json::Value& request) {//로�
     if (!request.isMember("robot_id")) {
         return createErrorResponse("필수 필드가 누락되었습니다: robot_id");
     }
-    
-    int robot_id = request["robot_id"].asInt();
     
     // TODO: 실제 데이터베이스에서 해당 로봇을 이용중인 환자 정보 조회
     // IF-06 명세에 따라 응답 (ohone은 phone의 오타로 보임)
@@ -994,13 +1003,10 @@ std::string HttpServer::handleGetLogData(const Json::Value& request) {
     // DB에서 조회한 로그 데이터를 JSON으로 변환
     for (const auto& log_entry : log_data) {
         Json::Value json_entry;
-        json_entry["patient_id"] = std::stoi(log_entry["patient_id"]);
-        json_entry["orig"] = std::stoi(log_entry["orig"]);
-        json_entry["dest"] = std::stoi(log_entry["dest"]);
-        json_entry["date"] = log_entry["date"];
-        json_entry["is_checked"] = std::stoi(log_entry["is_checked"]);
-        json_entry["video_url"] = log_entry["video_url"];
-        json_entry["favorite"] = std::stoi(log_entry["favorite"]);
+        json_entry["patient_id"] = log_entry.at("patient_id");  // 문자열로 유지
+        json_entry["orig"] = std::stoi(log_entry.at("orig"));
+        json_entry["dest"] = std::stoi(log_entry.at("dest"));
+        json_entry["datetime"] = log_entry.at("date");  // datetime으로 필드명 변경
         
         response.append(json_entry);
     }
