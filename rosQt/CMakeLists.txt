@@ -21,6 +21,10 @@ find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(robot_interfaces REQUIRED)
 
+# yaml
+find_package(yaml-cpp REQUIRED)
+
+find_package(Qt6 REQUIRED COMPONENTS Network Widgets)
 
 # Qt 자동 생성 활성화
 set(CMAKE_AUTOMOC ON)
@@ -42,6 +46,7 @@ set(SOURCES
     udp_image_receiver.cpp
     control_popup1.cpp
     control_popup2.cpp
+    user_info.cpp
 )
 
 # UI 파일들
@@ -69,11 +74,13 @@ target_link_libraries(BasicQtApp
     ${Python3_LIBRARIES}
     Qt6::Core
     Qt6::Widgets
+    Qt6::Network Qt6::Widgets
     ${OpenCV_LIBS}
     rclcpp::rclcpp
     ${geometry_msgs_TARGETS}
     ${sensor_msgs_TARGETS}
     ${robot_interfaces_TARGETS}
+    yaml-cpp
 )
 
 # ROS2 의존성 설정

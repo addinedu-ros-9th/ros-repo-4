@@ -1,7 +1,7 @@
 // user_info.h
 #ifndef USER_INFO_H
 #define USER_INFO_H
-
+#pragma once
 #include <string>
 
 struct UserInfo {

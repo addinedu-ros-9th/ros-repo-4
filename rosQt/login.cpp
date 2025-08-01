@@ -2,6 +2,16 @@
 #include "ui_login.h"
 #include <QDebug>
 #include <QStyle>
+#include <yaml-cpp/yaml.h>  
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include "user_info.h" 
+#include <QMessageBox>
+#include <QMessageBox>
+#include <QString>
 
 LoginWindow::LoginWindow(QWidget *parent)
     : QWidget(parent)  // QWidget 대신 QMainWindow로 되돌리기
@@ -12,7 +22,7 @@ LoginWindow::LoginWindow(QWidget *parent)
     
     // 로그인 버튼 연결 (login.ui에 login_btn이 있다고 가정)
     if (ui->login_btn) {
-        connect(ui->login_btn, &QPushButton::clicked, this, &LoginWindow::handleLogin);
+        connect(ui->login_btn, &QPushButton::clicked, this, &LoginWindow::check_login);
     }
     if (ui->login_textfield1) {
         connect(ui->login_textfield1, &QLineEdit::returnPressed, this, &LoginWindow::handleLogin);
@@ -100,7 +110,162 @@ void LoginWindow::check_login()
     QString user_id = ui->login_textfield1->text();
     QString user_password = ui->login_textfield2->text();
 
-    // QString url = QString("http://%1:%2/auth/login")
-    //                 .arg(CENTRAL_IP)
-    //                 .arg(CENTRAL_GUI_PORT);
+    std::string config_path = "../config.yaml";
+    YAML::Node config = YAML::LoadFile(config_path);
+    std::string CENTRAL_IP = config["central_server"]["ip"].as<std::string>();
+    int CENTRAL_HTTP_PORT = config["central_server"]["http_port"].as<int>();
+
+    QString url = QString("http://%1:%2/auth/login")
+                    .arg(CENTRAL_IP.c_str())
+                    .arg(CENTRAL_HTTP_PORT);
+
+    QJsonObject data;
+    data["user_id"] = user_id;
+    data["passwd"] = user_password;
+    QJsonDocument doc(data);
+    QByteArray jsonData = doc.toJson();
+
+    qDebug() << "[로그인 요청 URL]:" << url;
+    qDebug() << "[전송 데이터]:" << jsonData;
+    try
+    {
+        QNetworkRequest request{QUrl(url)};
+        request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+        QNetworkAccessManager* manager = new QNetworkAccessManager(this);
+        QNetworkReply* reply = manager->post(request, jsonData);
+
+        if (ui->login_checkbox && !ui->login_checkbox->isChecked()) {
+            if (ui->login_textfield1) ui->login_textfield1->clear();
+            if (ui->login_textfield2) ui->login_textfield2->clear();
+        }
+
+        connect(reply, &QNetworkReply::finished, this, [this, reply, CENTRAL_IP, CENTRAL_HTTP_PORT, user_id]() {
+            int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (statusCode == 200) {
+                QByteArray responseData = reply->readAll();
+                QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
+                QJsonObject result = jsonDoc.object();
+                qDebug() << "[응답 내용]:" << result;
+
+                QString user_info_url = QString("http://%1:%2/auth/detail")
+                            .arg(CENTRAL_IP.c_str())
+                            .arg(CENTRAL_HTTP_PORT);
+
+                QJsonObject user_info_data;
+                user_info_data["user_id"] = user_id;
+                QJsonDocument user_info_doc(user_info_data);
+                QByteArray user_info_json = user_info_doc.toJson();
+
+                QNetworkRequest userInfoRequest{QUrl(user_info_url)};
+                userInfoRequest.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+                QNetworkAccessManager* userInfoManager = new QNetworkAccessManager(this);
+                QNetworkReply* userInfoReply = userInfoManager->post(userInfoRequest, user_info_json);
+                connect(userInfoReply, &QNetworkReply::finished, this, [this, userInfoReply]() {
+                    int userInfoStatusCode = userInfoReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                    if (userInfoStatusCode == 200) {
+                        QByteArray userInfoData = userInfoReply->readAll();
+                        QJsonDocument userInfoDoc = QJsonDocument::fromJson(userInfoData);
+                        QJsonObject userInfoResult = userInfoDoc.object();
+                        
+                        UserInfo info;
+                        info.name = userInfoResult.contains("name") ? userInfoResult["name"].toString().toStdString() : "";
+                        info.email = userInfoResult.contains("email") ? userInfoResult["email"].toString().toStdString() : "";
+                        info.hospital_name = userInfoResult.contains("hospital_name") ? userInfoResult["hospital_name"].toString().toStdString() : "";
+
+                        // UserInfoManager::set_user_id(userInfoResult["user_id"].toString().toStdString());
+                        // UserInfoManager::set_user_info(info);
+
+                        qDebug() << "[사용자 정보 응답]:" << userInfoResult;
+
+                        for (const QString& key : {"name", "email", "hospital_name", "user_id"}) {
+                            qDebug() << "Key:" << key << ", exists:" << userInfoResult.contains(key)
+                                    << ", isString:" << userInfoResult[key].isString()
+                                    << ", value:" << userInfoResult[key];
+                        }
+                        // 사용자 정보 처리 로직 추가
+                    } else {
+                        qDebug() << "[사용자 정보 요청 실패]:" << userInfoReply->errorString();
+                    }
+                    // QString name = QString::fromStdString(UserInfoManager::get_user_info().name);
+                    // QMessageBox::information(this, "로그인 성공", QString("%1님 환영합니다!").arg(name));
+                    emit loginSuccessful();
+                    userInfoReply->deleteLater();
+                });
+            } else if (statusCode == 401) {
+                if (ui->login_textfield1) ui->login_textfield1->clearFocus();
+                if (ui->login_textfield2) ui->login_textfield2->clearFocus();
+
+                QByteArray responseData = reply->readAll();
+                QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
+                QJsonObject result = jsonDoc.object();
+                QString error_msg = result.value("message").toString("로그인 실패");
+                qDebug() << "ID 오류 :" << error_msg;
+
+                if (ui->login_textfield1) {
+                    ui->login_textfield1->setProperty("class", "textfield large error");
+                    ui->login_textfield1->style()->unpolish(ui->login_textfield1);
+                    ui->login_textfield1->style()->polish(ui->login_textfield1);
+                    ui->login_textfield1->update();
+                }
+                if (ui->auth_text1) {
+                    ui->auth_text1->setProperty("class", "size12 color-error");
+                    ui->auth_text1->style()->unpolish(ui->auth_text1);
+                    ui->auth_text1->style()->polish(ui->auth_text1);
+                    ui->auth_text1->update();
+                }
+            } else if (statusCode == 402) {
+                if (ui->login_textfield1) ui->login_textfield1->clearFocus();
+                if (ui->login_textfield2) ui->login_textfield2->clearFocus();
+
+                QByteArray responseData = reply->readAll();
+                QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
+                QJsonObject result = jsonDoc.object();
+                QString error_msg = result.value("message").toString("로그인 실패");
+                qDebug() << "ID 오류 :" << error_msg;
+
+                if (ui->login_textfield2) {
+                    ui->login_textfield2->setProperty("class", "textfield large error");
+                    ui->login_textfield2->style()->unpolish(ui->login_textfield2);
+                    ui->login_textfield2->style()->polish(ui->login_textfield2);
+                    ui->login_textfield2->update();
+                }
+                if (ui->auth_text2) {
+                    ui->auth_text2->setProperty("class", "size12 color-error");
+                    ui->auth_text2->style()->unpolish(ui->auth_text2);
+                    ui->auth_text2->style()->polish(ui->auth_text2);
+                    ui->auth_text2->update();
+                }
+            } else if (statusCode == 404) {
+                if (ui->login_textfield1 && ui->login_textfield1->text().isEmpty()) {
+                    ui->login_textfield1->setProperty("class", "textfield large error");
+                    ui->login_textfield1->style()->unpolish(ui->login_textfield1);
+                    ui->login_textfield1->style()->polish(ui->login_textfield1);
+                    ui->login_textfield1->update();
+                    if (ui->auth_text1) {
+                        ui->auth_text1->setProperty("class", "size12 color-error");
+                        ui->auth_text1->style()->unpolish(ui->auth_text1);
+                        ui->auth_text1->style()->polish(ui->auth_text1);
+                        ui->auth_text1->update();
+                    }
+                }
+                if (ui->login_textfield2 && ui->login_textfield2->text().isEmpty()) {
+                    ui->login_textfield2->setProperty("class", "textfield large error");
+                    ui->login_textfield2->style()->unpolish(ui->login_textfield2);
+                    ui->login_textfield2->style()->polish(ui->login_textfield2);
+                    ui->login_textfield2->update();
+                    if (ui->auth_text2) {
+                        ui->auth_text2->setProperty("class", "size12 color-error");
+                        ui->auth_text2->style()->unpolish(ui->auth_text2);
+                        ui->auth_text2->style()->polish(ui->auth_text2);
+                        ui->auth_text2->update();
+                    }
+                }
+            }
+            reply->deleteLater();
+        });
+    } catch (const std::exception& e) {
+        qDebug() << "[네트워크 예외]:" << e.what();
+        QMessageBox::critical(this, "네트워크 오류", e.what());
+    }
 }

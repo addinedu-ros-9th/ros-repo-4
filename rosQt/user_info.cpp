@@ -16,6 +16,7 @@ void UserInfoManager::set_user_id(const std::string& id) {
 
 void UserInfoManager::set_user_info(const UserInfo& info) {
     if (!info.name.empty()) {
+        std::cout << "[DEBUG] set_user_info called: " << info.name << ", " << info.email << std::endl;
         user_info = info;
     } else {
         std::cout << "No user found with the given user_id." << std::endl;
@@ -28,6 +29,7 @@ std::string UserInfoManager::get_user_id() {
 }
 
 UserInfo UserInfoManager::get_user_info() {
+    std::cout << "[DEBUG] get_user_info: " << user_info.name << std::endl;
     return user_info;
 }
 

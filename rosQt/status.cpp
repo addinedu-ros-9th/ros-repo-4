@@ -148,5 +148,4 @@ void StatusWidget::show_at(const QPoint& pos)
 void StatusWidget::refresh()
 {
     qDebug() << "Status widget refresh";
-    
 }
