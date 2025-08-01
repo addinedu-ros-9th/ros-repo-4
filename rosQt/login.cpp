@@ -173,8 +173,11 @@ void LoginWindow::check_login()
                         info.email = userInfoResult.contains("email") ? userInfoResult["email"].toString().toStdString() : "";
                         info.hospital_name = userInfoResult.contains("hospital_name") ? userInfoResult["hospital_name"].toString().toStdString() : "";
 
-                        // UserInfoManager::set_user_id(userInfoResult["user_id"].toString().toStdString());
-                        // UserInfoManager::set_user_info(info);
+                        // user_id가 존재하는지 확인 후 설정
+                        if (userInfoResult.contains("user_id")) {
+                            UserInfoManager::set_user_id(userInfoResult["user_id"].toString().toStdString());
+                        }
+                        UserInfoManager::set_user_info(info);
 
                         qDebug() << "[사용자 정보 응답]:" << userInfoResult;
 

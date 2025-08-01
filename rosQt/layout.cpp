@@ -10,26 +10,8 @@
 #include <QLabel>
 #include <QPushButton>
 
-// 임시 사용자 정보 함수들 추가
-QString get_user_id() {
-    return "admin";
-}
-
-struct UserInfo {
-    QString user_id;
-    QString name;
-    QString email;
-    QString store_name;
-};
-
-UserInfo get_user_info() {
-    UserInfo info;
-    info.user_id = "admin01";
-    info.name = "관리자";
-    info.email = "admin@example.com";
-    info.store_name = "가산 서울아산병원";
-    return info;
-}
+// user_info.h의 UserInfo 구조체 사용
+#include "user_info.h"
 
 // UserPopover 구현
 UserPopover::UserPopover(QWidget *parent)
@@ -76,13 +58,13 @@ void UserPopover::setWidgetClasses()
 
 void UserPopover::refresh()
 {
-    UserInfo info = get_user_info();
+    UserInfo info = UserInfoManager::get_user_info();
     
     if (ui->userName) {
-        ui->userName->setText(info.name);
+        ui->userName->setText(QString::fromStdString(info.name));
     }
     if (ui->userEmail) {
-        ui->userEmail->setText(info.email);
+        ui->userEmail->setText(QString::fromStdString(info.email));
     }
 }
 
@@ -112,8 +94,8 @@ LayoutWindow::LayoutWindow(QWidget *parent)
 {
     ui->setupUi(this);
     
-    UserInfo info = get_user_info();
-    store_name = info.store_name;
+    UserInfo info = UserInfoManager::get_user_info();
+    store_name = QString::fromStdString(info.hospital_name);
     
     setupWidgets();
     setWidgetClasses();
@@ -295,13 +277,13 @@ void LayoutWindow::refresh()
     user_popover->refresh();
     log_widget->refresh();
 
-    UserInfo info = get_user_info();
+    UserInfo info = UserInfoManager::get_user_info();
 
     if (ui->locTitle) {
-        ui->locTitle->setText(info.store_name);
+        ui->locTitle->setText(QString::fromStdString(info.hospital_name));
     }
     if (ui->userBtn) {
-        ui->userBtn->setText(info.user_id);
+        ui->userBtn->setText(QString::fromStdString(UserInfoManager::get_user_id()));
     }
 
 }
