@@ -395,73 +395,73 @@ void LogWidget::populateHeatmap()
         {0, 0, 0, 0, 0, 0, 1, 0}
     };
 
-    plt::detail::_interpreter::get();  // 인터프리터 초기화
-    PyRun_SimpleString(R"(
-import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap
+//     plt::detail::_interpreter::get();  // 인터프리터 초기화
+//     PyRun_SimpleString(R"(
+// import matplotlib.pyplot as plt
+// from matplotlib.colors import LinearSegmentedColormap
 
-custom_cmap = LinearSegmentedColormap.from_list("custom", ["#e5f5f5", "#009999"])
-plt.register_cmap(name="custom", cmap=custom_cmap)
-)");
+// custom_cmap = LinearSegmentedColormap.from_list("custom", ["#e5f5f5", "#009999"])
+// plt.register_cmap(name="custom", cmap=custom_cmap)
+// )");
 
-    int rows = heatmapEntries.size();
-    int cols = heatmapEntries[0].size();
-    std::vector<float> flat;
-    for (const auto& row : heatmapEntries)
-        for (int v : row)
-            flat.push_back(static_cast<float>(v));
+//     int rows = heatmapEntries.size();
+//     int cols = heatmapEntries[0].size();
+//     std::vector<float> flat;
+//     for (const auto& row : heatmapEntries)
+//         for (int v : row)
+//             flat.push_back(static_cast<float>(v));
 
-    std::vector<int> x_indices(cols), y_indices(rows);
-    for (int i = 0; i < cols; ++i) x_indices[i] = i;
-    for (int i = 0; i < rows; ++i) y_indices[i] = i;
+//     std::vector<int> x_indices(cols), y_indices(rows);
+//     for (int i = 0; i < cols; ++i) x_indices[i] = i;
+//     for (int i = 0; i < rows; ++i) y_indices[i] = i;
 
-    plt::figure_size(455, 626);
-    plt::clf();
-    plt::imshow(flat.data(), rows, cols, 1, {
-        {"cmap", "custom"}, // 혹은 "BuGn", "Greens" 등
-        {"interpolation", "nearest"},
-        {"aspect", "auto"}
-    });
+//     plt::figure_size(455, 626);
+//     plt::clf();
+//     plt::imshow(flat.data(), rows, cols, 1, {
+//         {"cmap", "custom"}, // 혹은 "BuGn", "Greens" 등
+//         {"interpolation", "nearest"},
+//         {"aspect", "auto"}
+//     });
 
-    // 라벨
-    // plt::xticks(x_indices, labels, {{"fontsize", "14"}, {"rotation", "30"}});
-    // plt::yticks(y_indices, labels, {{"fontsize", "14"}});
-    plt::xticks(x_indices);
-    plt::yticks(y_indices);
-    plt::margins(0, 0);
-    plt::subplots_adjust({{"left", 0.0}, {"right", 1.0}, {"top", 1.0}, {"bottom", 0.0}});
+//     // 라벨
+//     // plt::xticks(x_indices, labels, {{"fontsize", "14"}, {"rotation", "30"}});
+//     // plt::yticks(y_indices, labels, {{"fontsize", "14"}});
+//     plt::xticks(x_indices);
+//     plt::yticks(y_indices);
+//     plt::margins(0, 0);
+//     plt::subplots_adjust({{"left", 0.0}, {"right", 1.0}, {"top", 1.0}, {"bottom", 0.0}});
 
-    PyRun_SimpleString(R"(
-import matplotlib.pyplot as plt
-import numpy as np
-ax = plt.gca()
-for spine in ax.spines.values():
-    spine.set_visible(False)
-rows, cols = plt.gci().get_array().shape
-ax.set_xticks(np.arange(-.5, cols, 1), minor=True)
-ax.set_yticks(np.arange(-.5, rows, 1), minor=True)
-ax.grid(which='minor', color='#fff', linewidth=1)
+//     PyRun_SimpleString(R"(
+// import matplotlib.pyplot as plt
+// import numpy as np
+// ax = plt.gca()
+// for spine in ax.spines.values():
+//     spine.set_visible(False)
+// rows, cols = plt.gci().get_array().shape
+// ax.set_xticks(np.arange(-.5, cols, 1), minor=True)
+// ax.set_yticks(np.arange(-.5, rows, 1), minor=True)
+// ax.grid(which='minor', color='#fff', linewidth=1)
 
-# 셀 값 표시
-data = plt.gci().get_array()
-data = plt.gci().get_array()
-for i in range(rows):
-    for j in range(cols):
-        ax.text(j, i, int(data[i, j]), ha='center', va='center', color='#222222', fontsize=12)
-)");
-    std::string filename = "/tmp/heatmap.png";
-    try {
-        plt::save(filename);
-        qDebug() << "Saved heatmap to" << QString::fromStdString(filename);
-    } catch (const std::exception& e) {
-        qDebug() << "matplotlib-cpp exception:" << e.what();
-    }
-    plt::close();
+// # 셀 값 표시
+// data = plt.gci().get_array()
+// data = plt.gci().get_array()
+// for i in range(rows):
+//     for j in range(cols):
+//         ax.text(j, i, int(data[i, j]), ha='center', va='center', color='#222222', fontsize=12)
+// )");
+//     std::string filename = "/tmp/heatmap.png";
+//     try {
+//         plt::save(filename);
+//         qDebug() << "Saved heatmap to" << QString::fromStdString(filename);
+//     } catch (const std::exception& e) {
+//         qDebug() << "matplotlib-cpp exception:" << e.what();
+//     }
+//     plt::close();
 
-    QPixmap pixmap(QString::fromStdString(filename));
-    if (!pixmap.isNull()) {
-        ui->heatmap->setPixmap(pixmap.scaled(ui->heatmap->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    }
+//     QPixmap pixmap(QString::fromStdString(filename));
+//     if (!pixmap.isNull()) {
+//         ui->heatmap->setPixmap(pixmap.scaled(ui->heatmap->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+//     }
 }
 
 void LogWidget::show_at(const QPoint& pos)
