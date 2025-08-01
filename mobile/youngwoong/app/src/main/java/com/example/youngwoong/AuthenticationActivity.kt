@@ -206,7 +206,7 @@ class AuthenticationActivity : AppCompatActivity() {
                 }
 
                 val request = Request.Builder()
-                    .url("http://192.168.0.27:8080/auth/rfid")
+                    .url("http://192.168.0.31:8080/auth/rfid")
                     .post(json.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull()))
                     .build()
 
@@ -219,11 +219,13 @@ class AuthenticationActivity : AppCompatActivity() {
                     val name = data.optString("name")
                     val reservation = data.optString("reservation")
                     val reservationTime = data.optString("datetime")
-                    val department = convertReservationCodeToDepartment(reservation)
+                    val department = data.optString("department") // 서버 값 그대로 사용
+                    val status = data.optString("status")
+
 
                     if (name.isNotBlank() && department.isNotBlank()) {
                         withContext(Dispatchers.Main) {
-                            showUidPopup(name, department, reservationTime)
+                            showUidPopup(name, department, reservationTime, status)
                         }
                     } else {
                         withContext(Dispatchers.Main) {
@@ -253,7 +255,7 @@ class AuthenticationActivity : AppCompatActivity() {
                 }
 
                 val request = Request.Builder()
-                    .url("http://192.168.0.27:8080/auth/ssn")
+                    .url("http://192.168.0.31:8080/auth/ssn")
                     .post(json.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull()))
                     .build()
 
@@ -264,14 +266,15 @@ class AuthenticationActivity : AppCompatActivity() {
                 if (!body.isNullOrEmpty()) {
                     val data = JSONObject(body)
                     val name = data.optString("name")
-                    val reservation = data.optString("reservation")
+                    val department = data.optString("department") // ✅ 서버 응답 그대로 사용
                     val reservationTime = data.optString("datetime")
+                    val status = data.optString("status")
 
-                    if (name.isNotBlank() && reservation.isNotBlank()) {
-                        val department = convertReservationCodeToDepartment(reservation)
+                    Log.d("AUTH_SSN", "✅ 파싱된 데이터: name=$name, department=$department, time=$reservationTime")
 
+                    if (name.isNotBlank() && department.isNotBlank()) {
                         withContext(Dispatchers.Main) {
-                            showUidPopup(name, department, reservationTime)
+                            showUidPopup(name, department, reservationTime, status)
                         }
                     } else {
                         withContext(Dispatchers.Main) {
@@ -284,7 +287,7 @@ class AuthenticationActivity : AppCompatActivity() {
                     }
                 }
             } catch (e: Exception) {
-                Log.e("AUTH_SSN", "❌ 본인 확인 실패: ${e.message}")
+                Log.e("AUTH_SSN", "❌ 본인 확인 실패", e)
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@AuthenticationActivity, "⚠️ 네트워크 오류가 발생했습니다.", Toast.LENGTH_SHORT).show()
                 }
@@ -305,11 +308,12 @@ class AuthenticationActivity : AppCompatActivity() {
 
                 val json = JSONObject().apply {
                     put("robot_id", 3)
-                    put("patient_id", patientIdInt)  // int로 전송
+                    put("patient_id", patientIdInt)
                 }
+                Log.d("AUTH_PATIENT_ID", "📤 전송 데이터: $json")
 
                 val request = Request.Builder()
-                    .url("http://192.168.0.27:8080/auth/patient_id")
+                    .url("http://192.168.0.31:8080/auth/patient_id")
                     .post(json.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull()))
                     .build()
 
@@ -317,16 +321,20 @@ class AuthenticationActivity : AppCompatActivity() {
                 val response = client.newCall(request).execute()
                 val body = response.body?.string()
 
+                Log.d("AUTH_PATIENT_ID", "📥 서버 응답: $body")
+
                 if (!body.isNullOrEmpty()) {
                     val data = JSONObject(body)
                     val name = data.optString("name")
-                    val reservation = data.optString("reservation")
+                    val department = data.optString("department")
                     val reservationTime = data.optString("datetime")
-                    val department = convertReservationCodeToDepartment(reservation)
+                    val status = data.optString("status")
+
+                    Log.d("AUTH_PATIENT_ID", "✅ 파싱된 데이터: name=$name, department=$department, time=$reservationTime, status=$status")
 
                     if (name.isNotBlank() && department.isNotBlank()) {
                         withContext(Dispatchers.Main) {
-                            showUidPopup(name, department, reservationTime)
+                            showUidPopup(name, department, reservationTime, status)
                         }
                     } else {
                         withContext(Dispatchers.Main) {
@@ -339,7 +347,7 @@ class AuthenticationActivity : AppCompatActivity() {
                     }
                 }
             } catch (e: Exception) {
-                Log.e("AUTH_PATIENT_ID", "❌ 회원번호 확인 실패: ${e.message}")
+                Log.e("AUTH_PATIENT_ID", "❌ 회원번호 확인 실패", e)
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@AuthenticationActivity, "⚠ 네트워크 오류", Toast.LENGTH_SHORT).show()
                 }
@@ -348,26 +356,12 @@ class AuthenticationActivity : AppCompatActivity() {
     }
 
 
-
-    private fun convertReservationCodeToDepartment(code: String): String {
-        return when (code.firstOrNull()) {
-            '0' -> "CT 검사실"
-            '1' -> "초음파 검사실"
-            '2' -> "X-ray 검사실"
-            '3' -> "대장암 센터"
-            '4' -> "위암 센터"
-            '5' -> "폐암 센터"
-            '6' -> "뇌종양 센터"
-            '7' -> "유방암 센터"
-            else -> "알 수 없음"
-        }
-    }
-
-    private fun showUidPopup(userName: String, department: String, reservationTime: String) {
+    private fun showUidPopup(userName: String, department: String, reservationTime: String, status: String) {
         val popup = CheckinPopupDialog(
             userName = userName,
             department = department,
             reservationTime = reservationTime,
+            status = status,
             onConfirm = {
                 val intent = Intent(this, GuidanceConfirmActivity::class.java).apply {
                     putExtra("user_name", userName)

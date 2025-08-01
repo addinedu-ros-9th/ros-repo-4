@@ -17,6 +17,7 @@ class CheckinPopupDialog(
     private val userName: String,
     private val department: String,
     private val reservationTime: String = "",
+    private val status: String = "", // ✅ 상태 추가
     private val waitingNumber: String = "",
     private val onConfirm: (() -> Unit)? = null
 ) : DialogFragment() {
@@ -32,19 +33,26 @@ class CheckinPopupDialog(
         val btnYes = dialog.findViewById<ImageView>(R.id.btn_yes)
         val btnNo = dialog.findViewById<ImageView>(R.id.btn_no)
 
+        // ✅ 안내 메시지 구성
         val messageBuilder = StringBuilder()
         messageBuilder.append("${userName}님 반갑습니다.\n")
-        if (reservationTime.isNotBlank() && department.isNotBlank()) {
-            messageBuilder.append("오늘 ${reservationTime} ${department} 예약되어있습니다.\n")
-        } else if (department.isNotBlank()) {
-            messageBuilder.append("${department} 예약되어있습니다.\n")
-        }
-        messageBuilder.append("접수해드릴까요?")
 
+        if (status == "접수") {
+            messageBuilder.append("이미 ${department}에 접수되어 있습니다.\n")
+        } else {
+            if (reservationTime.isNotBlank() && department.isNotBlank()) {
+                messageBuilder.append("오늘 ${reservationTime} ${department} 예약접수되었습니다.\n")
+            } else if (department.isNotBlank()) {
+                messageBuilder.append("${department} 예약접수되었습니다.\n")
+            }
+        }
+
+        messageBuilder.append("안내해드릴까요?")
         val message = messageBuilder.toString()
+
+        // ✅ 강조 색상 처리
         val spannable = SpannableString(message)
         val highlightColor = Color.parseColor("#00696D")
-
         listOf(userName, reservationTime, department).forEach {
             val start = message.indexOf(it)
             if (start >= 0) {
@@ -59,6 +67,7 @@ class CheckinPopupDialog(
 
         textView.text = spannable
 
+        // ✅ 버튼 클릭 처리
         btnYes.setOnClickListener {
             applyAlphaEffect(it) {
                 onConfirm?.invoke()

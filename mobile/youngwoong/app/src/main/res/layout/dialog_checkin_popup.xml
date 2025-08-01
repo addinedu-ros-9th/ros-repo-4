@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="630dp"
+    android:layout_width="730dp"
     android:layout_height="322dp"
     android:background="@drawable/popup_info_bg"
     android:padding="32dp">
@@ -18,7 +18,6 @@
         android:text="김00님 반갑습니다.\n이미 정형외과 접수되었습니다.\n안내해드릴까요?"
         android:textColor="#444444"
         android:textSize="24sp" />
-
 
 
     <!-- 왼쪽 하단 버튼 -->

@@ -10,10 +10,18 @@ import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import kotlinx.coroutines.*
+import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import android.util.Log
+
 
 class GuidanceConfirmActivity : AppCompatActivity() {
 
     private var isFromCheckin: Boolean = false
+    private val robotLocationUrl = "http://192.168.0.31:8080/get/robot_location"
 
     // ✅ 실제 측정된 Android 기준 좌표
     private val stationCoords = mapOf(
@@ -89,15 +97,8 @@ class GuidanceConfirmActivity : AppCompatActivity() {
                 destinationMarker.y = mapView.y + py - destinationMarker.height / 2
             }
         }
-
-        // ✅ 로봇 마커: 지도 중앙에 표시 (더미 값)
-        val robotPos = Pair(4.5f, 8.0f)
-        val (robotX, robotY) = mapToPixelDirect(robotPos.first, robotPos.second)
-        robotMarker.visibility = View.VISIBLE
-        robotMarker.post {
-            robotMarker.x = mapView.x + robotX - robotMarker.width / 2
-            robotMarker.y = mapView.y + robotY - robotMarker.height / 2
-        }
+        // ✅ 로봇 위치 받아오기
+        fetchRobotPosition(robotMarker, mapView)
 
         // ✅ 버튼 처리
         cancelButton.setOnClickListener {
@@ -125,6 +126,47 @@ class GuidanceConfirmActivity : AppCompatActivity() {
                 overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
                 finish()
             }, 100)
+        }
+    }
+    private fun fetchRobotPosition(robotMarker: ImageView, mapView: ImageView) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val json = JSONObject().apply {
+                    put("robot_id", "3")
+                }
+
+                Log.d("RobotPosition", "📤 전송 JSON: $json")
+                val requestBody = json.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
+                val request = Request.Builder()
+                    .url(robotLocationUrl)
+                    .post(requestBody)
+                    .build()
+
+                val client = OkHttpClient()
+                val response = client.newCall(request).execute()
+                val body = response.body?.string()
+
+                if (!body.isNullOrEmpty()) {
+                    val responseJson = JSONObject(body)
+                    val x = responseJson.optDouble("x", Double.NaN).toFloat()
+                    val y = responseJson.optDouble("y", Double.NaN).toFloat()
+
+                    if (!x.isNaN() && !y.isNaN()) {
+                        val (px, py) = mapToPixelDirect(x, y)
+                        withContext(Dispatchers.Main) {
+                            robotMarker.visibility = View.VISIBLE
+                            robotMarker.x = mapView.x + px - robotMarker.width / 2
+                            robotMarker.y = mapView.y + py - robotMarker.height / 2
+                        }
+                    } else {
+                        Log.e("RobotPosition", "❌ 좌표 파싱 실패: x=$x, y=$y")
+                    }
+                } else {
+                    Log.e("RobotPosition", "❌ 서버 응답 body 비어있음")
+                }
+            } catch (e: Exception) {
+                Log.e("RobotPosition", "❌ 로봇 위치 가져오기 실패", e)
+            }
         }
     }
 
