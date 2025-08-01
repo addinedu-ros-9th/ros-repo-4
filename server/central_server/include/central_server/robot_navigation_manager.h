@@ -32,6 +32,9 @@ public:
     // 로봇 원격 제어 명령 (teleop)
     bool sendTeleopCommand(const std::string& teleop_key);
     
+    // 로봇 상태 조회
+    std::string getCurrentNavStatus();
+    
     // 콜백 함수 설정
     void setNavStatusCallback(std::function<void(const std::string&)> callback);
     void setRobotPoseCallback(std::function<void(double x, double y, double yaw)> callback);
@@ -46,6 +49,10 @@ private:
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr target_sub_;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr nav_status_sub_;
     rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr amcl_pose_sub_;
+    
+    // 로봇 상태 정보
+    std::string current_nav_status_;
+    std::mutex nav_status_mutex_;
     
     // 콜백 함수들
     std::function<void(const std::string&)> start_point_callback_;

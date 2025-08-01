@@ -750,14 +750,23 @@ std::string HttpServer::handleGetRobotStatus(const Json::Value& request) {
     
     int robot_id = request["robot_id"].asInt();
     
-    // TODO: 실제 로봇 시스템에서 상태 정보 조회
+    // 실제 로봇 시스템에서 상태 정보 조회
+    if (!nav_manager_) {
+        return createErrorResponse("네비게이션 관리자를 사용할 수 없습니다");
+    }
+    
+    std::string nav_status = nav_manager_->getCurrentNavStatus();
+    
     // IF-05 명세에 따라 응답
     Json::Value response;
-    response["status"] = "moving";
-    response["orig"] = 0;
-    response["dest"] = 3;
-    response["battery"] = 70;
-    response["network"] = 4;
+    response["status"] = nav_status.empty() ? "unknown" : nav_status;
+    response["orig"] = 0;  // TODO: 실제 출발지 정보 조회
+    response["dest"] = 3;  // TODO: 실제 목적지 정보 조회
+    response["battery"] = 70;  // TODO: 실제 배터리 정보 조회
+    response["network"] = 4;   // TODO: 실제 네트워크 정보 조회
+    
+    std::cout << "[HTTP] 로봇 상태 정보 반환: Robot " << robot_id 
+              << " - Status: " << response["status"].asString() << std::endl;
     
     Json::StreamWriterBuilder builder;
     return Json::writeString(builder, response);

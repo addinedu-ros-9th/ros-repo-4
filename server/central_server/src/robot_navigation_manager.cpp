@@ -151,9 +151,20 @@ void RobotNavigationManager::setRobotPoseCallback(
 void RobotNavigationManager::navStatusCallback(const std_msgs::msg::String::SharedPtr msg) {
     RCLCPP_INFO(this->get_logger(), "로봇 주행 상태 수신: %s", msg->data.c_str());
     
+    // 현재 상태 저장
+    {
+        std::lock_guard<std::mutex> lock(nav_status_mutex_);
+        current_nav_status_ = msg->data;
+    }
+    
     if (nav_status_callback_) {
         nav_status_callback_(msg->data);
     }
+}
+
+std::string RobotNavigationManager::getCurrentNavStatus() {
+    std::lock_guard<std::mutex> lock(nav_status_mutex_);
+    return current_nav_status_;
 }
 
 void RobotNavigationManager::amclPoseCallback(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg) {
