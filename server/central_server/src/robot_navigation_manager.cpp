@@ -1,15 +1,35 @@
 #include "central_server/robot_navigation_manager.h"
+#include <domain_bridge/domain_bridge.hpp>
 #include <iostream>
 #include <cmath>
+#include <cstdlib>
 
 RobotNavigationManager::RobotNavigationManager() 
     : Node("robot_navigation_manager") {
     
     RCLCPP_INFO(this->get_logger(), "RobotNavigationManager 초기화 시작");
     
-    // Domain ID 설정 (22)
-    auto context = this->get_node_base_interface()->get_context();
-    context->set_domain_id(22);
+    // Domain Bridge 초기화 - Domain ID 22와 통신
+    try {
+        // 현재 Domain ID를 환경 변수에서 읽기 (기본값 0)
+        const char* domain_id_env = std::getenv("ROS_DOMAIN_ID");
+        int current_domain_id = domain_id_env ? std::atoi(domain_id_env) : 0;
+        
+        // Domain Bridge 생성
+        domain_bridge_ = std::make_unique<domain_bridge::DomainBridge>();
+        
+        // 토픽 브리지 설정 - navigation_command 토픽을 현재 도메인에서 도메인 22로 브리지
+        domain_bridge_->bridge_topic(
+            "/navigation_command", 
+            "std_msgs/msg/String",
+            current_domain_id, 
+            22
+        );
+        
+        RCLCPP_INFO(this->get_logger(), "Domain Bridge 초기화 완료 (Domain %d -> 22)", current_domain_id);
+    } catch (const std::exception& e) {
+        RCLCPP_ERROR(this->get_logger(), "Domain Bridge 초기화 실패: %s", e.what());
+    }
     
     // 퍼블리셔 초기화
     navigation_command_pub_ = this->create_publisher<std_msgs::msg::String>(
@@ -28,7 +48,7 @@ RobotNavigationManager::RobotNavigationManager()
         std::bind(&RobotNavigationManager::amclPoseCallback, this, std::placeholders::_1));
     
     RCLCPP_INFO(this->get_logger(), "RobotNavigationManager 초기화 완료");
-    RCLCPP_INFO(this->get_logger(), "Domain ID: 22");
+    RCLCPP_INFO(this->get_logger(), "Domain Bridge를 통한 Domain ID 22와 통신");
     RCLCPP_INFO(this->get_logger(), "토픽 설정:");
     RCLCPP_INFO(this->get_logger(), "  - 발행: /navigation_command");
     RCLCPP_INFO(this->get_logger(), "  - 발행: /cmd_vel");

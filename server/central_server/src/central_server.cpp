@@ -37,7 +37,7 @@ void CentralServer::setupHttpServer()
     try {
         // 설정 파일 로드
         const char* config_env = std::getenv("CENTRAL_SERVER_CONFIG");
-        std::string config_path = config_env ? config_env : "/home/wonho/ros-repo-4/config.yaml";
+        std::string config_path = config_env ? config_env : "config.yaml";
         YAML::Node config = YAML::LoadFile(config_path);
         
         // HTTP 서버 설정

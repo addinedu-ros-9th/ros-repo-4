@@ -14,17 +14,14 @@
 #include <vector>
 #include <queue>
 
+// 전방 선언
+class DatabaseManager;
+
 // RAII Connection 관리 클래스
 class ConnectionGuard {
 public:
-    ConnectionGuard(DatabaseManager* db_manager, sql::Connection* connection)
-        : db_manager_(db_manager), connection_(connection) {}
-    
-    ~ConnectionGuard() {
-        if (db_manager_ && connection_) {
-            db_manager_->releaseConnection(connection_);
-        }
-    }
+    ConnectionGuard(DatabaseManager* db_manager, sql::Connection* connection);
+    ~ConnectionGuard();
     
     sql::Connection* get() const { return connection_; }
     sql::Connection* operator->() const { return connection_; }
@@ -110,11 +107,22 @@ public:
                                int orig_department_id, int dest_department_id, const std::string& type);
     int findNearestDepartment(float x, float y);
     
+    // 로그 데이터 조회
+    std::vector<std::map<std::string, std::string>> getRobotLogData(const std::string& period, 
+                                                                    const std::string& start_date, 
+                                                                    const std::string& end_date);
+    
     // Series 테이블 관련 메서드들
     bool getSeriesByPatientAndDate(int patient_id, const std::string& reservation_date, SeriesInfo& series);
     bool getSeriesWithDepartmentName(int patient_id, const std::string& reservation_date, SeriesInfo& series, std::string& department_name);
     bool updateSeriesStatus(int patient_id, const std::string& reservation_date, const std::string& new_status);
     std::string getCurrentDate();
+    
+    // Connection Pool 관리 함수들
+    bool initializeConnectionPool();
+    sql::Connection* getConnection();
+    void releaseConnection(sql::Connection* connection);
+    void cleanupConnectionPool();
 
 private:
     // MySQL 연결 정보
@@ -135,12 +143,6 @@ private:
     void loadConnectionConfig();
     bool executeQuery(const std::string& query);
     std::unique_ptr<sql::ResultSet> executeSelect(const std::string& query);
-    
-    // Connection Pool 관리 함수들
-    bool initializeConnectionPool();
-    sql::Connection* getConnection();
-    void releaseConnection(sql::Connection* connection);
-    void cleanupConnectionPool();
 };
 
 #endif // DATABASE_MANAGER_H 

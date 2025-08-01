@@ -7,6 +7,7 @@
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <nav_msgs/msg/occupancy_grid.hpp>
+#include <domain_bridge/domain_bridge.hpp>
 #include <memory>
 #include <string>
 #include <functional>
@@ -49,6 +50,9 @@ private:
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr target_sub_;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr nav_status_sub_;
     rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr amcl_pose_sub_;
+    
+    // Domain Bridge
+    std::unique_ptr<domain_bridge::DomainBridge> domain_bridge_;
     
     // 로봇 상태 정보
     std::string current_nav_status_;

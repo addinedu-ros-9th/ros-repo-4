@@ -207,10 +207,11 @@ std::string HttpServer::processRequest(const HttpRequest& request) {
         std::string response = handleWithoutAuthRobotReturn(json_request);
         return createHttpResponse(200, "application/json", response, cors_headers);
     }
-    else if (request.path == "/robot_status" && request.method == "POST") {
+    else if (request.path == "/change/robot_status" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
         std::string response = handleRobotStatus(json_request);
-        return createHttpResponse(200, "application/json", response, cors_headers);
+        int status_code = std::stoi(response);
+        return createHttpResponse(status_code, "text/plain", response, cors_headers);
     }
     else if (request.path == "/without_auth/direction" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
@@ -226,7 +227,8 @@ std::string HttpServer::processRequest(const HttpRequest& request) {
     else if (request.path == "/auth/login" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
         std::string response = handleAuthLogin(json_request);
-        return createHttpResponse(200, "text/plain", response, cors_headers);
+        int status_code = std::stoi(response);
+        return createHttpResponse(status_code, "text/plain", response, cors_headers);
     }
     else if (request.path == "/auth/detail" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
@@ -240,38 +242,43 @@ std::string HttpServer::processRequest(const HttpRequest& request) {
     }
     else if (request.path == "/change/camera" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
-        std::string response = handleChangeCamera(json_request);
-        return createHttpResponse(200, "text/plain", response, cors_headers);
+        std::string response = handleChangeCamera(json_request);//AI 서버의 카메라 전환 로직 구현이 안 되어 추후 구현
+        int status_code = std::stoi(response);
+        return createHttpResponse(status_code, "text/plain", response, cors_headers);
     }
     else if (request.path == "/get/robot_status" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
-        std::string response = handleGetRobotStatus(json_request);
+        std::string response = handleGetRobotStatus(json_request);//추후 구현
         return createHttpResponse(200, "application/json", response, cors_headers);
     }
     else if (request.path == "/get/patient_info" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
-        std::string response = handleGetPatientInfo(json_request);
+        std::string response = handleGetPatientInfo(json_request);//추후 구현
         return createHttpResponse(200, "application/json", response, cors_headers);
     }
     else if (request.path == "/stop/status_moving" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
         std::string response = handleStopStatusMoving(json_request);
-        return createHttpResponse(200, "text/plain", response, cors_headers);
+        int status_code = std::stoi(response);
+        return createHttpResponse(status_code, "text/plain", response, cors_headers);
     }
     else if (request.path == "/cancel_command" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
         std::string response = handleCancelCommand(json_request);
-        return createHttpResponse(200, "text/plain", response, cors_headers);
+        int status_code = std::stoi(response);
+        return createHttpResponse(status_code, "text/plain", response, cors_headers);
     }
     else if (request.path == "/command/move_teleop" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
         std::string response = handleCommandMoveTeleop(json_request);
-        return createHttpResponse(200, "text/plain", response, cors_headers);
+        int status_code = std::stoi(response);
+        return createHttpResponse(status_code, "text/plain", response, cors_headers);
     }
     else if (request.path == "/command/move_dest" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
         std::string response = handleCommandMoveDest(json_request);
-        return createHttpResponse(200, "text/plain", response, cors_headers);
+        int status_code = std::stoi(response);
+        return createHttpResponse(status_code, "text/plain", response, cors_headers);
     }
     else if (request.path == "/get/log_data" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
@@ -280,7 +287,7 @@ std::string HttpServer::processRequest(const HttpRequest& request) {
     }
     else if (request.path == "/get/heatmap" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
-        std::string response = handleGetHeatmap(json_request);
+        std::string response = handleGetHeatmap(json_request);//히트맵에서 다른 방식으로 전환하기로 해서 추후 구현
         return createHttpResponse(200, "application/json", response, cors_headers);
     }
     else if (request.path == "/ws" && request.method == "GET") {
@@ -517,16 +524,23 @@ std::string HttpServer::handleWithoutAuthDirection(const Json::Value& request) {
 
 std::string HttpServer::handleRobotStatus(const Json::Value& request) {
     if (!request.isMember("robot_id") || !request.isMember("status")) {
-        return createErrorResponse("Missing robot_id or status");
+        return "400"; // Bad Request
     }
     
     int robot_id = request["robot_id"].asInt();
     std::string status = request["status"].asString();
     
-    // TODO: 로봇 상태 업데이트 처리
-    std::cout << "[HTTP] 로봇 상태 업데이트: Robot " << robot_id << " -> " << status << std::endl;
+    // GUI에서 화면을 터치했을 때 보내는 요청으로 로봇은 즉시 이동을 멈춰야 함
+    if (nav_manager_) {
+        if (!nav_manager_->sendStopCommand()) {
+            return "500"; // Internal Server Error
+        }
+        std::cout << "[HTTP] 로봇 정지 명령 전송 완료: Robot " << robot_id << std::endl;
+    } else {
+        return "503"; // Service Unavailable
+    }
     
-    return createStatusResponse(200);
+    return "200"; // 성공
 }
 
 // 유틸리티 함수들
@@ -622,9 +636,12 @@ std::string HttpServer::createHttpResponse(int status_code,
     std::string status_text;
     switch (status_code) {
         case 200: status_text = "OK"; break;
+        case 400: status_text = "Bad Request"; break;
+        case 401: status_text = "Unauthorized"; break;
         case 404: status_text = "Not Found"; break;
         case 405: status_text = "Method Not Allowed"; break;
         case 500: status_text = "Internal Server Error"; break;
+        case 503: status_text = "Service Unavailable"; break;
         default: status_text = "Unknown"; break;
     }
     
@@ -724,7 +741,7 @@ std::string HttpServer::handleGetRobotLocation(const Json::Value& request) {
     return Json::writeString(builder, response);
 }
 
-std::string HttpServer::handleChangeCamera(const Json::Value& request) {
+std::string HttpServer::handleChangeCamera(const Json::Value& request) {//AI 서버의 카메라 전환 로직 구현이 안 되어 추후 구현
     std::cout << "[HTTP] 카메라 변경 요청 처리 (IF-04)" << std::endl;
     
     // 요청 데이터 검증
@@ -740,7 +757,7 @@ std::string HttpServer::handleChangeCamera(const Json::Value& request) {
     return "200"; // 성공
 }
 
-std::string HttpServer::handleGetRobotStatus(const Json::Value& request) {
+std::string HttpServer::handleGetRobotStatus(const Json::Value& request) {//현재 로봇 side 코드 상태가 구현이 안되어 있어서 추후 수정 필요
     std::cout << "[HTTP] 로봇 상태 요청 처리 (IF-05)" << std::endl;
     
     // 요청 데이터 검증
@@ -772,7 +789,7 @@ std::string HttpServer::handleGetRobotStatus(const Json::Value& request) {
     return Json::writeString(builder, response);
 }
 
-std::string HttpServer::handleGetPatientInfo(const Json::Value& request) {
+std::string HttpServer::handleGetPatientInfo(const Json::Value& request) {//로봇의 상태를 체크하고 로그를 뒤져 확인해야 하는데 상태 미구현으로 추후 구현
     std::cout << "[HTTP] 환자 정보 요청 처리 (IF-06)" << std::endl;
     
     // 요청 데이터 검증
@@ -968,29 +985,31 @@ std::string HttpServer::handleGetLogData(const Json::Value& request) {
         return createErrorResponse("period와 start_date/end_date는 동시에 사용할 수 없습니다");
     }
     
-    // TODO: 실제 데이터베이스에서 로그 데이터 조회
-    // 현재는 더미 데이터로 응답
+    // 실제 데이터베이스에서 로그 데이터 조회
+    std::vector<std::map<std::string, std::string>> log_data = 
+        db_manager_->getRobotLogData(period, start_date, end_date);
+    
     Json::Value response = Json::Value(Json::arrayValue);
     
-    // 더미 로그 데이터 생성
-    for (int i = 0; i < 3; i++) {
-        Json::Value log_entry;
-        log_entry["patient_id"] = 00000000;
-        log_entry["orig"] = 0;
-        log_entry["dest"] = 3;
-        log_entry["date"] = "2024-01-15 14:30:00";
-        log_entry["is_checked"] = 0;
-        log_entry["video_url"] = "video_34.mp4";
-        log_entry["favorite"] = 0;
+    // DB에서 조회한 로그 데이터를 JSON으로 변환
+    for (const auto& log_entry : log_data) {
+        Json::Value json_entry;
+        json_entry["patient_id"] = std::stoi(log_entry["patient_id"]);
+        json_entry["orig"] = std::stoi(log_entry["orig"]);
+        json_entry["dest"] = std::stoi(log_entry["dest"]);
+        json_entry["date"] = log_entry["date"];
+        json_entry["is_checked"] = std::stoi(log_entry["is_checked"]);
+        json_entry["video_url"] = log_entry["video_url"];
+        json_entry["favorite"] = std::stoi(log_entry["favorite"]);
         
-        response.append(log_entry);
+        response.append(json_entry);
     }
     
     Json::StreamWriterBuilder builder;
     return Json::writeString(builder, response);
 }
 
-std::string HttpServer::handleGetHeatmap(const Json::Value& request) {
+std::string HttpServer::handleGetHeatmap(const Json::Value& request) {//히트맵에서 다른 방식으로 전환하기로 해서 추후 구현
     std::cout << "[HTTP] 히트맵 데이터 요청 처리 (IF-12)" << std::endl;
     
     // 요청 데이터 검증 및 파라미터 처리

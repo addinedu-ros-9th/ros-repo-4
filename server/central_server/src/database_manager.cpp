@@ -4,6 +4,16 @@
 #include <cmath>
 #include <limits>
 
+// ConnectionGuard 구현
+ConnectionGuard::ConnectionGuard(DatabaseManager* db_manager, sql::Connection* connection)
+    : db_manager_(db_manager), connection_(connection) {}
+
+ConnectionGuard::~ConnectionGuard() {
+    if (db_manager_ && connection_) {
+        db_manager_->releaseConnection(connection_);
+    }
+}
+
 DatabaseManager::DatabaseManager() 
     : host_("localhost"), username_("root"), password_("heR@491!"), database_("HeroDB"), port_(3306), pool_size_(5)
 {
@@ -625,7 +635,8 @@ bool DatabaseManager::insertRobotLogWithType(int robot_id, int* patient_id, cons
         if (patient_id != nullptr) {
             pstmt->setInt(2, *patient_id);
         } else {
-            pstmt->setNull(2, sql::Types::INTEGER);
+            // NULL 값을 설정하는 대신 기본값 0을 사용
+            pstmt->setInt(2, 0);
         }
         
         pstmt->setString(3, datetime);
@@ -675,8 +686,8 @@ int DatabaseManager::findNearestDepartment(float x, float y) {
         
         while (res->next()) {
             int dept_id = res->getInt("department_id");
-            float dept_x = res->getFloat("location_x");
-            float dept_y = res->getFloat("location_y");
+            float dept_x = static_cast<float>(res->getDouble("location_x"));
+            float dept_y = static_cast<float>(res->getDouble("location_y"));
             
             // 유클리드 거리 계산
             float distance = std::sqrt(std::pow(x - dept_x, 2) + std::pow(y - dept_y, 2));
@@ -742,4 +753,107 @@ bool DatabaseManager::getSeriesWithDepartmentName(int patient_id, const std::str
         std::cerr << "[DB] Series 조회 실패: " << e.what() << std::endl;
         return false;
     }
+}
+
+std::vector<std::map<std::string, std::string>> DatabaseManager::getRobotLogData(const std::string& period, 
+                                                                                 const std::string& start_date, 
+                                                                                 const std::string& end_date) {
+    std::vector<std::map<std::string, std::string>> log_data;
+    
+    if (!isConnected()) {
+        std::cerr << "[DB] 데이터베이스 연결되지 않음" << std::endl;
+        return log_data;
+    }
+    
+    sql::Connection* raw_connection = getConnection();
+    if (!raw_connection) {
+        std::cerr << "[DB] Connection 획득 실패" << std::endl;
+        return log_data;
+    }
+    
+    ConnectionGuard connection(this, raw_connection);
+    
+    try {
+        std::string query = "SELECT rl.robot_id, rl.patient_id, rl.dttm, rl.orig, rl.dest, rl.type, "
+                           "p.name as patient_name, "
+                           "orig_dept.department_name as orig_name, "
+                           "dest_dept.department_name as dest_name "
+                           "FROM robot_log rl "
+                           "LEFT JOIN patient p ON rl.patient_id = p.patient_id "
+                           "LEFT JOIN department orig_dept ON rl.orig = orig_dept.department_id "
+                           "LEFT JOIN department dest_dept ON rl.dest = dest_dept.department_id ";
+        
+        std::string where_clause = "";
+        
+        // period 파라미터 처리
+        if (!period.empty()) {
+            if (period == "today") {
+                where_clause = "WHERE DATE(rl.dttm) = CURDATE()";
+            } else if (period == "week") {
+                where_clause = "WHERE rl.dttm >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
+            } else if (period == "month") {
+                where_clause = "WHERE rl.dttm >= DATE_SUB(NOW(), INTERVAL 1 MONTH)";
+            }
+        } else if (!start_date.empty() || !end_date.empty()) {
+            // start_date와 end_date 파라미터 처리
+            where_clause = "WHERE 1=1";
+            if (!start_date.empty()) {
+                where_clause += " AND rl.dttm >= '" + start_date + "'";
+            }
+            if (!end_date.empty()) {
+                where_clause += " AND rl.dttm <= '" + end_date + "'";
+            }
+        }
+        
+        query += where_clause + " ORDER BY rl.dttm DESC";
+        
+        std::unique_ptr<sql::Statement> stmt(connection->createStatement());
+        std::unique_ptr<sql::ResultSet> res(stmt->executeQuery(query));
+        
+        while (res->next()) {
+            std::map<std::string, std::string> log_entry;
+            
+            // patient_id (NULL인 경우 00000000으로 표시)
+            if (res->isNull("patient_id")) {
+                log_entry["patient_id"] = "00000000";
+            } else {
+                log_entry["patient_id"] = std::to_string(res->getInt("patient_id"));
+            }
+            
+            // orig (출발지)
+            if (res->isNull("orig")) {
+                log_entry["orig"] = "0";
+            } else {
+                log_entry["orig"] = std::to_string(res->getInt("orig"));
+            }
+            
+            // dest (목적지)
+            if (res->isNull("dest")) {
+                log_entry["dest"] = "0";
+            } else {
+                log_entry["dest"] = std::to_string(res->getInt("dest"));
+            }
+            
+            // date (날짜)
+            log_entry["date"] = res->getString("dttm");
+            
+            // is_checked (기본값 0)
+            log_entry["is_checked"] = "0";
+            
+            // video_url (기본값 - 실제로는 비디오 파일명 생성 로직 필요)
+            log_entry["video_url"] = "video_" + std::to_string(res->getInt("robot_id")) + ".mp4";
+            
+            // favorite (기본값 0)
+            log_entry["favorite"] = "0";
+            
+            log_data.push_back(log_entry);
+        }
+        
+        std::cout << "[DB] 로봇 로그 데이터 조회 완료: " << log_data.size() << "개 레코드" << std::endl;
+        
+    } catch (sql::SQLException& e) {
+        std::cerr << "[DB] 로봇 로그 데이터 조회 실패: " << e.what() << std::endl;
+    }
+    
+    return log_data;
 } 
