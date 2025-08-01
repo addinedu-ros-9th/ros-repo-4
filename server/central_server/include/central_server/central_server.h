@@ -11,16 +11,13 @@
 
 #include "database_manager.h"
 #include "http_server.h"
+#include "robot_navigation_manager.h"
 
 #include <thread>
 #include <atomic>
 #include <memory>
-
-// UDP 관련 헤더 추가
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <unistd.h>
+#include <vector>
+#include <mutex>
 
 class CentralServer : public rclcpp::Node
 {
@@ -42,20 +39,19 @@ private:
         const std::shared_ptr<robot_interfaces::srv::ChangeRobotStatus::Request> request,
         std::shared_ptr<robot_interfaces::srv::ChangeRobotStatus::Response> response);
     
-    // UDP 관련 새로운 함수들 추가
-    void setupUdpRelay();
-    void runUdpReceiverThread();
-    void runGuiSenderThread();
-    void processReceivedImage(const cv::Mat& image);
-    bool initializeUdpReceiver();
-    bool initializeGuiSender();
-    void sendImageToGui(const cv::Mat& image);
+    // HTTP 기반 실시간 통신 함수들
+    void setupHttpServer();
+    void sendRobotLocationToGui(int robot_id, float location_x, float location_y);
+    void sendRobotStatusToGui(int robot_id, const std::string& status, const std::string& source);
+    void sendArrivalNotificationToGui(int robot_id);
+    void broadcastToGuiClients(const std::string& message);
     
     // 기존 멤버 변수들
     std::atomic<bool> running_;
     
     std::unique_ptr<DatabaseManager> db_manager_;
     std::unique_ptr<HttpServer> http_server_;
+    std::unique_ptr<RobotNavigationManager> nav_manager_;
     
     std::shared_ptr<image_transport::ImageTransport> image_transport_;
     image_transport::Subscriber image_subscriber_;
@@ -65,27 +61,9 @@ private:
     std::thread db_thread_;
     std::thread http_thread_;
     
-    // UDP 관련 새로운 멤버 변수들 추가
-    std::thread udp_receiver_thread_;
-    std::thread gui_sender_thread_;
-    
-    // UDP 소켓 관련
-    int udp_receiver_socket_;
-    int gui_sender_socket_;
-    struct sockaddr_in ai_server_addr_;
-    struct sockaddr_in gui_client_addr_;
-    
-    // 설정 값들
-    std::string ai_server_ip_;
-    int ai_udp_receive_port_;
-    std::string gui_client_ip_;
-    int gui_client_port_;
-    int max_packet_size_;
-    
-    // 이미지 버퍼 (스레드 간 공유)
-    std::mutex image_buffer_mutex_;
-    cv::Mat latest_image_;
-    bool new_image_available_;
+    // HTTP 서버 설정
+    int http_port_;
+    std::string http_host_;
 };
 
 #endif // CENTRAL_SERVER_H

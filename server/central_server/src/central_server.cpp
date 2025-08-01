@@ -1,60 +1,61 @@
 #include "central_server/central_server.h"
 #include <chrono>
 #include <yaml-cpp/yaml.h>
+#include <json/json.h>
+#include <iomanip>
+#include <sstream>
 
 CentralServer::CentralServer() : Node("central_server") {
     RCLCPP_INFO(this->get_logger(), "CentralServer 생성자 호출됨");
     
-    udp_receiver_socket_ = -1;
-    gui_sender_socket_ = -1;
-    new_image_available_ = false;
-    max_packet_size_ = 60000;
+    http_port_ = 8080;
+    http_host_ = "0.0.0.0";
 
-    setupUdpRelay();
+    setupHttpServer();
 
     // DatabaseManager 생성
     db_manager_ = std::make_unique<DatabaseManager>();
     
+    // RobotNavigationManager 생성
+    nav_manager_ = std::make_unique<RobotNavigationManager>();
+    
     // HttpServer 생성 (DatabaseManager를 shared_ptr로 전달)
     auto shared_db_manager = std::shared_ptr<DatabaseManager>(db_manager_.get(), [](DatabaseManager*){});
-    http_server_ = std::make_unique<HttpServer>(shared_db_manager, 8080);
+    http_server_ = std::make_unique<HttpServer>(shared_db_manager, http_port_);
     
-    RCLCPP_INFO(this->get_logger(), "ROS2 토픽 및 서비스 설정 완료");
+    // HttpServer와 RobotNavigationManager 연결
+    auto shared_nav_manager = std::shared_ptr<RobotNavigationManager>(nav_manager_.get(), [](RobotNavigationManager*){});
+    http_server_->setRobotNavigationManager(shared_nav_manager);
 }
 
 CentralServer::~CentralServer() {
     stop();
 }
 
-void CentralServer::setupUdpRelay()
+void CentralServer::setupHttpServer()
 {
     try {
         // 설정 파일 로드
         const char* config_env = std::getenv("CENTRAL_SERVER_CONFIG");
-        std::string config_path = config_env ? config_env : "/home/wonho/ros-repo-4/config.yaml";
+        std::string config_path = config_env ? config_env : "config.yaml";
         YAML::Node config = YAML::LoadFile(config_path);
         
-        // AI Server로부터 수신할 설정
-        ai_udp_receive_port_ = config["central_server"]["udp_receive_port"].as<int>();
+        // HTTP 서버 설정
+        http_port_ = config["central_server"]["http_port"].as<int>();
+        http_host_ = config["central_server"]["http_host"].as<std::string>();
         
-        // GUI로 전송할 설정
-        gui_client_ip_ = config["central_server"]["target_ros_gui"]["ip"].as<std::string>();
-        gui_client_port_ = config["central_server"]["target_ros_gui"]["port"].as<int>();
-        
-        RCLCPP_INFO(this->get_logger(), "UDP 중계 설정 로드 완료:");
-        RCLCPP_INFO(this->get_logger(), "  - AI Server 수신 포트: %d", ai_udp_receive_port_);
-        RCLCPP_INFO(this->get_logger(), "  - GUI 전송 대상: %s:%d", 
-                   gui_client_ip_.c_str(), gui_client_port_);
+        RCLCPP_INFO(this->get_logger(), "HTTP 서버 설정 로드 완료:");
+        RCLCPP_INFO(this->get_logger(), "  - HTTP 서버 포트: %d", http_port_);
+        RCLCPP_INFO(this->get_logger(), "  - HTTP 서버 호스트: %s", http_host_.c_str());
         
     } catch (const std::exception& e) {
         RCLCPP_ERROR(this->get_logger(), "설정 파일 로드 실패: %s", e.what());
         // 기본값 사용
-        ai_udp_receive_port_ = 5005;
-        gui_client_ip_ = "127.0.0.1";
-        gui_client_port_ = 8888;
+        http_port_ = 8080;
+        http_host_ = "0.0.0.0";
         
-        RCLCPP_WARN(this->get_logger(), "기본값 사용: 수신포트=%d, GUI=%s:%d",
-                   ai_udp_receive_port_, gui_client_ip_.c_str(), gui_client_port_);
+        RCLCPP_WARN(this->get_logger(), "기본값 사용: HTTP 포트=%d, 호스트=%s",
+                   http_port_, http_host_.c_str());
     }
 }
 
@@ -66,23 +67,10 @@ void CentralServer::start() {
     
     running_.store(true);
     
-    RCLCPP_INFO(this->get_logger(), "1단계: UDP 소켓 초기화중...");
-    if (!initializeUdpReceiver() || !initializeGuiSender()) {
-        RCLCPP_ERROR(this->get_logger(), "UDP 소켓 초기화 실패!");
-        running_.store(false);
-        return;
-    }
-    
-    RCLCPP_INFO(this->get_logger(), "2단계: UDP 수신 스레드 시작중...");
-    udp_receiver_thread_ = std::thread(&CentralServer::runUdpReceiverThread, this);
-    
-    RCLCPP_INFO(this->get_logger(), "3단계: GUI 전송 스레드 시작중...");
-    gui_sender_thread_ = std::thread(&CentralServer::runGuiSenderThread, this);
-    
-    RCLCPP_INFO(this->get_logger(), "4단계: DB 스레드 시작중...");
+    RCLCPP_INFO(this->get_logger(), "1단계: DB 스레드 시작중...");
     db_thread_ = std::thread(&CentralServer::runDatabaseThread, this);
     
-    RCLCPP_INFO(this->get_logger(), "5단계: HTTP 스레드 시작중...");
+    RCLCPP_INFO(this->get_logger(), "2단계: HTTP 스레드 시작중...");
     http_thread_ = std::thread(&CentralServer::runHttpThread, this);
     
     // 잠시 대기
@@ -99,17 +87,6 @@ void CentralServer::stop() {
     RCLCPP_INFO(this->get_logger(), "서버 종료중...");
     running_.store(false);
     
-    // UDP 스레드 종료 대기
-    if (udp_receiver_thread_.joinable()) {
-        udp_receiver_thread_.join();
-        RCLCPP_INFO(this->get_logger(), "UDP 수신 스레드 종료됨");
-    }
-    
-    if (gui_sender_thread_.joinable()) {
-        gui_sender_thread_.join();
-        RCLCPP_INFO(this->get_logger(), "GUI 전송 스레드 종료됨");
-    }
-    
     // 기존 스레드들 종료 대기
     if (db_thread_.joinable()) {
         db_thread_.join();
@@ -119,17 +96,6 @@ void CentralServer::stop() {
     if (http_thread_.joinable()) {
         http_thread_.join();
         RCLCPP_INFO(this->get_logger(), "HTTP 스레드 종료됨");
-    }
-    
-    // 소켓 정리
-    if (udp_receiver_socket_ >= 0) {
-        close(udp_receiver_socket_);
-        udp_receiver_socket_ = -1;
-    }
-    
-    if (gui_sender_socket_ >= 0) {
-        close(gui_sender_socket_);
-        gui_sender_socket_ = -1;
     }
     
     RCLCPP_INFO(this->get_logger(), "서버 종료 완료");
@@ -164,7 +130,7 @@ void CentralServer::runHttpThread() {
     
     // HTTP 서버 시작
     http_server_->start();
-    RCLCPP_INFO(this->get_logger(), "HTTP 서버 시작 완료 (포트: 8080)");
+    RCLCPP_INFO(this->get_logger(), "HTTP 서버 시작 완료 (포트: %d)", http_port_);
     
     while (running_.load() && rclcpp::ok()) {
         // HTTP 서버 상태 확인
@@ -211,6 +177,9 @@ void CentralServer::statusCallback(const robot_interfaces::msg::RobotStatus::Sha
                "AI 서버 상태 수신 - Robot ID: %d, Status: %s", 
                msg->robot_id, msg->status.c_str());
     
+    // HTTP를 통해 GUI 클라이언트들에게 로봇 상태 전송
+    sendRobotStatusToGui(msg->robot_id, msg->status, "robot_controller");
+    
     if (db_manager_->isConnected()) {
         RCLCPP_DEBUG(this->get_logger(), "상태를 데이터베이스에 저장 중...");
     }
@@ -224,183 +193,61 @@ void CentralServer::changeStatusCallback(
                "상태 변경 요청 - Robot ID: %d, New Status: %s", 
                request->robot_id, request->new_status.c_str());
     
+    // HTTP를 통해 GUI 클라이언트들에게 상태 변경 알림
+    sendRobotStatusToGui(request->robot_id, request->new_status, "user_gui");
+    
     response->success = true;
     response->message = "상태 변경 완료";
     
     RCLCPP_INFO(this->get_logger(), "상태 변경 서비스 응답 완료");
 }
 
-bool CentralServer::initializeUdpReceiver()
+void CentralServer::sendRobotLocationToGui(int robot_id, float location_x, float location_y)
 {
-    // AI Server로부터 수신할 UDP 소켓 생성
-    udp_receiver_socket_ = socket(AF_INET, SOCK_DGRAM, 0);
-    if (udp_receiver_socket_ < 0) {
-        RCLCPP_ERROR(this->get_logger(), "UDP 수신 소켓 생성 실패");
-        return false;
-    }
+    Json::Value message;
+    message["robot_id"] = robot_id;
+    message["location_x"] = location_x;
+    message["location_y"] = location_y;
     
-    // 소켓 옵션 설정
-    int opt = 1;
-    if (setsockopt(udp_receiver_socket_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
-        RCLCPP_WARN(this->get_logger(), "SO_REUSEADDR 설정 실패");
-    }
+    std::string json_message = message.toStyledString();
+    broadcastToGuiClients(json_message);
     
-    // 주소 설정
-    memset(&ai_server_addr_, 0, sizeof(ai_server_addr_));
-    ai_server_addr_.sin_family = AF_INET;
-    ai_server_addr_.sin_addr.s_addr = INADDR_ANY;  // 모든 IP에서 수신
-    ai_server_addr_.sin_port = htons(ai_udp_receive_port_);
-    
-    // 바인딩
-    if (bind(udp_receiver_socket_, (struct sockaddr*)&ai_server_addr_, sizeof(ai_server_addr_)) < 0) {
-        RCLCPP_ERROR(this->get_logger(), "UDP 수신 소켓 바인딩 실패 (포트: %d)", ai_udp_receive_port_);
-        close(udp_receiver_socket_);
-        return false;
-    }
-    
-    RCLCPP_INFO(this->get_logger(), "UDP 수신 소켓 초기화 완료 (포트: %d)", ai_udp_receive_port_);
-    return true;
+    RCLCPP_INFO(this->get_logger(), "로봇 위치 전송: Robot ID %d at (%.2f, %.2f)", 
+               robot_id, location_x, location_y);
 }
 
-bool CentralServer::initializeGuiSender()
+void CentralServer::sendRobotStatusToGui(int robot_id, const std::string& status, const std::string& source)
 {
-    // GUI로 전송할 UDP 소켓 생성
-    gui_sender_socket_ = socket(AF_INET, SOCK_DGRAM, 0);
-    if (gui_sender_socket_ < 0) {
-        RCLCPP_ERROR(this->get_logger(), "GUI 전송 소켓 생성 실패");
-        return false;
-    }
+    Json::Value message;
+    message["robot_id"] = robot_id;
+    message["status"] = status;
+    message["source"] = source;
     
-    // GUI 주소 설정
-    memset(&gui_client_addr_, 0, sizeof(gui_client_addr_));
-    gui_client_addr_.sin_family = AF_INET;
-    gui_client_addr_.sin_port = htons(gui_client_port_);
+    std::string json_message = message.toStyledString();
+    broadcastToGuiClients(json_message);
     
-    if (inet_pton(AF_INET, gui_client_ip_.c_str(), &gui_client_addr_.sin_addr) <= 0) {
-        RCLCPP_ERROR(this->get_logger(), "GUI IP 주소 변환 실패: %s", gui_client_ip_.c_str());
-        close(gui_sender_socket_);
-        return false;
-    }
-    
-    RCLCPP_INFO(this->get_logger(), "GUI 전송 소켓 초기화 완료 (%s:%d)", 
-               gui_client_ip_.c_str(), gui_client_port_);
-    return true;
+    RCLCPP_INFO(this->get_logger(), "로봇 상태 전송: Robot ID %d, Status %s, Source %s", 
+               robot_id, status.c_str(), source.c_str());
 }
 
-void CentralServer::runUdpReceiverThread()
+void CentralServer::sendArrivalNotificationToGui(int robot_id)
 {
-    RCLCPP_INFO(this->get_logger(), "UDP 수신 스레드 시작됨");
+    Json::Value message;
+    message["robot_id"] = robot_id;
+    message["status"] = "arrived";
     
-    std::vector<uint8_t> buffer(max_packet_size_);
-    struct sockaddr_in sender_addr;
-    socklen_t sender_len = sizeof(sender_addr);
+    std::string json_message = message.toStyledString();
+    broadcastToGuiClients(json_message);
     
-    while (running_.load() && rclcpp::ok()) {
-        // AI Server로부터 UDP 패킷 수신
-        ssize_t received = recvfrom(udp_receiver_socket_, buffer.data(), buffer.size(), 0,
-                                   (struct sockaddr*)&sender_addr, &sender_len);
-        
-        if (received > 0) {
-            try {
-                // 받은 데이터를 이미지로 디코딩
-                std::vector<uint8_t> jpeg_data(buffer.begin(), buffer.begin() + received);
-                cv::Mat image = cv::imdecode(jpeg_data, cv::IMREAD_COLOR);
-                
-                if (!image.empty()) {
-                    processReceivedImage(image);
-                    
-                    // 로그 (너무 자주 출력하지 않도록)
-                    static int packet_count = 0;
-                    packet_count++;
-                    if (packet_count % 60 == 0) {
-                        RCLCPP_INFO(this->get_logger(), 
-                                   "AI Server로부터 이미지 수신 - 크기: %dx%d, 패킷#%d", 
-                                   image.cols, image.rows, packet_count);
-                    }
-                } else {
-                    RCLCPP_WARN(this->get_logger(), "이미지 디코딩 실패");
-                }
-                
-            } catch (const std::exception& e) {
-                RCLCPP_ERROR(this->get_logger(), "이미지 처리 오류: %s", e.what());
-            }
-        } else if (received < 0) {
-            if (running_.load()) {
-                RCLCPP_ERROR(this->get_logger(), "UDP 수신 오류: %s", strerror(errno));
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            }
-        }
-    }
-    
-    RCLCPP_INFO(this->get_logger(), "UDP 수신 스레드 종료중...");
+    RCLCPP_INFO(this->get_logger(), "도착 알림 전송: Robot ID %d", robot_id);
 }
 
-void CentralServer::processReceivedImage(const cv::Mat& image)
+void CentralServer::broadcastToGuiClients(const std::string& message)
 {
-    std::lock_guard<std::mutex> lock(image_buffer_mutex_);
-    latest_image_ = image.clone();
-    new_image_available_ = true;
-}
-
-void CentralServer::runGuiSenderThread()
-{
-    RCLCPP_INFO(this->get_logger(), "GUI 전송 스레드 시작됨");
-    
-    while (running_.load() && rclcpp::ok()) {
-        cv::Mat image_to_send;
-        bool has_new_image = false;
-        
-        // 새로운 이미지가 있는지 확인
-        {
-            std::lock_guard<std::mutex> lock(image_buffer_mutex_);
-            if (new_image_available_) {
-                image_to_send = latest_image_.clone();
-                new_image_available_ = false;
-                has_new_image = true;
-            }
-        }
-        
-        // 새로운 이미지가 있으면 GUI로 전송
-        if (has_new_image && !image_to_send.empty()) {
-            sendImageToGui(image_to_send);
-        }
-        
-        // 30fps로 제한 (33ms)
-        std::this_thread::sleep_for(std::chrono::milliseconds(33));
-    }
-    
-    RCLCPP_INFO(this->get_logger(), "GUI 전송 스레드 종료중...");
-}
-
-void CentralServer::sendImageToGui(const cv::Mat& image)
-{
-    try {
-        // 이미지를 JPEG로 압축
-        std::vector<uint8_t> jpeg_buffer;
-        std::vector<int> compression_params = {cv::IMWRITE_JPEG_QUALITY, 70};
-        
-        if (!cv::imencode(".jpg", image, jpeg_buffer, compression_params)) {
-            RCLCPP_ERROR(this->get_logger(), "이미지 JPEG 인코딩 실패");
-            return;
-        }
-        
-        // GUI로 UDP 전송
-        ssize_t sent = sendto(gui_sender_socket_, jpeg_buffer.data(), jpeg_buffer.size(), 0,
-                             (struct sockaddr*)&gui_client_addr_, sizeof(gui_client_addr_));
-        
-        if (sent < 0) {
-            RCLCPP_ERROR(this->get_logger(), "GUI로 전송 실패: %s", strerror(errno));
-        } else {
-            // 로그 (너무 자주 출력하지 않도록)
-            static int send_count = 0;
-            send_count++;
-            if (send_count % 60 == 0) {
-                RCLCPP_DEBUG(this->get_logger(), "GUI로 이미지 전송 완료 - %ld bytes", sent);
-            }
-        }
-        
-    } catch (const std::exception& e) {
-        RCLCPP_ERROR(this->get_logger(), "GUI 전송 오류: %s", e.what());
+    // HttpServer를 통해 GUI 클라이언트들에게 메시지 브로드캐스트
+    if (http_server_) {
+        http_server_->broadcastToClients(message);
+        RCLCPP_DEBUG(this->get_logger(), "GUI 클라이언트들에게 메시지 브로드캐스트: %s", message.c_str());
     }
 }
 

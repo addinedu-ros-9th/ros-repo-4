@@ -205,54 +205,13 @@ class RobotFunctions:
             "result": "시스템 상태: 정상"
         }
     
-    def stop(self, safety_check: bool = True) -> Dict[str, Any]:
-        """로봇 정지 - 데이터셋 포맷에 맞춤"""
-        print(f"🛑 로봇 정지 (안전체크: {safety_check})")
-        
-        if safety_check:
-            print("🔒 안전 체크 수행 중...")
-            time.sleep(0.5)  # 안전 체크 시뮬레이션
-        
-        # 로봇 정지 (실제로는 모터 제어)
-        self.robot_status["is_moving"] = False
-        self.robot_status["speed"] = "stop"
+    def start_registration(self) -> Dict[str, Any]:
+        """접수/예약 화면 이동 - 데이터셋 포맷에 맞춤"""
+        print(f"📝 접수/예약 화면 이동")
         
         return {
-            "function": "stop",
-            "result": "로봇이 안전하게 정지했습니다"
-        }
-    
-    def start(self) -> Dict[str, Any]:
-        """로봇 시작/재개 - 데이터셋 포맷에 맞춤"""
-        print(f"▶️ 로봇 시작/재개")
-        
-        self.robot_status["speed"] = "normal"
-        
-        return {
-            "function": "start",
-            "result": "로봇이 시작되었습니다"
-        }
-    
-    def speed_up(self) -> Dict[str, Any]:
-        """속도 증가 - 데이터셋 포맷에 맞춤"""
-        print(f"⏩ 속도 증가")
-        
-        self.robot_status["speed"] = "fast"
-        
-        return {
-            "function": "speed_up",
-            "result": "속도가 증가했습니다"
-        }
-    
-    def speed_down(self) -> Dict[str, Any]:
-        """속도 감소 - 데이터셋 포맷에 맞춤"""
-        print(f"⏪ 속도 감소")
-        
-        self.robot_status["speed"] = "slow"
-        
-        return {
-            "function": "speed_down",
-            "result": "속도가 감소했습니다"
+            "function": "start_registration",
+            "result": "접수 화면으로 이동할게요. 잠시만 기다려주세요."
         }
     
     def list_facilities_by_area(self, area: str) -> Dict[str, Any]:
@@ -413,30 +372,21 @@ class RobotFunctions:
         # 자연어 응답 직접 반환 (general_response는 실제 텍스트 반환)
         return response_text
 
-# 함수 매핑 딕셔너리
-FUNCTION_MAP = {
-    "query_facility": "query_facility",
-    "navigate": "navigate", 
-    "get_position": "get_position",
-    "system_check": "system_check",
-    "stop": "stop",
-    "start": "start",
-    "speed_up": "speed_up",
-    "speed_down": "speed_down",
-    "list_facilities": "list_facilities",
-    "list_facilities_by_floor": "list_facilities_by_floor",
-    "general_response": "general_response"
-}
-
 def execute_function(robot: RobotFunctions, function_call: Dict[str, Any]) -> Dict[str, Any]:
     """함수 호출 실행"""
     action = function_call.get("action")
     
-    if action not in FUNCTION_MAP:
+    # 지원하는 함수 목록
+    supported_functions = {
+        "query_facility", "navigate", "get_position", "system_check",
+        "start_registration", "list_facilities", 
+        "list_facilities_by_floor", "general_response"
+    }
+    
+    if action not in supported_functions:
         return {"error": f"알 수 없는 함수: {action}"}
     
-    func_name = FUNCTION_MAP[action]
-    func = getattr(robot, func_name)
+    func = getattr(robot, action)
     
     # 매개변수 추출
     kwargs = {}

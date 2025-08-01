@@ -2,16 +2,17 @@
 network:
   # PC IP 주소
   wonho_pc: "192.168.0.15"     # 원호 PC (rosGui)
-  chaeyeon_pc: "192.168.0.21"  # 채연 PC (AI Server)
-  beomjin_pc: "192.168.0.75"   # 범진 PC
+  chaeyeon_pc: "192.168.0.27"  # 채연 PC (AI Server)
+  minje_pc: "192.168.0.31"     # 민제 PC
+  taeho_pc: "192.168.0.18"     # 태호 PC
 
-  wonho_pc: "192.168.0.15"     
-  chaeyeon_pc: "192.168.0.15"  
-  beomjin_pc: "192.168.0.75"   
+llm_server:
+  ip: network.minje_pc
+  port: 5000
 
 # AI 서버 설정
 ai_server:
-  ip: "192.168.0.15"
+  ip: network.chaeyeon_pc
   port: 5005
   max_packet_size: 60000
   
@@ -20,14 +21,12 @@ ai_server:
   status_port: 5006   # 상태 정보 전송용
 
   target_central_server:
-    ip: "192.168.0.15"
+    ip: network.taeho_pc
     port: 5005 
 
 # Central 서버 설정
 central_server:
-  udp_receive_port: 5005
-
-  ip: "192.168.0.15"
+  ip: network.taeho_pc
   port: 6000
   
   # HTTP 서버 (웹 API용)
@@ -41,13 +40,12 @@ central_server:
   gui_port: 6007
 
   target_ros_gui:
-    ip: "192.168.0.15"
+    ip: network.wonho_pc
     port: 8888
 
 ros_gui_client:
-  ip: "192.168.0.15"
+  ip: network.wonho_pc
   udp_receive_port: 8888 # UDP 이미지를 받을 포트
-  display_port: 8888 
 
 database:
   host: "localhost"

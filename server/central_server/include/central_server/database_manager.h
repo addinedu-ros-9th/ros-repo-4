@@ -11,6 +11,29 @@
 #include <string>
 #include <memory>
 #include <mutex>
+#include <vector>
+#include <queue>
+
+// 전방 선언
+class DatabaseManager;
+
+// RAII Connection 관리 클래스
+class ConnectionGuard {
+public:
+    ConnectionGuard(DatabaseManager* db_manager, sql::Connection* connection);
+    ~ConnectionGuard();
+    
+    sql::Connection* get() const { return connection_; }
+    sql::Connection* operator->() const { return connection_; }
+    
+private:
+    DatabaseManager* db_manager_;
+    sql::Connection* connection_;
+    
+    // 복사 방지
+    ConnectionGuard(const ConnectionGuard&) = delete;
+    ConnectionGuard& operator=(const ConnectionGuard&) = delete;
+};
 
 struct PatientInfo {
     int patient_id;
@@ -27,11 +50,12 @@ struct AdminInfo {
     std::string hospital_name;
 };
 
-struct StationInfo {
-    int station_id;
-    std::string station_name;
+struct DepartmentInfo {
+    int department_id;
+    std::string department_name;
     float location_x;
     float location_y;
+    float yaw;
 };
 
 struct ReservationInfo {
@@ -39,6 +63,15 @@ struct ReservationInfo {
     std::string datetime;
     std::string reservation;
     std::string time_hhmm;  // hh:mm 형식의 시간
+};
+
+struct SeriesInfo {
+    int series_id;
+    int department_id;
+    std::string dttm;
+    std::string status;
+    int patient_id;
+    std::string reservation_date;
 };
 
 class DatabaseManager
@@ -59,16 +92,37 @@ public:
     
     // 관리자 인증
     bool authenticateAdmin(const std::string& admin_id, const std::string& password, AdminInfo& admin);
+    bool getAdminById(const std::string& admin_id, AdminInfo& admin);
     
-    // 정류장 정보
-    bool getStationById(int station_id, StationInfo& station);
-    std::vector<StationInfo> getAllStations();
+    // 부서 정보
+    bool getDepartmentById(int department_id, DepartmentInfo& department);
+    std::vector<DepartmentInfo> getAllDepartments();
     
     // 예약 정보 조회
     bool getReservationByPatientId(int patient_id, ReservationInfo& reservation);
-    
-    // 로봇 로그
     bool insertRobotLog(int robot_id, int patient_id, const std::string& datetime, float orig, float dest);
+    
+    // 로봇 로그 관련 메서드들
+    bool insertRobotLogWithType(int robot_id, int* patient_id, const std::string& datetime, 
+                               int orig_department_id, int dest_department_id, const std::string& type);
+    int findNearestDepartment(float x, float y);
+    
+    // 로그 데이터 조회
+    std::vector<std::map<std::string, std::string>> getRobotLogData(const std::string& period, 
+                                                                    const std::string& start_date, 
+                                                                    const std::string& end_date);
+    
+    // Series 테이블 관련 메서드들
+    bool getSeriesByPatientAndDate(int patient_id, const std::string& reservation_date, SeriesInfo& series);
+    bool getSeriesWithDepartmentName(int patient_id, const std::string& reservation_date, SeriesInfo& series, std::string& department_name);
+    bool updateSeriesStatus(int patient_id, const std::string& reservation_date, const std::string& new_status);
+    std::string getCurrentDate();
+    
+    // Connection Pool 관리 함수들
+    bool initializeConnectionPool();
+    sql::Connection* getConnection();
+    void releaseConnection(sql::Connection* connection);
+    void cleanupConnectionPool();
 
 private:
     // MySQL 연결 정보
@@ -78,10 +132,12 @@ private:
     std::string database_;
     int port_;
     
-    // MySQL 연결 객체들
+    // Connection Pool 관련
     sql::mysql::MySQL_Driver* driver_;
-    std::unique_ptr<sql::Connection> connection_;
-    std::mutex connection_mutex_;
+    std::vector<std::unique_ptr<sql::Connection>> connection_pool_;
+    std::queue<sql::Connection*> available_connections_;
+    std::mutex pool_mutex_;
+    size_t pool_size_;
     
     // 내부 유틸리티 함수들
     void loadConnectionConfig();

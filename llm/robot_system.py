@@ -475,6 +475,18 @@ class RobotSystem:
                 {
                     "type": "function",
                     "function": {
+                        "name": "start_registration",
+                        "description": "접수나 예약 확인을 요청할 때 사용. '접수', '접수하려면', '예약 확인', '예약 내역', '예약 정보' 등의 요청에 사용",
+                        "parameters": {
+                            "type": "object",
+                            "required": [],
+                            "properties": {}
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
                         "name": "general_response",
                         "description": "일반적인 대화나 인사, 설명이 필요할 때 사용",
                         "parameters": {
@@ -497,9 +509,10 @@ class RobotSystem:
 중요한 규칙:
 1. 위치 질문('어디야', '어디있어', '찾아')은 query_facility 사용
 2. 이동 요청('안내해줘', '데려다줘', '동행해줘', '가자', '가져다줘')은 navigate 사용  
-3. 일반 대화('안녕', '고마워', '뭐야')는 general_response 사용
-4. 응답은 간결하고 자연스럽게 (길고 현학적인 답변 금지)
-5. 대화 맥락을 고려하여 이전 언급된 장소를 기억하세요
+3. 접수/예약 요청('접수', '접수하려면', '예약 확인', '예약 내역', '예약 정보')은 start_registration 사용
+4. 일반 대화('안녕', '고마워', '뭐야')는 general_response 사용
+5. 응답은 간결하고 자연스럽게 (길고 현학적인 답변 금지)
+6. 대화 맥락을 고려하여 이전 언급된 장소를 기억하세요
 
 {f"이전 대화 맥락:{conversation_context}" if conversation_context else ""}
 
@@ -699,6 +712,10 @@ class RobotSystem:
                         else:
                             return f"죄송해요, {target}를 찾을 수 없어요. 정확한 시설명을 말씀해주시겠어요?"
                     
+                    elif function_name == "start_registration":
+                        result = self.robot_functions.start_registration()
+                        return result["result"]
+                    
                     elif function_name == "general_response":
                         message = arguments.get("message", user_input)
                         # 모델이 추출한 메시지를 직접 사용
@@ -744,6 +761,10 @@ class RobotSystem:
         elif any(word in user_lower for word in ["어디", "위치", "찾아"]):
             return "어떤 시설을 찾으시나요? CT, X-ray, 초음파, 각종 암센터 등이 있어요."
         
+        # 접수/예약 요청
+        elif any(word in user_lower for word in ["접수", "접수하려면", "접수하고 싶어요", "예약", "예약 확인", "예약 내역", "예약 정보"]):
+            return "접수 화면으로 이동할게요. 잠시만 기다려주세요."
+        
         # 인사
         elif any(word in user_lower for word in ["안녕", "hello", "hi"]):
             return "안녕하세요! 저는 병원 안내 로봇 영웅이입니다. 무엇을 도와드릴까요?"
@@ -754,7 +775,7 @@ class RobotSystem:
         
         # 기본
         else:
-            return "무엇을 도와드릴까요? 병원 시설 안내나 위치 조회를 도와드릴 수 있어요."
+            return "무엇을 도와드릴까요? 병원 시설 안내, 위치 조회, 예약 확인, 접수 등을 도와드릴 수 있어요."
     
     def _simple_simulation(self, user_input: str) -> str:
         """단순한 시뮬레이션"""
@@ -890,9 +911,11 @@ class RobotSystem:
 중요한 규칙:
 1. 위치 질문('어디야', '어디있어', '찾아')은 query_facility 사용
 2. 이동 요청('안내해줘', '데려다줘', '동행해줘', '가자', '가져다줘')은 navigate 사용  
-3. 일반 대화('안녕', '고마워', '뭐야')는 general_response 사용
-4. 복잡한 설명이 필요한 질문도 general_response로 친근하게 답변
-5. 답변은 간결하고 자연스럽게 (길고 현학적인 답변 금지)
+3. 예약 확인 요청('예약 확인', '예약 내역', '예약 정보', '예약돼 있는지')은 check_reservation 사용
+4. 접수 요청('접수', '접수하려면', '접수하고 싶어요', '접수 좀 도와주세요')은 start_registration 사용
+5. 일반 대화('안녕', '고마워', '뭐야')는 general_response 사용
+6. 복잡한 설명이 필요한 질문도 general_response로 친근하게 답변
+7. 답변은 간결하고 자연스럽게 (길고 현학적인 답변 금지)
 
 {f"이전 대화 맥락:{conversation_context}" if conversation_context else ""}
 
