@@ -6,29 +6,30 @@
 #include <QPixmap>
 #include <QTransform>
 #include <rclcpp/rclcpp.hpp>
-#include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
+#include <yaml-cpp/yaml.h>  
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 MapWidget::MapWidget(QWidget *parent) 
     : QWidget(parent)
     , ui(new Ui_MapWidget)
     , ros_timer_(new QTimer(this))
+    , pose_x_(0.0)
+    , pose_y_(0.0)
+    , pose_yaw_(0.0)
+    , pose_qw_(1.0)  // 초기값 설정
 {
     ui->setupUi(this);  // UI 파일 설정
     setWidgetClasses();
-    setupRosNode();  // ROS2 노드 설정
-    
-    // 타이머 설정 - 100ms마다 ROS2 스핀 실행
-    connect(ros_timer_, &QTimer::timeout, this, &MapWidget::spinRos);
-    ros_timer_->start(100);  // 100ms 간격으로 스핀
     
     qDebug() << "MapWidget initialized with ROS2 timer";
 }
 
 MapWidget::~MapWidget()
 {
-    if (ros_timer_) {
-        ros_timer_->stop();
-    }
     delete ui;
 }
 
@@ -63,32 +64,91 @@ void MapWidget::refresh()
     }
 }
 
-void MapWidget::setupRosNode()
+void MapWidget::setPose(double x, double y, double yaw)
 {
-    // ROS2 노드 초기화
-    if (!rclcpp::ok()) {
-        rclcpp::init(0, nullptr);
-    }
-    
-    ros_node_ = rclcpp::Node::make_shared("map_widget_node");
-    
-    // /amcl_pose 토픽 구독
-    amcl_pose_sub_ = ros_node_->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
-        "/amcl_pose", 10, 
-        [this](const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg) {
-            this->amcl_pose_callback(msg);
-        });
-    
-    // qDebug() << "ROS2 node setup complete. Subscribing to /amcl_pose";
+    pose_x_ = x;
+    pose_y_ = y;
+    pose_yaw_ = yaw;
+    pose_qw_ = sqrt(1 - pose_yaw_ * pose_yaw_);
 }
 
-void MapWidget::amcl_pose_callback(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg)
+void MapWidget::get_robot_location()
 {
-    double x = msg->pose.pose.position.x;
-    double y = msg->pose.pose.position.y;
-    
-    double qz = msg->pose.pose.orientation.z;
-    double qw = msg->pose.pose.orientation.w;
+    std::string config_path = "../../config.yaml";
+    YAML::Node config = YAML::LoadFile(config_path);
+    std::string CENTRAL_IP = config["central_server"]["ip"].as<std::string>();
+    int CENTRAL_HTTP_PORT = config["central_server"]["http_port"].as<int>();
+
+    QString url = QString("http://%1:%2/get/robot_location")
+                    .arg(CENTRAL_IP.c_str())
+                    .arg(CENTRAL_HTTP_PORT);
+
+    QJsonObject data;
+    data["robot_id"] = 3;
+    QJsonDocument doc(data);
+    QByteArray jsonData = doc.toJson();
+
+    qDebug() << "[로봇 위치 요청 URL]:" << url;
+    qDebug() << "[전송 데이터]:" << jsonData;
+    try
+    {
+        QNetworkRequest request{QUrl(url)};
+        request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+        QNetworkAccessManager* manager = new QNetworkAccessManager(this);
+        QNetworkReply* reply = manager->post(request, jsonData);
+
+        connect(reply, &QNetworkReply::finished, this, [this, reply, CENTRAL_IP, CENTRAL_HTTP_PORT]() {
+            int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (statusCode == 200) {
+                QByteArray responseData = reply->readAll();
+                QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
+                QJsonObject result = jsonDoc.object();
+                qDebug() << "[응답 내용]:" << result;
+
+                if (result.contains("x") && result.contains("y") && result.contains("yaw")) {
+                    double location_x = result["x"].toDouble();
+                    double location_y = result["y"].toDouble();
+                    double location_yaw = result["yaw"].toDouble();
+
+                    setPose(location_x, location_y, location_yaw);
+                    amcl_pose_callback();  // 위치 업데이트 후 콜백 호출
+                } else {
+                    qDebug() << "응답에 위치 정보가 없습니다.";
+                }
+            } else if (statusCode == 400) {
+                qDebug() << "잘못된 요청입니다. 400 Bad Request";
+            } else if (statusCode == 401) {
+                qDebug() << "정상 요청, 정보 없음 or 응답 실패. 401";
+            } else if (statusCode == 404) {
+                qDebug() << "잘못된 요청 404 Not Found";
+            } else if (statusCode == 405) {
+                qDebug() << "메소드가 리소스 허용 안됨";
+            } else if (statusCode == 500) {
+                qDebug() << "서버 내부 오류 500 Internal Server Error";
+            } else if (statusCode == 503) {
+                qDebug() << "서비스 불가";
+            } else {
+                qDebug() << "알 수 없는 오류 발생. 상태 코드:" << statusCode;
+            }
+
+            reply->deleteLater();
+        });
+
+    } catch (const YAML::BadFile& e) {
+        qDebug() << "YAML 파일 로드 실패:" << e.what();
+        return;
+    }
+}
+
+void MapWidget::amcl_pose_callback()
+{
+    double x = pose_x_;
+    double y = pose_y_;
+    double yaw = pose_yaw_;
+
+    double qz = pose_yaw_;
+    double qw = pose_qw_;
 
     // 쿼터니언에서 Yaw 각도 계산 (2D에서 간단한 공식)
     double yaw_radians = 2.0 * atan2(qz, qw);
@@ -129,12 +189,5 @@ void MapWidget::amcl_pose_callback(const geometry_msgs::msg::PoseWithCovarianceS
         QPixmap rotatedPixmap = pixmap.transformed(transform, Qt::SmoothTransformation);
         ui->map_robot->setPixmap(rotatedPixmap);
         
-    }
-}
-
-void MapWidget::spinRos()
-{
-    if (ros_node_ && rclcpp::ok()) {
-        rclcpp::spin_some(ros_node_);
     }
 }

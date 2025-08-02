@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
  <class>LoginWidget</class>
- <widget class="QWidget" name="MainWindow">
+ <widget class="QWidget" name="LoginWidget">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -13,7 +13,15 @@
   <property name="windowTitle">
    <string>MainWindow</string>
   </property>
-  <widget class="QWidget" name="centralwidget">
+  <widget class="QWidget" name="centralwidget" native="true">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1510</width>
+     <height>900</height>
+    </rect>
+   </property>
    <widget class="QLabel" name="login_bg">
     <property name="geometry">
      <rect>
@@ -176,6 +184,9 @@
       <height>44</height>
      </rect>
     </property>
+    <property name="text">
+     <string>admin1</string>
+    </property>
     <property name="placeholderText">
      <string>Email</string>
     </property>
@@ -188,6 +199,15 @@
       <width>400</width>
       <height>44</height>
      </rect>
+    </property>
+    <property name="inputMask">
+     <string/>
+    </property>
+    <property name="text">
+     <string>0000</string>
+    </property>
+    <property name="echoMode">
+     <enum>QLineEdit::Password</enum>
     </property>
     <property name="placeholderText">
      <string>Password</string>
@@ -313,7 +333,16 @@
     </rect>
    </property>
   </widget>
-  <widget class="QStatusBar" name="statusbar"/>
+  <widget class="QStatusBar" name="statusbar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>3</width>
+     <height>24</height>
+    </rect>
+   </property>
+  </widget>
  </widget>
  <resources/>
  <connections/>

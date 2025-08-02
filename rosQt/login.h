@@ -6,7 +6,8 @@
 #include <QLabel>
 #include <QLineEdit>
 
-class Ui_LoginWidget;
+// Include the UI header directly instead of forward declaration
+#include "ui_login.h"
 
 class LoginWindow : public QWidget  // QWidget 대신 QMainWindow
 {
@@ -21,12 +22,13 @@ signals:
 
 private slots:
     void handleLogin();      // 로그인 버튼 클릭 처리
+    void check_login();  // 로그인 정보 확인 함수
+    void resetTextFieldStyle();  // 새로 추가된 슬롯
 
 private:
     void setWidgetClasses();
     
-    Ui_LoginWidget *ui;
-    void check_login();  // 로그인 정보 확인 함수
+    Ui_LoginWidget *ui;  // Revert back to original class name
 };
 
 #endif // LOGINWINDOW_H

@@ -104,24 +104,62 @@ void CentralServer::stop() {
 void CentralServer::runDatabaseThread() {
     RCLCPP_INFO(this->get_logger(), "DB 스레드 시작됨");
     
-    // DB 연결 시도
+    bool db_connection_logged = false;
+    auto last_db_check = std::chrono::steady_clock::now();
+    const auto db_check_interval = std::chrono::seconds(30); // 30초마다 DB 연결 확인으로 증가
+    
+    // 초기 DB 연결 시도
     if (db_manager_->connect()) {
         RCLCPP_INFO(this->get_logger(), "MySQL 데이터베이스 연결 성공!");
+        db_connection_logged = true;
     } else {
-        RCLCPP_ERROR(this->get_logger(), "MySQL 데이터베이스 연결 실패!");
-        RCLCPP_WARN(this->get_logger(), "DB 없이 계속 실행합니다...");
+        RCLCPP_ERROR(this->get_logger(), "MySQL 데이터베이스 초기 연결 실패!");
+        RCLCPP_WARN(this->get_logger(), "DB 없이 계속 실행합니다... (30초마다 재연결 시도)");
+        RCLCPP_INFO(this->get_logger(), "DB 연결 문제 해결 방법:");
+        RCLCPP_INFO(this->get_logger(), "  1. MySQL 서비스 확인: sudo systemctl status mysql");
+        RCLCPP_INFO(this->get_logger(), "  2. 사용자 권한 확인: sudo mysql -u root -p");
+        RCLCPP_INFO(this->get_logger(), "  3. config.yaml의 DB 설정 확인");
+        db_connection_logged = true;
     }
     
     while (running_.load() && rclcpp::ok()) {
-        // DB 연결 상태 확인 (5초마다)
-        if (!db_manager_->isConnected()) {
-            RCLCPP_WARN(this->get_logger(), "DB 연결 끊어짐. 재연결 시도...");
-            db_manager_->connect();
+        auto now = std::chrono::steady_clock::now();
+        
+        // DB 연결 상태 확인 (30초마다)
+        if (now - last_db_check >= db_check_interval) {
+            if (!db_manager_->isConnected()) {
+                // 첫 번째 연결 실패 후에는 DEBUG 레벨로만 로그 출력
+                if (!db_connection_logged) {
+                    RCLCPP_WARN(this->get_logger(), "DB 연결 끊어짐. 주기적으로 재연결 시도합니다...");
+                    db_connection_logged = true;
+                }
+                
+                // 재연결 시도 (실패해도 에러 로그는 DatabaseManager에서 처리)
+                bool reconnect_success = db_manager_->connect();
+                
+                if (reconnect_success) {
+                    RCLCPP_INFO(this->get_logger(), "DB 연결이 복구되었습니다!");
+                    db_connection_logged = false;
+                }
+            } else {
+                // 연결이 정상인 경우
+                if (db_connection_logged) {
+                    RCLCPP_INFO(this->get_logger(), "DB 연결 상태: 정상");
+                    db_connection_logged = false;
+                }
+            }
+            last_db_check = now;
         }
         
         // RobotNavigationManager의 콜백들 처리
         if (nav_manager_) {
-            rclcpp::spin_some(nav_manager_);
+            try {
+                auto shared_nav_manager = std::shared_ptr<RobotNavigationManager>(nav_manager_.get(), [](RobotNavigationManager*){});
+                rclcpp::spin_some(shared_nav_manager);
+            } catch (const std::exception& e) {
+                RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+                                     "RobotNavigationManager 스핀 중 오류: %s", e.what());
+            }
         }
         
         std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 100ms 간격으로 스핀

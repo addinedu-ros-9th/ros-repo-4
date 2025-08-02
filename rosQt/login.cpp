@@ -1,5 +1,4 @@
 #include "login.h"
-#include "ui_login.h"
 #include <QDebug>
 #include <QStyle>
 #include <yaml-cpp/yaml.h>  
@@ -10,12 +9,11 @@
 #include <QJsonObject>
 #include "user_info.h" 
 #include <QMessageBox>
-#include <QMessageBox>
 #include <QString>
 
 LoginWindow::LoginWindow(QWidget *parent)
-    : QWidget(parent)  // QWidget 대신 QMainWindow로 되돌리기
-    , ui(new Ui_LoginWidget)
+    : QWidget(parent)
+    , ui(new Ui_LoginWidget)  // Revert back to original class name
 {
     ui->setupUi(this);
     setWidgetClasses();
@@ -25,10 +23,14 @@ LoginWindow::LoginWindow(QWidget *parent)
         connect(ui->login_btn, &QPushButton::clicked, this, &LoginWindow::check_login);
     }
     if (ui->login_textfield1) {
-        connect(ui->login_textfield1, &QLineEdit::returnPressed, this, &LoginWindow::handleLogin);
+        connect(ui->login_textfield1, &QLineEdit::returnPressed, this, &LoginWindow::check_login);
+        // 텍스트 변경 시 스타일 리셋
+        connect(ui->login_textfield1, &QLineEdit::textChanged, this, &LoginWindow::resetTextFieldStyle);
     }
     if (ui->login_textfield2) {
-        connect(ui->login_textfield2, &QLineEdit::returnPressed, this, &LoginWindow::handleLogin);
+        connect(ui->login_textfield2, &QLineEdit::returnPressed, this, &LoginWindow::check_login);
+        // 텍스트 변경 시 스타일 리셋
+        connect(ui->login_textfield2, &QLineEdit::textChanged, this, &LoginWindow::resetTextFieldStyle);
     }
     
     // 테스트용: 다른 버튼이라도 연결해보기
@@ -107,10 +109,10 @@ void LoginWindow::setWidgetClasses()
 
 void LoginWindow::check_login()
 {
-    QString user_id = ui->login_textfield1->text();
-    QString user_password = ui->login_textfield2->text();
+    QString admin_id = ui->login_textfield1->text();
+    QString admin_password = ui->login_textfield2->text();
 
-    std::string config_path = "../config.yaml";
+    std::string config_path = "../../config.yaml";
     YAML::Node config = YAML::LoadFile(config_path);
     std::string CENTRAL_IP = config["central_server"]["ip"].as<std::string>();
     int CENTRAL_HTTP_PORT = config["central_server"]["http_port"].as<int>();
@@ -120,8 +122,8 @@ void LoginWindow::check_login()
                     .arg(CENTRAL_HTTP_PORT);
 
     QJsonObject data;
-    data["user_id"] = user_id;
-    data["passwd"] = user_password;
+    data["admin_id"] = admin_id;
+    data["password"] = admin_password;
     QJsonDocument doc(data);
     QByteArray jsonData = doc.toJson();
 
@@ -135,14 +137,17 @@ void LoginWindow::check_login()
         QNetworkAccessManager* manager = new QNetworkAccessManager(this);
         QNetworkReply* reply = manager->post(request, jsonData);
 
-        if (ui->login_checkbox && !ui->login_checkbox->isChecked()) {
-            if (ui->login_textfield1) ui->login_textfield1->clear();
-            if (ui->login_textfield2) ui->login_textfield2->clear();
-        }
-
-        connect(reply, &QNetworkReply::finished, this, [this, reply, CENTRAL_IP, CENTRAL_HTTP_PORT, user_id]() {
+        connect(reply, &QNetworkReply::finished, this, [this, reply, CENTRAL_IP, CENTRAL_HTTP_PORT, admin_id]() {
             int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
             if (statusCode == 200) {
+                UserInfoManager::set_user_id(admin_id.toStdString());
+
+                // 로그인 성공 시에만 체크박스 상태에 따라 필드 클리어
+                if (ui->login_checkbox && !ui->login_checkbox->isChecked()) {
+                    if (ui->login_textfield1) ui->login_textfield1->clear();
+                    if (ui->login_textfield2) ui->login_textfield2->clear();
+                }
+
                 QByteArray responseData = reply->readAll();
                 QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
                 QJsonObject result = jsonDoc.object();
@@ -153,7 +158,7 @@ void LoginWindow::check_login()
                             .arg(CENTRAL_HTTP_PORT);
 
                 QJsonObject user_info_data;
-                user_info_data["user_id"] = user_id;
+                user_info_data["admin_id"] = admin_id;
                 QJsonDocument user_info_doc(user_info_data);
                 QByteArray user_info_json = user_info_doc.toJson();
 
@@ -173,25 +178,18 @@ void LoginWindow::check_login()
                         info.email = userInfoResult.contains("email") ? userInfoResult["email"].toString().toStdString() : "";
                         info.hospital_name = userInfoResult.contains("hospital_name") ? userInfoResult["hospital_name"].toString().toStdString() : "";
 
-                        // user_id가 존재하는지 확인 후 설정
-                        if (userInfoResult.contains("user_id")) {
-                            UserInfoManager::set_user_id(userInfoResult["user_id"].toString().toStdString());
-                        }
                         UserInfoManager::set_user_info(info);
 
                         qDebug() << "[사용자 정보 응답]:" << userInfoResult;
 
-                        for (const QString& key : {"name", "email", "hospital_name", "user_id"}) {
+                        for (const QString& key : {"name", "email", "hospital_name", "admin_id"}) {
                             qDebug() << "Key:" << key << ", exists:" << userInfoResult.contains(key)
                                     << ", isString:" << userInfoResult[key].isString()
                                     << ", value:" << userInfoResult[key];
                         }
-                        // 사용자 정보 처리 로직 추가
                     } else {
                         qDebug() << "[사용자 정보 요청 실패]:" << userInfoReply->errorString();
                     }
-                    // QString name = QString::fromStdString(UserInfoManager::get_user_info().name);
-                    // QMessageBox::information(this, "로그인 성공", QString("%1님 환영합니다!").arg(name));
                     emit loginSuccessful();
                     userInfoReply->deleteLater();
                 });
@@ -270,5 +268,42 @@ void LoginWindow::check_login()
     } catch (const std::exception& e) {
         qDebug() << "[네트워크 예외]:" << e.what();
         QMessageBox::critical(this, "네트워크 오류", e.what());
+    }
+}
+
+void LoginWindow::resetTextFieldStyle()
+{
+    // 어떤 텍스트 필드에서 신호가 왔는지 확인
+    QLineEdit* sender_field = qobject_cast<QLineEdit*>(sender());
+    
+    if (sender_field == ui->login_textfield1) {
+        // ID 필드 스타일 리셋
+        ui->login_textfield1->setProperty("class", "textfield large");
+        ui->login_textfield1->style()->unpolish(ui->login_textfield1);
+        ui->login_textfield1->style()->polish(ui->login_textfield1);
+        ui->login_textfield1->update();
+        
+        // 관련 에러 텍스트도 리셋
+        if (ui->auth_text1) {
+            ui->auth_text1->setProperty("class", "size12 color-white");
+            ui->auth_text1->style()->unpolish(ui->auth_text1);
+            ui->auth_text1->style()->polish(ui->auth_text1);
+            ui->auth_text1->update();
+        }
+    }
+    else if (sender_field == ui->login_textfield2) {
+        // 비밀번호 필드 스타일 리셋
+        ui->login_textfield2->setProperty("class", "textfield large");
+        ui->login_textfield2->style()->unpolish(ui->login_textfield2);
+        ui->login_textfield2->style()->polish(ui->login_textfield2);
+        ui->login_textfield2->update();
+        
+        // 관련 에러 텍스트도 리셋
+        if (ui->auth_text2) {
+            ui->auth_text2->setProperty("class", "size12 color-white");
+            ui->auth_text2->style()->unpolish(ui->auth_text2);
+            ui->auth_text2->style()->polish(ui->auth_text2);
+            ui->auth_text2->update();
+        }
     }
 }

@@ -1,7 +1,7 @@
 # 네트워크 설정
 network:
   # PC IP 주소
-  wonho_pc: "192.168.0.15"     # 원호 PC (rosGui)
+  wonho_pc: "192.168.0.74"     # 원호 PC (rosGui) - 실제 IP로 업데이트
   chaeyeon_pc: "192.168.0.27"  # 채연 PC (AI Server)
   minje_pc: "192.168.0.31"     # 민제 PC
   taeho_pc: "192.168.0.18"     # 태호 PC
@@ -12,7 +12,7 @@ llm_server:
 
 # AI 서버 설정
 ai_server:
-  ip: network.chaeyeon_pc
+  ip: "192.168.0.74"
   port: 5005
   max_packet_size: 60000
   
@@ -26,7 +26,7 @@ ai_server:
 
 # Central 서버 설정
 central_server:
-  ip: network.taeho_pc
+  ip: "192.168.0.74"
   port: 6000
   
   # HTTP 서버 (웹 API용)
@@ -40,11 +40,11 @@ central_server:
   gui_port: 6007
 
   target_ros_gui:
-    ip: network.wonho_pc
+    ip: "192.168.0.74"
     port: 8888
 
 ros_gui_client:
-  ip: network.wonho_pc
+  ip: "192.168.0.74"
   udp_receive_port: 8888 # UDP 이미지를 받을 포트
 
 database:

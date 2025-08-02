@@ -92,6 +92,7 @@ public:
     
     // 관리자 인증
     bool authenticateAdmin(const std::string& admin_id, const std::string& password, AdminInfo& admin);
+    bool isAdminIdExists(const std::string& admin_id);
     bool getAdminById(const std::string& admin_id, AdminInfo& admin);
     
     // 부서 정보

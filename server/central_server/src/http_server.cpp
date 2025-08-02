@@ -676,18 +676,33 @@ std::string HttpServer::handleAuthLogin(const Json::Value& request) {
     
     // 요청 데이터 검증
     if (!request.isMember("admin_id") || !request.isMember("password")) {
-        return "400"; // Bad Request
+        std::cout << "[HTTP] 로그인 요청: admin_id 또는 password 누락" << std::endl;
+        return "404"; // Missing fields
     }
     
-    std::string admin_id = request["admin_id"].asString(); // 명세서에서는 patient_id로 오지만 실제로는 admin_id
+    std::string admin_id = request["admin_id"].asString();
     std::string password = request["password"].asString();
     
-    // Admin 테이블에서 로그인 검증
+    // 빈 필드 검증
+    if (admin_id.empty() || password.empty()) {
+        std::cout << "[HTTP] 로그인 요청: 빈 필드 존재" << std::endl;
+        return "404"; // Empty fields
+    }
+    
+    // 먼저 admin_id가 데이터베이스에 존재하는지 확인
+    if (!db_manager_->isAdminIdExists(admin_id)) {
+        std::cout << "[HTTP] 로그인 실패: 존재하지 않는 admin_id - " << admin_id << std::endl;
+        return "401"; // ID doesn't exist
+    }
+    
+    // Admin 테이블에서 로그인 검증 (ID는 존재하므로 비밀번호만 검증)
     AdminInfo admin;
     if (db_manager_->authenticateAdmin(admin_id, password, admin)) {
+        std::cout << "[HTTP] 로그인 성공: " << admin_id << std::endl;
         return "200"; // 성공
     } else {
-        return "401"; // 인증 실패
+        std::cout << "[HTTP] 로그인 실패: 비밀번호 불일치 - " << admin_id << std::endl;
+        return "402"; // Wrong password
     }
 }
 
@@ -1232,4 +1247,4 @@ std::string HttpServer::handleWithoutAuthRobotReturn(const Json::Value& request)
     int robot_id = request["robot_id"].asInt();
     
     return processRobotReturnRequest(robot_id, nullptr, "return_by_unknown");
-} 
+}

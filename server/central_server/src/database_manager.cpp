@@ -28,7 +28,8 @@ DatabaseManager::~DatabaseManager() {
 void DatabaseManager::loadConnectionConfig() {
     host_ = "localhost";
     username_ = "root";
-    password_ = "heR@491!"; 
+    // password_ = "heR@491!"; 
+    password_ = "0000"; 
     database_ = "HeroDB";
     port_ = 3306;
 }
@@ -301,6 +302,39 @@ bool DatabaseManager::authenticateAdmin(const std::string& admin_id, const std::
         
     } catch (sql::SQLException& e) {
         std::cerr << "[DB] 관리자 인증 오류: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool DatabaseManager::isAdminIdExists(const std::string& admin_id) {
+    if (!isConnected()) {
+        return false;
+    }
+    
+    sql::Connection* raw_connection = getConnection();
+    if (!raw_connection) {
+        std::cerr << "[DB] Connection 획득 실패" << std::endl;
+        return false;
+    }
+    
+    ConnectionGuard connection(this, raw_connection);
+    
+    try {
+        std::unique_ptr<sql::PreparedStatement> pstmt(
+            connection->prepareStatement("SELECT COUNT(*) FROM Admin WHERE admin_id = ?")
+        );
+        pstmt->setString(1, admin_id);
+        
+        std::unique_ptr<sql::ResultSet> res(pstmt->executeQuery());
+        
+        if (res->next() && res->getInt(1) > 0) {
+            return true; // 관리자 ID가 존재함
+        }
+        
+        return false; // 관리자 ID가 존재하지 않음
+        
+    } catch (sql::SQLException& e) {
+        std::cerr << "[DB] 관리자 ID 존재 여부 확인 오류: " << e.what() << std::endl;
         return false;
     }
 }
