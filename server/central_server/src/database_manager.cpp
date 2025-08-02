@@ -661,8 +661,9 @@ bool DatabaseManager::insertRobotLogWithType(int robot_id, int* patient_id, cons
     ConnectionGuard connection(this, raw_connection);
     
     try {
+        // dttm -> datetime으로 변경
         std::unique_ptr<sql::PreparedStatement> pstmt(
-            connection->prepareStatement("INSERT INTO robot_log (robot_id, patient_id, dttm, orig, dest, type) VALUES (?, ?, ?, ?, ?, ?)")
+            connection->prepareStatement("INSERT INTO robot_log (robot_id, patient_id, datetime, orig, dest, type) VALUES (?, ?, ?, ?, ?, ?)")
         );
         pstmt->setInt(1, robot_id);
         
@@ -808,86 +809,137 @@ std::vector<std::map<std::string, std::string>> DatabaseManager::getRobotLogData
     ConnectionGuard connection(this, raw_connection);
     
     try {
-        std::string query = "SELECT rl.robot_id, rl.patient_id, rl.dttm, rl.orig, rl.dest, rl.type, "
-                           "p.name as patient_name, "
-                           "orig_dept.department_name as orig_name, "
-                           "dest_dept.department_name as dest_name "
-                           "FROM robot_log rl "
-                           "LEFT JOIN patient p ON rl.patient_id = p.patient_id "
-                           "LEFT JOIN department orig_dept ON rl.orig = orig_dept.department_id "
-                           "LEFT JOIN department dest_dept ON rl.dest = dest_dept.department_id ";
+        // 먼저 robot_log 테이블이 존재하는지 확인
+        std::unique_ptr<sql::Statement> check_stmt(connection->createStatement());
+        std::unique_ptr<sql::ResultSet> table_check(check_stmt->executeQuery("SHOW TABLES LIKE 'robot_log'"));
+        
+        if (!table_check->next()) {
+            std::cerr << "[DB] robot_log 테이블이 존재하지 않습니다" << std::endl;
+            return log_data;
+        }
+        
+        // 테이블 구조 확인
+        std::unique_ptr<sql::ResultSet> structure_check(check_stmt->executeQuery("DESCRIBE robot_log"));
+        std::cout << "[DB] robot_log 테이블 구조:" << std::endl;
+        while (structure_check->next()) {
+            std::cout << "[DB] - " << structure_check->getString("Field") 
+                     << " (" << structure_check->getString("Type") << ")" << std::endl;
+        }
+        
+        // 이미지에서 확인한 실제 컬럼명 사용: dateTime
+        std::string query = "SELECT rl.robot_id, "
+                           "COALESCE(rl.patient_id, 0) as patient_id, "
+                           "rl.dateTime, "  // 실제 컬럼명 사용
+                           "COALESCE(rl.orig, 0) as orig, "
+                           "COALESCE(rl.dest, 0) as dest "
+                           "FROM robot_log rl ";
         
         std::string where_clause = "";
         
         // period 파라미터 처리
         if (!period.empty()) {
             if (period == "today") {
-                where_clause = "WHERE DATE(rl.dttm) = CURDATE()";
+                where_clause = "WHERE DATE(rl.dateTime) = CURDATE()";
             } else if (period == "week") {
-                where_clause = "WHERE rl.dttm >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
+                where_clause = "WHERE rl.dateTime >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
             } else if (period == "month") {
-                where_clause = "WHERE rl.dttm >= DATE_SUB(NOW(), INTERVAL 1 MONTH)";
+                where_clause = "WHERE rl.dateTime >= DATE_SUB(NOW(), INTERVAL 1 MONTH)";
             }
         } else if (!start_date.empty() || !end_date.empty()) {
             // start_date와 end_date 파라미터 처리
             where_clause = "WHERE 1=1";
             if (!start_date.empty()) {
-                where_clause += " AND rl.dttm >= '" + start_date + "'";
+                where_clause += " AND DATE(rl.dateTime) >= '" + start_date + "'";
             }
             if (!end_date.empty()) {
-                where_clause += " AND rl.dttm <= '" + end_date + "'";
+                where_clause += " AND DATE(rl.dateTime) <= '" + end_date + "'";
             }
         }
         
-        query += where_clause + " ORDER BY rl.dttm DESC";
+        query += where_clause + " ORDER BY rl.dateTime DESC LIMIT 100";
+        
+        std::cout << "[DB] 실행할 쿼리: " << query << std::endl;
         
         std::unique_ptr<sql::Statement> stmt(connection->createStatement());
         std::unique_ptr<sql::ResultSet> res(stmt->executeQuery(query));
         
+        int count = 0;
         while (res->next()) {
             std::map<std::string, std::string> log_entry;
             
-            // patient_id (NULL인 경우 00000000으로 표시)
-            if (res->isNull("patient_id")) {
-                log_entry["patient_id"] = "00000000";
-            } else {
-                log_entry["patient_id"] = std::to_string(res->getInt("patient_id"));
-            }
-            
-            // orig (출발지)
-            if (res->isNull("orig")) {
-                log_entry["orig"] = "0";
-            } else {
+            try {
+                // patient_id 처리 (NULL 체크 후 문자열 변환)
+                if (res->isNull("patient_id")) {
+                    log_entry["patient_id"] = "0";
+                } else {
+                    int patient_id_val = res->getInt("patient_id");
+                    log_entry["patient_id"] = std::to_string(patient_id_val);
+                }
+                
+                // orig (출발지)
                 log_entry["orig"] = std::to_string(res->getInt("orig"));
-            }
-            
-            // dest (목적지)
-            if (res->isNull("dest")) {
-                log_entry["dest"] = "0";
-            } else {
+                
+                // dest (목적지)
                 log_entry["dest"] = std::to_string(res->getInt("dest"));
+                
+                // date (날짜) - dateTime 컬럼 사용
+                log_entry["date"] = res->getString("dateTime");
+                
+                log_data.push_back(log_entry);
+                count++;
+                
+                if (count <= 5) {  // 처음 5개 레코드만 디버그 출력
+                    std::cout << "[DB] 로그 엔트리 " << count << ": "
+                             << "patient_id=" << log_entry["patient_id"]
+                             << ", orig=" << log_entry["orig"]
+                             << ", dest=" << log_entry["dest"]
+                             << ", date=" << log_entry["date"] << std::endl;
+                }
+                
+            } catch (sql::SQLException& inner_e) {
+                std::cerr << "[DB] 레코드 처리 중 오류: " << inner_e.what() << std::endl;
+                continue;  // 이 레코드는 건너뛰고 다음으로
             }
-            
-            // date (날짜)
-            log_entry["date"] = res->getString("dttm");
-            
-            // is_checked (기본값 0)
-            log_entry["is_checked"] = "0";
-            
-            // video_url (기본값 - 실제로는 비디오 파일명 생성 로직 필요)
-            log_entry["video_url"] = "video_" + std::to_string(res->getInt("robot_id")) + ".mp4";
-            
-            // favorite (기본값 0)
-            log_entry["favorite"] = "0";
-            
-            log_data.push_back(log_entry);
         }
         
         std::cout << "[DB] 로봇 로그 데이터 조회 완료: " << log_data.size() << "개 레코드" << std::endl;
         
+        // 데이터가 없는 경우 테이블 내용 확인
+        if (log_data.empty()) {
+            std::unique_ptr<sql::ResultSet> count_check(stmt->executeQuery("SELECT COUNT(*) as total FROM robot_log"));
+            if (count_check->next()) {
+                int total_records = count_check->getInt("total");
+                std::cout << "[DB] robot_log 테이블 총 레코드 수: " << total_records << std::endl;
+                
+                if (total_records == 0) {
+                    std::cout << "[DB] robot_log 테이블이 비어있습니다" << std::endl;
+                } else {
+                    // 최근 몇 개 레코드 확인 - dateTime 컬럼 사용
+                    std::unique_ptr<sql::ResultSet> sample_check(stmt->executeQuery("SELECT * FROM robot_log ORDER BY dateTime DESC LIMIT 3"));
+                    std::cout << "[DB] 최근 레코드들:" << std::endl;
+                    while (sample_check->next()) {
+                        std::cout << "[DB] - robot_id: " << sample_check->getInt("robot_id")
+                                 << ", patient_id: " << (sample_check->isNull("patient_id") ? "NULL" : std::to_string(sample_check->getInt("patient_id")))
+                                 << ", dateTime: " << sample_check->getString("dateTime") << std::endl;
+                    }
+                }
+            }
+        }
+        
     } catch (sql::SQLException& e) {
         std::cerr << "[DB] 로봇 로그 데이터 조회 실패: " << e.what() << std::endl;
+        std::cerr << "[DB] SQL State: " << e.getSQLState() << std::endl;
+        std::cerr << "[DB] Error Code: " << e.getErrorCode() << std::endl;
+        
+        // 연결 상태 재확인
+        try {
+            std::unique_ptr<sql::Statement> test_stmt(connection->createStatement());
+            std::unique_ptr<sql::ResultSet> test_res(test_stmt->executeQuery("SELECT 1"));
+            std::cout << "[DB] 데이터베이스 연결은 정상입니다" << std::endl;
+        } catch (sql::SQLException& test_e) {
+            std::cerr << "[DB] 데이터베이스 연결에 문제가 있습니다: " << test_e.what() << std::endl;
+        }
     }
     
     return log_data;
-} 
+}

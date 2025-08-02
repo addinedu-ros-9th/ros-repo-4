@@ -1021,10 +1021,12 @@ std::string HttpServer::handleGetLogData(const Json::Value& request) {
         json_entry["patient_id"] = log_entry.at("patient_id");  // 문자열로 유지
         json_entry["orig"] = std::stoi(log_entry.at("orig"));
         json_entry["dest"] = std::stoi(log_entry.at("dest"));
-        json_entry["datetime"] = log_entry.at("date");  // datetime으로 필드명 변경
+        json_entry["datetime"] = log_entry.at("date");  // 올바른 필드명 사용
         
         response.append(json_entry);
     }
+    
+    std::cout << "[HTTP] 로그 데이터 응답 생성 완료: " << response.size() << "개 레코드" << std::endl;
     
     Json::StreamWriterBuilder builder;
     return Json::writeString(builder, response);

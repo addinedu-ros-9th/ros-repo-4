@@ -40,13 +40,16 @@ private:
     void updateToggleButtons(int activeToggle);  // 토글 버튼 상태 업데이트
     void setupTableData();  // 테이블 데이터 설정 함수 추가
     void populateRobotTable(); // 로봇 테이블 데이터 추가 함수
-    void populateHeatmap();
+    void get_robot_log_data();
+    void get_robot_log_data_with_period(const QString& period);
+    QString mapDepartmentIdToName(int dept_id);
+    void setDateFields(const QDate& startDate, const QDate& endDate);  // 새로 추가
+    QString getDateFromFields(bool isStartDate);  // 새로 추가
 
 private:
     Ui_LogWidget *ui;
     int currentToggle;  // 현재 선택된 토글 (1, 2, 3)
-    QVector<LogData> logEntries;
-    QVector<QVector<int>> heatmapEntries;
+    QVector<LogData> logEntries_;
 };
 
 #endif // LOGWIDGET_H
