@@ -151,8 +151,6 @@ void RobotNavigationManager::setRobotPoseCallback(
 
 
 void RobotNavigationManager::navStatusCallback(const std_msgs::msg::String::SharedPtr msg) {
-    RCLCPP_INFO(this->get_logger(), "로봇 주행 상태 수신: %s", msg->data.c_str());
-    
     // 현재 상태 저장
     {
         std::lock_guard<std::mutex> lock(nav_status_mutex_);
@@ -173,10 +171,6 @@ void RobotNavigationManager::amclPoseCallback(const geometry_msgs::msg::Pose::Sh
     double x = msg->position.x;
     double y = msg->position.y;
     double yaw = quaternionToYaw(msg->orientation);
-    
-    RCLCPP_INFO(this->get_logger(), 
-               "로봇 현재 위치 수신 - 위치: (%.2f, %.2f), 방향: %.2f도", 
-               x, y, yaw * 180.0 / M_PI);
     
     if (robot_pose_callback_) {
         robot_pose_callback_(x, y, yaw);

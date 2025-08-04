@@ -26,8 +26,12 @@ else:
 
 print(f"🔧 PyTorch 버전: {torch.__version__}")
 
-# RobotSystem 인스턴스 생성 (PyTorch 최적화 설정)
+# RobotSystem 인스턴스 생성 (PyTorch 최적화 설정 + DB 연결)
 robot = RobotSystem(
+    db_host="localhost",  # 센트럴 서버와 동일한 IP
+    db_user="root",       # DB 사용자명
+    db_password="heR@491!",       # DB 비밀번호 (필요시 설정)
+    db_name="HeroDB",     # DB 이름
     use_real_model=True, 
     use_reasoning=False, 
     fast_mode=True, 
@@ -46,12 +50,22 @@ def chat():
         
         print(f"📱 Android에서 메시지 수신: {user_input}")
         
-        # RobotSystem 처리 (최종 응답만 반환)
-        response = robot.process_user_input(user_input)
+        # RobotSystem 처리 (함수 실행 결과 포함)
+        result = robot.process_user_input(user_input)
+        response = result.get('response', '')
+        function_result = result.get('function_result')
+        function_name = result.get('function_name')
+        
         print(f"🔍 일반 채팅 서버에서 받은 응답: '{response}'")
         print(f"🔍 일반 채팅 응답 길이: {len(response) if response else 0}")
+        print(f"🔧 실행된 함수: {function_name}")
+        print(f"🔧 함수 결과: {function_result}")
         
-        return jsonify({'response': response})
+        return jsonify({
+            'response': response,
+            'function_result': function_result,
+            'function_name': function_name
+        })
         
     except Exception as e:
         print(f"❌ 처리 오류: {e}")
@@ -104,11 +118,17 @@ def stream_chat():
         def generate_stream():
             try:
                 # RobotSystem 처리 (PyTorch 기반 스트리밍)
-                response = robot.process_user_input(user_input)
+                result = robot.process_user_input(user_input)
+                response = result.get('response', '')
+                function_result = result.get('function_result')
+                function_name = result.get('function_name')
+                
                 print(f"🔍 서버에서 받은 응답: '{response}'")
                 print(f"🔍 응답 길이: {len(response) if response else 0}")
                 print(f"🔍 응답이 비어있나? {not response}")
                 print(f"🔍 응답이 공백만 있나? {not response.strip() if response else True}")
+                print(f"🔧 실행된 함수: {function_name}")
+                print(f"🔧 함수 결과: {function_result}")
                 
                 if response and response.strip():
                     # 최종 응답을 단어 단위로 스트리밍 (공백 보존)
@@ -121,8 +141,8 @@ def stream_chat():
                             yield f"data: {json.dumps({'type': 'stream', 'content': word, 'index': i})}\n\n"
                             time.sleep(0.05)  # 자연스러운 스트리밍 속도
                     
-                    # 완료 신호
-                    yield f"data: {json.dumps({'type': 'complete', 'content': response})}\n\n"
+                    # 완료 신호 (함수 실행 결과 포함)
+                    yield f"data: {json.dumps({'type': 'complete', 'content': response, 'function_result': function_result, 'function_name': function_name})}\n\n"
                 else:
                     yield f"data: {json.dumps({'type': 'error', 'content': '응답을 생성할 수 없습니다'})}\n\n"
                     
@@ -150,9 +170,15 @@ def token_stream_chat():
         def generate_token_stream():
             try:
                 # RobotSystem 처리 (PyTorch 기반 토큰 스트리밍)
-                response = robot.process_user_input(user_input)
+                result = robot.process_user_input(user_input)
+                response = result.get('response', '')
+                function_result = result.get('function_result')
+                function_name = result.get('function_name')
+                
                 print(f"🔍 토큰 스트리밍 서버에서 받은 응답: '{response}'")
                 print(f"🔍 토큰 스트리밍 응답 길이: {len(response) if response else 0}")
+                print(f"🔧 실행된 함수: {function_name}")
+                print(f"🔧 함수 결과: {function_result}")
                 
                 if response and response.strip():
                     # 최종 응답을 문자 단위로 스트리밍 (공백 보존)
@@ -161,8 +187,8 @@ def token_stream_chat():
                         yield f"data: {json.dumps({'type': 'token', 'content': char, 'index': i})}\n\n"
                         time.sleep(0.01)  # 빠른 토큰 스트리밍
                     
-                    # 완료 신호
-                    yield f"data: {json.dumps({'type': 'complete', 'content': response})}\n\n"
+                    # 완료 신호 (함수 실행 결과 포함)
+                    yield f"data: {json.dumps({'type': 'complete', 'content': response, 'function_result': function_result, 'function_name': function_name})}\n\n"
                 else:
                     yield f"data: {json.dumps({'type': 'error', 'content': '응답을 생성할 수 없습니다'})}\n\n"
                     

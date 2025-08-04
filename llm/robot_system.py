@@ -160,10 +160,11 @@ class CustomStreamer:
         sys.stdout.flush()
 
 class RobotSystem:
-    def __init__(self, db_path: str = "hospital.db", use_real_model: bool = False, 
+    def __init__(self, db_host: str = "localhost", db_user: str = "root", db_password: str = "heR@491!", 
+                 db_name: str = "HeroDB", use_real_model: bool = False, 
                  model_name: str = "LGAI-EXAONE/EXAONE-4.0-1.2B", use_reasoning: bool = False, 
                  debug_mode: bool = False, fast_mode: bool = False):
-        self.robot_functions = RobotFunctions(db_path)
+        self.robot_functions = RobotFunctions()
         self.conversation_history: List[Dict[str, str]] = []
         self.use_real_model = use_real_model
         self.use_reasoning = use_reasoning  # Reasoning 모드 사용 여부
@@ -249,17 +250,7 @@ class RobotSystem:
         if len(self.conversation_history) > 24:
             self.conversation_history = self.conversation_history[-24:]
     
-    def get_function_prompt(self, user_input: str) -> str:
-        """단순화된 프롬프트 - 더 이상 사용하지 않음"""
-        return user_input
-    
-    def get_contextual_function_prompt(self, contextual_input: str) -> str:
-        """단순화된 맥락 프롬프트 - 더 이상 사용하지 않음"""
-        return contextual_input
-    
-    def get_response_prompt(self, user_input: str, function_result: str) -> str:
-        """단순화된 응답 프롬프트 - 더 이상 사용하지 않음"""
-        return function_result
+
     
     def _should_use_reasoning(self, user_input: str) -> bool:
         """복잡한 질문인지 판단하여 Reasoning 모드 사용 여부 결정"""
@@ -350,8 +341,8 @@ class RobotSystem:
             
         return False
 
-    def process_user_input(self, user_input: str) -> str:
-        """사용자 입력 처리 - 자동 모드 전환 포함"""
+    def process_user_input(self, user_input: str) -> Dict[str, Any]:
+        """사용자 입력 처리 - 자동 모드 전환 포함 (함수 실행 결과 포함)"""
         # 히스토리에 사용자 입력 추가
         self.add_to_history("사용자", user_input)
         
@@ -365,6 +356,10 @@ class RobotSystem:
         if not self.last_user_question:
             self.debug_print("🆕 첫 번째 질문으로 인식")
             context_related = False
+        
+        # 함수 실행 결과를 저장할 변수
+        function_result = None
+        function_name = None
         
         try:
             if self.use_real_model:
@@ -404,8 +399,8 @@ class RobotSystem:
                     # Reasoning 모드 (<think> 블록 사용)
                     response = self._call_real_exaone_reasoning(contextual_input)
                 else:
-                    # Non-reasoning 모드 (Agentic tool use)
-                    response = self._call_real_exaone_simple(contextual_input)
+                    # Non-reasoning 모드 (Agentic tool use) - 함수 실행 결과 포함
+                    response, function_result, function_name = self._call_real_exaone_simple_with_result(contextual_input)
             else:
                 # 시뮬레이션 모드
                 response = self._simple_simulation(user_input)
@@ -417,14 +412,24 @@ class RobotSystem:
             self.last_user_question = user_input
             self.last_response = response
             
-            return response
+            # 구조화된 응답 반환
+            return {
+                "response": response,
+                "function_result": function_result,
+                "function_name": function_name
+            }
             
         except Exception as e:
             print(f"❌ 처리 오류: {e}")
-            return "어머, 영웅이가 잠시 문제가 생겼어요! 다시 한 번 말씀해주시겠어요?"
+            error_response = "어머, 영웅이가 잠시 문제가 생겼어요! 다시 한 번 말씀해주시겠어요?"
+            return {
+                "response": error_response,
+                "function_result": None,
+                "function_name": None
+            }
     
-    def _call_real_exaone_simple(self, user_input: str) -> str:
-        """대폭 개선된 Agentic tool use - 맥락 인식과 함수 선택 개선"""
+    def _call_real_exaone_simple_with_result(self, user_input: str) -> tuple[str, Any, str]:
+        """대폭 개선된 Agentic tool use - 맥락 인식과 함수 선택 개선 (함수 실행 결과 포함)"""
         try:
             # 대화 히스토리를 포함한 맥락 구성
             conversation_context = ""
@@ -488,6 +493,32 @@ class RobotSystem:
                             }
                         }
                     }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "appointment_service",
+                        "description": "예약 및 진료 관련 문의에 사용. '예약', '진료', '병원 예약', '진료 시간', '예약 변경', '예약 취소' 등의 질문에 사용",
+                        "parameters": {
+                            "type": "object",
+                            "required": ["service_type"],
+                            "properties": {
+                                "service_type": {
+                                    "type": "string",
+                                    "description": "서비스 유형 (예약, 진료, 예약 변경, 예약 취소, 진료 시간 조회 등)",
+                                    "enum": ["예약", "진료", "예약 변경", "예약 취소", "진료 시간 조회", "예약 확인"]
+                                },
+                                "department": {
+                                    "type": "string",
+                                    "description": "진료과 (CT, X-ray, 초음파, 폐암, 위암, 대장암, 유방암, 뇌종양 등)"
+                                },
+                                "details": {
+                                    "type": "string",
+                                    "description": "추가 세부사항 (예약 날짜, 시간, 증상 등)"
+                                }
+                            }
+                        }
+                    }
                 }
             ]
             
@@ -497,9 +528,11 @@ class RobotSystem:
 중요한 규칙:
 1. 위치 질문('어디야', '어디있어', '찾아')은 query_facility 사용
 2. 이동 요청('안내해줘', '데려다줘', '동행해줘', '가자', '가져다줘')은 navigate 사용  
-3. 일반 대화('안녕', '고마워', '뭐야')는 general_response 사용
-4. 응답은 간결하고 자연스럽게 (길고 현학적인 답변 금지)
-5. 대화 맥락을 고려하여 이전 언급된 장소를 기억하세요
+3. 일반 대화('안녕', '고마워', '뭐야', '영웅이', '영웅아')는 general_response 사용
+4. 사용자가 "영웅이" 또는 "영웅아"라고 부르면 친근하게 응답하세요
+5. 응답은 간결하고 자연스럽게 (길고 현학적인 답변 금지)
+6. 대화 맥락을 고려하여 이전 언급된 장소를 기억하세요
+7. 절대 자신을 "영웅아"라고 부르지 마세요. 항상 "저는 영웅이입니다"라고 말하세요
 
 {f"이전 대화 맥락:{conversation_context}" if conversation_context else ""}
 
@@ -572,26 +605,31 @@ class RobotSystem:
                 # 스트리밍 완료 후 함수 호출 처리
                 if "<tool_call>" in full_streamed_text:
                     print("\n🔧 함수 호출 형식 감지됨")
-                    function_result = self._parse_and_execute_tool_call_improved(full_streamed_text, user_input)
-                    print(f"🤖 답변: {function_result}")
-                    return function_result
+                    response, function_result, function_name = self._parse_and_execute_tool_call_with_result(full_streamed_text, user_input)
+                    print(f"🤖 답변: {response}")
+                    return response, function_result, function_name
                 else:
                     # 일반 텍스트 응답 처리
                     if full_streamed_text.strip() and "Available Tools" not in full_streamed_text:
-                        return full_streamed_text.strip()
+                        return full_streamed_text.strip(), None, None
                     else:
                         print("\n❌ 적절한 응답을 생성하지 못했습니다")
                         fallback_result = self._fallback_response(user_input)
                         print(f"🤖 답변: {fallback_result}")
-                        return fallback_result
+                        return fallback_result, None, None
             # TextIteratorStreamer만 사용하므로 else 블록 제거
             
             # 스트리밍이 완료되었으므로 빈 문자열 반환 (이미 출력됨)
-            return ""
+            return "", None, None
             
         except Exception as e:
             print(f"❌ 모델 호출 실패: {e}")
-            return self._fallback_response(user_input)
+            return "", None, None
+    
+    def _call_real_exaone_simple(self, user_input: str) -> str:
+        """대폭 개선된 Agentic tool use - 맥락 인식과 함수 선택 개선 (기존 호환성용)"""
+        response, _, _ = self._call_real_exaone_simple_with_result(user_input)
+        return response
     
     def _generate_simple_response(self, user_input: str) -> str:
         """맥락을 고려한 간단한 자연어 응답 생성"""
@@ -641,8 +679,8 @@ class RobotSystem:
                     
         return None
 
-    def _parse_and_execute_tool_call_improved(self, response: str, user_input: str) -> str:
-        """개선된 함수 호출 파싱 및 실행"""
+    def _parse_and_execute_tool_call_with_result(self, response: str, user_input: str) -> tuple[str, Any, str]:
+        """개선된 함수 호출 파싱 및 실행 (함수 실행 결과 포함)"""
         try:
             import re
             import json
@@ -676,9 +714,9 @@ class RobotSystem:
                         result = self.robot_functions.query_facility(facility)
                         
                         if "error" not in result["result"]:
-                            return f"네! {facility}는 {result['result']}에 있어요. 😊"
+                            return f"네! {facility}는 {result['result']}에 있어요. 😊", result, function_name
                         else:
-                            return f"죄송해요, {facility}는 이 병원에 없는 시설이에요. 다른 시설을 찾아드릴까요?"
+                            return f"죄송해요, {facility}는 이 병원에 없는 시설이에요. 다른 시설을 찾아드릴까요?", result, function_name
                     
                     elif function_name == "navigate":
                         target = arguments.get("target", "")
@@ -690,22 +728,51 @@ class RobotSystem:
                                 print(f"🎯 맥락에서 추출한 시설: {recent_facility}")
                                 target = recent_facility
                             else:
-                                return "어떤 시설로 안내해드릴까요? 구체적인 시설명을 말씀해주세요."
+                                return "어떤 시설로 안내해드릴까요? 구체적인 시설명을 말씀해주세요.", None, function_name
                         
                         result = self.robot_functions.navigate(target)
                         
                         if "error" not in result.get("result", ""):
-                            return f"좋아요! {target}로 안내해드릴게요. 저를 따라오세요! 🚀"
+                            return f"좋아요! {target}로 안내해드릴게요. 저를 따라오세요! 🚀", result, function_name
                         else:
-                            return f"죄송해요, {target}를 찾을 수 없어요. 정확한 시설명을 말씀해주시겠어요?"
-                    
+                            return f"죄송해요, {target}를 찾을 수 없어요. 정확한 시설명을 말씀해주시겠어요?", result, function_name
+                                         
                     elif function_name == "general_response":
                         message = arguments.get("message", user_input)
                         # 모델이 추출한 메시지를 직접 사용
                         if message and message != user_input:
-                            return message
+                            return message, {"message": message}, function_name
                         else:
-                            return self._generate_simple_response(message)
+                            response = self._generate_simple_response(message)
+                            return response, {"message": message}, function_name
+                    
+                    elif function_name == "appointment_service":
+                        service_type = arguments.get("service_type", "")
+                        department = arguments.get("department", "")
+                        details = arguments.get("details", "")
+                        
+                        # GUI에서 처리할 수 있도록 함수명과 매개변수만 전달
+                        result = {
+                            "service_type": service_type,
+                            "department": department,
+                            "details": details
+                        }
+                        
+                        # 사용자에게 안내 메시지
+                        if service_type == "예약":
+                            return f"{department} 예약을 도와드리겠습니다. 예약 시스템으로 연결해드릴게요!", result, function_name
+                        elif service_type == "진료":
+                            return f"{department} 진료 관련 문의를 도와드리겠습니다. 진료 시스템으로 연결해드릴게요!", result, function_name
+                        elif service_type == "예약 변경":
+                            return f"예약 변경을 도와드리겠습니다. 예약 시스템으로 연결해드릴게요!", result, function_name
+                        elif service_type == "예약 취소":
+                            return f"예약 취소를 도와드리겠습니다. 예약 시스템으로 연결해드릴게요!", result, function_name
+                        elif service_type == "진료 시간 조회":
+                            return f"{department} 진료 시간을 조회해드리겠습니다. 진료 시스템으로 연결해드릴게요!", result, function_name
+                        elif service_type == "예약 확인":
+                            return f"예약 확인을 도와드리겠습니다. 예약 시스템으로 연결해드릴게요!", result, function_name
+                        else:
+                            return f"{service_type} 서비스를 도와드리겠습니다. 관련 시스템으로 연결해드릴게요!", result, function_name
                     
                     else:
                         print(f"❌ 알 수 없는 함수: {function_name}")
@@ -720,11 +787,13 @@ class RobotSystem:
             
             # 모든 함수 호출 실패 시 fallback
             print("❌ 모든 함수 호출 실패")
-            return self._fallback_response(user_input)
+            fallback_response = self._fallback_response(user_input)
+            return fallback_response, None, None
                 
         except Exception as e:
             print(f"❌ 함수 호출 파싱 실패: {e}")
-            return self._fallback_response(user_input)
+            fallback_response = self._fallback_response(user_input)
+            return fallback_response, None, None
     
     def _fallback_response(self, user_input: str) -> str:
         """개선된 fallback 응답 - 맥락 고려"""
@@ -799,21 +868,7 @@ class RobotSystem:
         """기존 복잡한 시뮬레이션 - 더 이상 사용하지 않음"""
         return self._simple_simulation(user_input)
     
-    def _call_real_exaone(self, user_input: str, context_prompt: str, is_function_call: bool = False) -> str:
-        """기존 복잡한 모델 호출 - 더 이상 사용하지 않음"""
-        return self._call_real_exaone_simple(user_input)
-    
-    def _execute_function_raw(self, function_call: Dict[str, Any], user_input: str = "") -> str:
-        """기존 복잡한 함수 실행 - 더 이상 사용하지 않음"""
-        return "함수 실행이 단순화되었습니다."
 
-    def _generate_natural_response(self, user_input: str, function_result: str) -> str:
-        """기존 복잡한 자연어 응답 생성 - 더 이상 사용하지 않음"""
-        return self._simple_simulation(user_input)
-    
-    def _simple_fallback(self, user_input: str) -> str:
-        """기존 복잡한 fallback - 더 이상 사용하지 않음"""
-        return self._simple_simulation(user_input)
     
     def clear_history(self):
         """대화 히스토리 초기화"""
@@ -949,6 +1004,32 @@ class RobotSystem:
                                 "message": {
                                     "type": "string",
                                     "description": "사용자의 메시지"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "appointment_service",
+                        "description": "예약 및 진료 관련 문의에 사용. '예약', '진료', '병원 예약', '진료 시간', '예약 변경', '예약 취소' 등의 질문에 사용",
+                        "parameters": {
+                            "type": "object",
+                            "required": ["service_type"],
+                            "properties": {
+                                "service_type": {
+                                    "type": "string",
+                                    "description": "서비스 유형 (예약, 진료, 예약 변경, 예약 취소, 진료 시간 조회 등)",
+                                    "enum": ["예약", "진료", "예약 변경", "예약 취소", "진료 시간 조회", "예약 확인"]
+                                },
+                                "department": {
+                                    "type": "string",
+                                    "description": "진료과 (CT, X-ray, 초음파, 폐암, 위암, 대장암, 유방암, 뇌종양 등)"
+                                },
+                                "details": {
+                                    "type": "string",
+                                    "description": "추가 세부사항 (예약 날짜, 시간, 증상 등)"
                                 }
                             }
                         }
