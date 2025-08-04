@@ -56,7 +56,7 @@ class VoiceGuideActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "VoiceGuideActivity"
-        private const val BASE_URL = "http://192.168.0.31:5000"
+        private val BASE_URL = NetworkConfig.getLlmServerUrl()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

@@ -21,7 +21,7 @@ import android.util.Log
 class GuidanceConfirmActivity : AppCompatActivity() {
 
     private var isFromCheckin: Boolean = false
-    private val robotLocationUrl = "http://192.168.0.31:8080/get/robot_location"
+    private val robotLocationUrl = NetworkConfig.getRobotLocationUrl()
 
     // ✅ 실제 측정된 Android 기준 좌표
     private val stationCoords = mapOf(
