@@ -98,7 +98,7 @@
     <rect>
      <x>20</x>
      <y>104</y>
-     <width>595</width>
+     <width>674</width>
      <height>726</height>
     </rect>
    </property>
@@ -459,7 +459,7 @@
   <widget class="QLabel" name="title2">
    <property name="geometry">
     <rect>
-     <x>649</x>
+     <x>728</x>
      <y>71</y>
      <width>191</width>
      <height>17</height>
@@ -473,7 +473,7 @@
     </font>
    </property>
    <property name="text">
-    <string>출발지 도착지 히트맵</string>
+    <string>출발지 비율</string>
    </property>
    <property name="margin">
     <number>0</number>
@@ -482,7 +482,7 @@
   <widget class="QLabel" name="title_point2">
    <property name="geometry">
     <rect>
-     <x>635</x>
+     <x>714</x>
      <y>75</y>
      <width>4</width>
      <height>10</height>
@@ -525,13 +525,13 @@
     <number>0</number>
    </property>
   </widget>
-  <widget class="QLabel" name="heatmap_otl">
+  <widget class="QLabel" name="chart1_otl">
    <property name="geometry">
     <rect>
-     <x>635</x>
+     <x>714</x>
      <y>104</y>
-     <width>595</width>
-     <height>726</height>
+     <width>516</width>
+     <height>336</height>
     </rect>
    </property>
    <property name="font">
@@ -548,13 +548,82 @@
     <number>0</number>
    </property>
   </widget>
-  <widget class="QLabel" name="heatmap">
+  <widget class="QLabel" name="title3">
    <property name="geometry">
     <rect>
-     <x>655</x>
+     <x>728</x>
+     <y>460</y>
+     <width>191</width>
+     <height>17</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 18pt</family>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string>도착지 비율</string>
+   </property>
+   <property name="margin">
+    <number>0</number>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title_point3">
+   <property name="geometry">
+    <rect>
+     <x>714</x>
+     <y>464</y>
+     <width>4</width>
+     <height>10</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 18pt</family>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+   <property name="margin">
+    <number>0</number>
+   </property>
+  </widget>
+  <widget class="QLabel" name="chart2_otl">
+   <property name="geometry">
+    <rect>
+     <x>714</x>
+     <y>496</y>
+     <width>516</width>
+     <height>336</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 18pt</family>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+   <property name="margin">
+    <number>0</number>
+   </property>
+  </widget>
+  <widget class="QLabel" name="chart1">
+   <property name="geometry">
+    <rect>
+     <x>735</x>
      <y>124</y>
-     <width>455</width>
-     <height>626</height>
+     <width>300</width>
+     <height>300</height>
     </rect>
    </property>
    <property name="font">
@@ -571,13 +640,13 @@
     <number>0</number>
    </property>
   </widget>
-  <widget class="QLabel" name="heatmap_label1_1">
+  <widget class="QLabel" name="chart2">
    <property name="geometry">
     <rect>
-     <x>1124</x>
-     <y>158</y>
-     <width>100</width>
-     <height>17</height>
+     <x>735</x>
+     <y>512</y>
+     <width>300</width>
+     <height>300</height>
     </rect>
    </property>
    <property name="font">
@@ -588,19 +657,19 @@
     </font>
    </property>
    <property name="text">
-    <string>X-ray 검사실</string>
+    <string/>
    </property>
    <property name="margin">
     <number>0</number>
    </property>
   </widget>
-  <widget class="QLabel" name="heatmap_label1_2">
+  <widget class="QLabel" name="chart1_point1">
    <property name="geometry">
     <rect>
-     <x>1124</x>
-     <y>236</y>
-     <width>100</width>
-     <height>17</height>
+     <x>1059</x>
+     <y>221</y>
+     <width>10</width>
+     <height>10</height>
     </rect>
    </property>
    <property name="font">
@@ -611,19 +680,19 @@
     </font>
    </property>
    <property name="text">
-    <string>CT 검사실</string>
+    <string/>
    </property>
    <property name="margin">
     <number>0</number>
    </property>
   </widget>
-  <widget class="QLabel" name="heatmap_label1_3">
+  <widget class="QLabel" name="chart1_point2">
    <property name="geometry">
     <rect>
-     <x>1124</x>
-     <y>315</y>
-     <width>100</width>
-     <height>17</height>
+     <x>1059</x>
+     <y>248</y>
+     <width>10</width>
+     <height>10</height>
     </rect>
    </property>
    <property name="font">
@@ -634,19 +703,19 @@
     </font>
    </property>
    <property name="text">
-    <string>초음파 검사실</string>
+    <string/>
    </property>
    <property name="margin">
     <number>0</number>
    </property>
   </widget>
-  <widget class="QLabel" name="heatmap_label1_4">
+  <widget class="QLabel" name="chart1_point3">
    <property name="geometry">
     <rect>
-     <x>1124</x>
-     <y>393</y>
-     <width>100</width>
-     <height>17</height>
+     <x>1059</x>
+     <y>275</y>
+     <width>10</width>
+     <height>10</height>
     </rect>
    </property>
    <property name="font">
@@ -657,19 +726,19 @@
     </font>
    </property>
    <property name="text">
-    <string>대장암 센터</string>
+    <string/>
    </property>
    <property name="margin">
     <number>0</number>
    </property>
   </widget>
-  <widget class="QLabel" name="heatmap_label1_5">
+  <widget class="QLabel" name="chart1_point4">
    <property name="geometry">
     <rect>
-     <x>1124</x>
-     <y>471</y>
-     <width>100</width>
-     <height>17</height>
+     <x>1059</x>
+     <y>302</y>
+     <width>10</width>
+     <height>10</height>
     </rect>
    </property>
    <property name="font">
@@ -680,18 +749,18 @@
     </font>
    </property>
    <property name="text">
-    <string>위암 센터</string>
+    <string/>
    </property>
    <property name="margin">
     <number>0</number>
    </property>
   </widget>
-  <widget class="QLabel" name="heatmap_label1_6">
+  <widget class="QLabel" name="chart1_label1">
    <property name="geometry">
     <rect>
-     <x>1124</x>
-     <y>549</y>
-     <width>100</width>
+     <x>1081</x>
+     <y>219</y>
+     <width>120</width>
      <height>17</height>
     </rect>
    </property>
@@ -703,18 +772,18 @@
     </font>
    </property>
    <property name="text">
-    <string>폐암 센터</string>
+    <string>chart1</string>
    </property>
    <property name="margin">
     <number>0</number>
    </property>
   </widget>
-  <widget class="QLabel" name="heatmap_label1_7">
+  <widget class="QLabel" name="chart1_label2">
    <property name="geometry">
     <rect>
-     <x>1120</x>
-     <y>628</y>
-     <width>100</width>
+     <x>1081</x>
+     <y>245</y>
+     <width>120</width>
      <height>17</height>
     </rect>
    </property>
@@ -726,18 +795,18 @@
     </font>
    </property>
    <property name="text">
-    <string>유방암 센터</string>
+    <string>chart2</string>
    </property>
    <property name="margin">
     <number>0</number>
    </property>
   </widget>
-  <widget class="QLabel" name="heatmap_label1_8">
+  <widget class="QLabel" name="chart1_label3">
    <property name="geometry">
     <rect>
-     <x>1120</x>
-     <y>706</y>
-     <width>100</width>
+     <x>1081</x>
+     <y>272</y>
+     <width>120</width>
      <height>17</height>
     </rect>
    </property>
@@ -749,18 +818,18 @@
     </font>
    </property>
    <property name="text">
-    <string>뇌종양 센터</string>
+    <string>chart3</string>
    </property>
    <property name="margin">
     <number>0</number>
    </property>
   </widget>
-  <widget class="QLabel" name="heatmap_label2_1">
+  <widget class="QLabel" name="chart1_label4">
    <property name="geometry">
     <rect>
-     <x>655</x>
-     <y>763</y>
-     <width>56</width>
+     <x>1081</x>
+     <y>299</y>
+     <width>120</width>
      <height>17</height>
     </rect>
    </property>
@@ -772,22 +841,19 @@
     </font>
    </property>
    <property name="text">
-    <string>X-ray </string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
+    <string>chart4</string>
    </property>
    <property name="margin">
     <number>0</number>
    </property>
   </widget>
-  <widget class="QLabel" name="heatmap_label2_2">
+  <widget class="QLabel" name="chart2_point1">
    <property name="geometry">
     <rect>
-     <x>711</x>
-     <y>763</y>
-     <width>56</width>
-     <height>17</height>
+     <x>1059</x>
+     <y>612</y>
+     <width>10</width>
+     <height>10</height>
     </rect>
    </property>
    <property name="font">
@@ -798,22 +864,19 @@
     </font>
    </property>
    <property name="text">
-    <string>CT</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
+    <string/>
    </property>
    <property name="margin">
     <number>0</number>
    </property>
   </widget>
-  <widget class="QLabel" name="heatmap_label2_3">
+  <widget class="QLabel" name="chart2_point2">
    <property name="geometry">
     <rect>
-     <x>768</x>
-     <y>763</y>
-     <width>56</width>
-     <height>17</height>
+     <x>1059</x>
+     <y>639</y>
+     <width>10</width>
+     <height>10</height>
     </rect>
    </property>
    <property name="font">
@@ -824,22 +887,19 @@
     </font>
    </property>
    <property name="text">
-    <string>초음파</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
+    <string/>
    </property>
    <property name="margin">
     <number>0</number>
    </property>
   </widget>
-  <widget class="QLabel" name="heatmap_label2_4">
+  <widget class="QLabel" name="chart2_point3">
    <property name="geometry">
     <rect>
-     <x>825</x>
-     <y>763</y>
-     <width>56</width>
-     <height>17</height>
+     <x>1059</x>
+     <y>666</y>
+     <width>10</width>
+     <height>10</height>
     </rect>
    </property>
    <property name="font">
@@ -850,22 +910,19 @@
     </font>
    </property>
    <property name="text">
-    <string>대장암</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
+    <string/>
    </property>
    <property name="margin">
     <number>0</number>
    </property>
   </widget>
-  <widget class="QLabel" name="heatmap_label2_5">
+  <widget class="QLabel" name="chart2_point4">
    <property name="geometry">
     <rect>
-     <x>882</x>
-     <y>763</y>
-     <width>56</width>
-     <height>17</height>
+     <x>1059</x>
+     <y>693</y>
+     <width>10</width>
+     <height>10</height>
     </rect>
    </property>
    <property name="font">
@@ -876,21 +933,18 @@
     </font>
    </property>
    <property name="text">
-    <string>위암</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
+    <string/>
    </property>
    <property name="margin">
     <number>0</number>
    </property>
   </widget>
-  <widget class="QLabel" name="heatmap_label2_6">
+  <widget class="QLabel" name="chart2_label1">
    <property name="geometry">
     <rect>
-     <x>939</x>
-     <y>763</y>
-     <width>56</width>
+     <x>1081</x>
+     <y>610</y>
+     <width>120</width>
      <height>17</height>
     </rect>
    </property>
@@ -902,21 +956,18 @@
     </font>
    </property>
    <property name="text">
-    <string>폐암</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
+    <string>chart1</string>
    </property>
    <property name="margin">
     <number>0</number>
    </property>
   </widget>
-  <widget class="QLabel" name="heatmap_label2_7">
+  <widget class="QLabel" name="chart2_label2">
    <property name="geometry">
     <rect>
-     <x>996</x>
-     <y>763</y>
-     <width>56</width>
+     <x>1081</x>
+     <y>636</y>
+     <width>120</width>
      <height>17</height>
     </rect>
    </property>
@@ -928,21 +979,18 @@
     </font>
    </property>
    <property name="text">
-    <string>유방암</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
+    <string>chart1</string>
    </property>
    <property name="margin">
     <number>0</number>
    </property>
   </widget>
-  <widget class="QLabel" name="heatmap_label2_8">
+  <widget class="QLabel" name="chart2_label3">
    <property name="geometry">
     <rect>
-     <x>1053</x>
-     <y>763</y>
-     <width>56</width>
+     <x>1081</x>
+     <y>663</y>
+     <width>120</width>
      <height>17</height>
     </rect>
    </property>
@@ -954,21 +1002,18 @@
     </font>
    </property>
    <property name="text">
-    <string>뇌종양</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
+    <string>chart1</string>
    </property>
    <property name="margin">
     <number>0</number>
    </property>
   </widget>
-  <widget class="QLabel" name="heatmap_label3_1">
+  <widget class="QLabel" name="chart2_label4">
    <property name="geometry">
     <rect>
-     <x>655</x>
-     <y>780</y>
-     <width>56</width>
+     <x>1081</x>
+     <y>690</y>
+     <width>120</width>
      <height>17</height>
     </rect>
    </property>
@@ -980,244 +1025,7 @@
     </font>
    </property>
    <property name="text">
-    <string>검사실</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
-   </property>
-   <property name="margin">
-    <number>0</number>
-   </property>
-  </widget>
-  <widget class="QLabel" name="heatmap_label3_2">
-   <property name="geometry">
-    <rect>
-     <x>711</x>
-     <y>780</y>
-     <width>56</width>
-     <height>17</height>
-    </rect>
-   </property>
-   <property name="font">
-    <font>
-     <family>Inter 18pt</family>
-     <weight>75</weight>
-     <bold>true</bold>
-    </font>
-   </property>
-   <property name="text">
-    <string>검사실</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
-   </property>
-   <property name="margin">
-    <number>0</number>
-   </property>
-  </widget>
-  <widget class="QLabel" name="heatmap_label3_3">
-   <property name="geometry">
-    <rect>
-     <x>768</x>
-     <y>780</y>
-     <width>56</width>
-     <height>17</height>
-    </rect>
-   </property>
-   <property name="font">
-    <font>
-     <family>Inter 18pt</family>
-     <weight>75</weight>
-     <bold>true</bold>
-    </font>
-   </property>
-   <property name="text">
-    <string>검사실</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
-   </property>
-   <property name="margin">
-    <number>0</number>
-   </property>
-  </widget>
-  <widget class="QLabel" name="heatmap_label3_4">
-   <property name="geometry">
-    <rect>
-     <x>825</x>
-     <y>780</y>
-     <width>56</width>
-     <height>17</height>
-    </rect>
-   </property>
-   <property name="font">
-    <font>
-     <family>Inter 18pt</family>
-     <weight>75</weight>
-     <bold>true</bold>
-    </font>
-   </property>
-   <property name="text">
-    <string>센터</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
-   </property>
-   <property name="margin">
-    <number>0</number>
-   </property>
-  </widget>
-  <widget class="QLabel" name="heatmap_label3_5">
-   <property name="geometry">
-    <rect>
-     <x>882</x>
-     <y>780</y>
-     <width>56</width>
-     <height>17</height>
-    </rect>
-   </property>
-   <property name="font">
-    <font>
-     <family>Inter 18pt</family>
-     <weight>75</weight>
-     <bold>true</bold>
-    </font>
-   </property>
-   <property name="text">
-    <string>센터</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
-   </property>
-   <property name="margin">
-    <number>0</number>
-   </property>
-  </widget>
-  <widget class="QLabel" name="heatmap_label3_6">
-   <property name="geometry">
-    <rect>
-     <x>939</x>
-     <y>780</y>
-     <width>56</width>
-     <height>17</height>
-    </rect>
-   </property>
-   <property name="font">
-    <font>
-     <family>Inter 18pt</family>
-     <weight>75</weight>
-     <bold>true</bold>
-    </font>
-   </property>
-   <property name="text">
-    <string>센터</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
-   </property>
-   <property name="margin">
-    <number>0</number>
-   </property>
-  </widget>
-  <widget class="QLabel" name="heatmap_label3_7">
-   <property name="geometry">
-    <rect>
-     <x>996</x>
-     <y>780</y>
-     <width>56</width>
-     <height>17</height>
-    </rect>
-   </property>
-   <property name="font">
-    <font>
-     <family>Inter 18pt</family>
-     <weight>75</weight>
-     <bold>true</bold>
-    </font>
-   </property>
-   <property name="text">
-    <string>센터</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
-   </property>
-   <property name="margin">
-    <number>0</number>
-   </property>
-  </widget>
-  <widget class="QLabel" name="heatmap_label3_8">
-   <property name="geometry">
-    <rect>
-     <x>1053</x>
-     <y>780</y>
-     <width>56</width>
-     <height>17</height>
-    </rect>
-   </property>
-   <property name="font">
-    <font>
-     <family>Inter 18pt</family>
-     <weight>75</weight>
-     <bold>true</bold>
-    </font>
-   </property>
-   <property name="text">
-    <string>센터</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
-   </property>
-   <property name="margin">
-    <number>0</number>
-   </property>
-  </widget>
-  <widget class="QLabel" name="heatmap_start">
-   <property name="geometry">
-    <rect>
-     <x>1110</x>
-     <y>790</y>
-     <width>56</width>
-     <height>17</height>
-    </rect>
-   </property>
-   <property name="font">
-    <font>
-     <family>Inter 18pt</family>
-     <weight>75</weight>
-     <bold>true</bold>
-    </font>
-   </property>
-   <property name="text">
-    <string>출발지</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
-   </property>
-   <property name="margin">
-    <number>0</number>
-   </property>
-  </widget>
-  <widget class="QLabel" name="heatmap_end">
-   <property name="geometry">
-    <rect>
-     <x>1140</x>
-     <y>750</y>
-     <width>56</width>
-     <height>17</height>
-    </rect>
-   </property>
-   <property name="font">
-    <font>
-     <family>Inter 18pt</family>
-     <weight>75</weight>
-     <bold>true</bold>
-    </font>
-   </property>
-   <property name="text">
-    <string>도착지</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignCenter</set>
+    <string>chart1</string>
    </property>
    <property name="margin">
     <number>0</number>

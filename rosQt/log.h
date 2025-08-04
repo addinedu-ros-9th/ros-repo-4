@@ -9,6 +9,8 @@
 #include <QString>
 #include <QVector>
 
+class QLabel;  // QLabel 전방 선언 추가
+
 struct LogData {
     QString patientId;
     QString source;
@@ -39,7 +41,10 @@ private:
     void setupConnections();  // 시그널-슬롯 연결 함수
     void updateToggleButtons(int activeToggle);  // 토글 버튼 상태 업데이트
     void setupTableData();  // 테이블 데이터 설정 함수 추가
-    void populateRobotTable(); // 로봇 테이블 데이터 추가 함수
+    void populateRobotTable(); 
+    void populateChartTable();  // 기존
+    void updateChartLabels(const QStringList& sourceNames, const QList<int>& sourceCounts);  // 새로 추가
+    void drawChart(QLabel* chartLabel, const QList<int>& data, const QStringList& labels = QStringList());  // 새로 추가
     void get_robot_log_data();
     void get_robot_log_data_with_period(const QString& period);
     QString mapDepartmentIdToName(int dept_id);
