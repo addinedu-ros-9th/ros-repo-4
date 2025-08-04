@@ -30,7 +30,7 @@ class AuthenticationActivity : AppCompatActivity() {
     private lateinit var dashView: View
     private lateinit var confirmBtn: ImageView
 
-    private val esp32Url = "http://192.168.0.34/uid"
+    private val esp32Url = NetworkConfig.getEsp32Url()
     private var lastUid: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -206,7 +206,7 @@ class AuthenticationActivity : AppCompatActivity() {
                 }
 
                 val request = Request.Builder()
-                    .url("http://192.168.0.31:8080/auth/rfid")
+                    .url(NetworkConfig.getRfidAuthUrl())
                     .post(json.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull()))
                     .build()
 
@@ -255,7 +255,7 @@ class AuthenticationActivity : AppCompatActivity() {
                 }
 
                 val request = Request.Builder()
-                    .url("http://192.168.0.31:8080/auth/ssn")
+                    .url(NetworkConfig.getSsnAuthUrl())
                     .post(json.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull()))
                     .build()
 
@@ -313,7 +313,7 @@ class AuthenticationActivity : AppCompatActivity() {
                 Log.d("AUTH_PATIENT_ID", "📤 전송 데이터: $json")
 
                 val request = Request.Builder()
-                    .url("http://192.168.0.31:8080/auth/patient_id")
+                    .url(NetworkConfig.getPatientIdAuthUrl())
                     .post(json.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull()))
                     .build()
 

@@ -1,4 +1,5 @@
 #include "central_server/http_server.h"
+#include "central_server/config.h"
 #include <iostream>
 #include <sstream>
 #include <sys/socket.h>
@@ -411,8 +412,8 @@ void HttpServer::removeWebSocketClient(int client_socket) {
 
 std::string HttpServer::handleGetLLMConfig(const Json::Value&) {
     Json::Value response;
-    response["ip"] = "192.168.0.31";  // minje_pc
-    response["port"] = 5000;
+    response["ip"] = Config::LLM_SERVER_IP;  // LLM 서버 IP
+    response["port"] = Config::LLM_SERVER_PORT;
     return response.toStyledString();
 }
 
