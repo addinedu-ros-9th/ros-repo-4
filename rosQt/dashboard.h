@@ -26,19 +26,16 @@ public:
     
     // 상태 관리 함수들 추가
     void setStatus(const QString& newStatus);
-    QString getStatus() const;
-    void setControlStatus(const QString& newControlStatus);
-    QString getControlStatus() const;
     
-
+    
 private slots:
     void onImageReceived(const QPixmap& pixmap);
     void onConnectionError(const QString& error);
     void onConnectionEstablished();
     void onControlButtonClicked();
     void onDestinationButtonClicked();
-    void setStatusToIdle();
-
+    void setStatusToAssigned();
+    
 private:
     Ui_DashboardWidget *ui;
     StatusWidget *status_widget;
@@ -50,9 +47,14 @@ private:
     ControlPopup2 *control_popup2_;
 
     QString status_;  // 상태 변수
-    QString control_status_;  // 제어 상태 변수
     QString camera_toggle_status_;
+    int orig_;
+    int dest_;
+    int battery_;
+    int network_;
 
+
+    void getRobotStatus();
     void setupUI();
     void setWidgetClasses();
     void setupStatusWidget(); 
@@ -60,8 +62,7 @@ private:
     void setupCameraWidget();
     void setupControlButton();
     void setCameraToggleStatus();
-    void onCameraToggle1Clicked();
-    void onCameraToggle2Clicked();
+    void onCameraToggleClicked();
 };
 
 #endif // DASHBOARDWIDGET_H

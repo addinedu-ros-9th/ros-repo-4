@@ -5,6 +5,12 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QWidget>
+#include <yaml-cpp/yaml.h>  
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 ControlPopup1::ControlPopup1(QWidget *parent)
     : QWidget(parent)
@@ -94,7 +100,59 @@ void ControlPopup1::onCloseButtonClicked()
 void ControlPopup1::onStopButtonClicked()
 {
     qDebug() << "정지 버튼 클릭됨";
-    emit stopRequested(); // 시그널 발생
+
+    // 원격 제어 취소
+    std::string config_path = "../../config.yaml";
+    YAML::Node config = YAML::LoadFile(config_path);
+    std::string CENTRAL_IP = config["central_server"]["ip"].as<std::string>();
+    int CENTRAL_HTTP_PORT = config["central_server"]["http_port"].as<int>();
+
+    QString url = QString("http://%1:%2/stop/status_moving")
+                    .arg(CENTRAL_IP.c_str())
+                    .arg(CENTRAL_HTTP_PORT);
+
+    QJsonObject data;
+    data["robot_id"] = 3;
+    QJsonDocument doc(data);
+    QByteArray jsonData = doc.toJson();
+
+    qDebug() << "[로봇 위치 요청 URL]:" << url;
+    qDebug() << "[전송 데이터]:" << jsonData;
+    try
+    {
+        QNetworkRequest request{QUrl(url)};
+        request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+        QNetworkAccessManager* manager = new QNetworkAccessManager(this);
+        QNetworkReply* reply = manager->post(request, jsonData);
+
+        connect(reply, &QNetworkReply::finished, this, [this, reply, CENTRAL_IP, CENTRAL_HTTP_PORT]() {
+            int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (statusCode == 200) {
+                qDebug() << "명령 전송 성공. 200";
+                emit stopRequested(); // 시그널 발생
+            } else if (statusCode == 400) {
+                qDebug() << "잘못된 요청입니다. 400 Bad Request";
+            } else if (statusCode == 401) {
+                qDebug() << "정상 요청, 정보 없음 or 응답 실패. 401";
+            } else if (statusCode == 404) {
+                qDebug() << "잘못된 요청 404 Not Found";
+            } else if (statusCode == 405) {
+                qDebug() << "메소드가 리소스 허용 안됨";
+            } else if (statusCode == 500) {
+                qDebug() << "서버 내부 오류 500 Internal Server Error";
+            } else if (statusCode == 503) {
+                qDebug() << "서비스 불가";
+            } else {
+                qDebug() << "알 수 없는 오류 발생. 상태 코드:" << statusCode;
+            }
+            reply->deleteLater();
+        });
+    } catch (const YAML::BadFile& e) {
+        qDebug() << "YAML 파일 로드 실패:" << e.what();
+        return;
+    }
+
     close();  // 창 닫기
     // 로봇 정지 명령 전송 로직
 }

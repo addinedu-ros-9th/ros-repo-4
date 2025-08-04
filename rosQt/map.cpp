@@ -24,6 +24,10 @@ MapWidget::MapWidget(QWidget *parent)
 {
     ui->setupUi(this);  // UI 파일 설정
     setWidgetClasses();
+
+    // 5초마다 로봇 위치 가져오기
+    connect(ros_timer_, &QTimer::timeout, this, &MapWidget::get_robot_location);
+    ros_timer_->start(5000);  // 5초 간격
     
     qDebug() << "MapWidget initialized with ROS2 timer";
 }
@@ -62,6 +66,9 @@ void MapWidget::refresh()
     if (ros_node_) {
         rclcpp::spin_some(ros_node_);
     }
+    
+    // 로봇 위치 주기적 업데이트
+    get_robot_location();
 }
 
 void MapWidget::setPose(double x, double y, double yaw)
