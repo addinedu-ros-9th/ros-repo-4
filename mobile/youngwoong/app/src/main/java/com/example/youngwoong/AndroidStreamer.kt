@@ -82,7 +82,8 @@ class AndroidStreamer(
                 
                 // 토큰을 텍스트로 변환 (간단한 구현)
                 val text = tokens.joinToString("") { it.toString() }
-                
+
+
                 // 출력 가능한 새로운 부분만 추출
                 val currentPrintLen = printLen.get()
                 if (text.length > currentPrintLen) {

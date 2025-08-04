@@ -4,11 +4,20 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -30,7 +39,6 @@ class GuidanceWaitingActivity : AppCompatActivity() {
     private var currentVerticalOffset = 0.0
     private var targetVerticalOffset = 0.0
 
-    // ✅ 5초 후 자동 이동용 핸들러
     private val inactivityHandler = Handler(Looper.getMainLooper())
     private val inactivityRunnable = Runnable {
         navigateToComplete()
@@ -53,6 +61,7 @@ class GuidanceWaitingActivity : AppCompatActivity() {
             cancelInactivityTimer()
             applyAlphaEffect(backButton)
             backButton.postDelayed({
+                sendRobotStopStatus()
                 navigateToConfirm()
             }, 100)
         }
@@ -110,10 +119,11 @@ class GuidanceWaitingActivity : AppCompatActivity() {
         view.postDelayed({ view.alpha = 1.0f }, 100)
     }
 
-    // ✅ 터치 시 안내 확인 화면으로 이동
+    // ✅ 터치 시 정지 명령 전송 후 확인 화면으로 이동
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         if (event?.action == MotionEvent.ACTION_DOWN) {
             cancelInactivityTimer()
+            sendRobotStopStatus()
             navigateToConfirm()
             return true
         }
@@ -137,18 +147,24 @@ class GuidanceWaitingActivity : AppCompatActivity() {
         finish()
     }
 
-    // ✅ 5초 후 자동으로 안내 완료 화면으로 이동
     private fun navigateToComplete() {
         val selectedText = intent.getStringExtra("selected_text")
-        val intent = Intent(this, GuidanceCompleteActivity::class.java)
-        intent.putExtra("selected_text", selectedText)
+        val isFromCheckin = intent.getBooleanExtra("isFromCheckin", false)
+        val patientId = intent.getStringExtra("patient_id")  // null 가능성 고려
+
+        val intent = Intent(this, GuidanceCompleteActivity::class.java).apply {
+            putExtra("selected_text", selectedText)
+            putExtra("isFromCheckin", isFromCheckin)
+            if (patientId != null) putExtra("patient_id", patientId)
+        }
         startActivity(intent)
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
         finish()
     }
 
+
     private fun startInactivityTimer() {
-        inactivityHandler.postDelayed(inactivityRunnable, 5000) // 5초 후 실행
+        inactivityHandler.postDelayed(inactivityRunnable, 5000)
     }
 
     private fun cancelInactivityTimer() {
@@ -163,5 +179,33 @@ class GuidanceWaitingActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         cancelInactivityTimer()
+    }
+
+    // ✅ 로봇 정지 상태 전송 (IF-08)
+    private fun sendRobotStopStatus() {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val json = JSONObject().apply {
+                    put("robot_id", "3")
+                }
+
+                val request = Request.Builder()
+                    .url(NetworkConfig.getChangeRobotStatusUrl())
+                    .post(json.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull()))
+                    .build()
+
+                val client = OkHttpClient()
+                val response = client.newCall(request).execute()
+                val body = response.body?.string()
+
+                if (response.isSuccessful) {
+                    Log.d("RobotStatus", "✅ 정지 명령 성공: $body")
+                } else {
+                    Log.e("RobotStatus", "❌ 정지 명령 실패: code=${response.code}, body=$body")
+                }
+            } catch (e: Exception) {
+                Log.e("RobotStatus", "❌ 네트워크 오류로 정지 명령 실패", e)
+            }
+        }
     }
 }
