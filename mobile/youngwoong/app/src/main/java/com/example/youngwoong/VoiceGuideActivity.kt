@@ -33,6 +33,7 @@ import java.util.*
 class VoiceGuideActivity : AppCompatActivity() {
 
     private var isListening = false
+    private var pendingFunctionName: String? = null
     private lateinit var voiceButton: ImageView
     private lateinit var voiceAnimation: LottieAnimationView
     private lateinit var dimView: View
@@ -41,6 +42,7 @@ class VoiceGuideActivity : AppCompatActivity() {
     private lateinit var textBotMessage: TextView
     private var blinkAnimation: AlphaAnimation? = null
     private var loadingJob: Job? = null
+    private lateinit var streamer: AndroidStreamer
 
     private lateinit var speechRecognizer: SpeechRecognizer
     private lateinit var speechIntent: Intent
@@ -62,6 +64,8 @@ class VoiceGuideActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_voice_guide)
+
+        streamer = AndroidStreamer(debugMode = true)
 
         checkPermissions()
         setupSTT()
@@ -296,9 +300,18 @@ class VoiceGuideActivity : AppCompatActivity() {
             override fun onDone(utteranceId: String?) {
                 runOnUiThread {
                     voiceButton.isEnabled = true // ✅ TTS 끝나면 다시 버튼 활성화
+
+                    // 👉 appointment_service 함수일 경우 다음 화면으로 이동
+                    if (pendingFunctionName == "appointment_service") {
+                        val intent = Intent(this@VoiceGuideActivity, AuthenticationActivity::class.java)
+                        startActivity(intent)
+                        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+                        finish()
+                    }
+
+                    pendingFunctionName = null // ✅ 재사용 방지
                 }
             }
-
             override fun onError(utteranceId: String?) {}
         })
     }
@@ -331,15 +344,36 @@ class VoiceGuideActivity : AppCompatActivity() {
             .url("$BASE_URL/api/chat")
             .post(jsonBody.toString().toRequestBody(jsonMediaType))
             .build()
+
         val response = client.newCall(request).execute()
-        if (response.isSuccessful) {
-            val body = response.body?.string()
-            val reply = JSONObject(body ?: "{}").optString("response", "응답이 없습니다.")
-            return@withContext reply
+        val bodyString = response.body?.string()
+        Log.d(TAG, "📦 LLM 원시 응답: $bodyString")
+
+        if (response.isSuccessful && !bodyString.isNullOrBlank()) {
+            try {
+                val json = JSONObject(bodyString)
+
+                val reply = json.optString("response", "응답이 없습니다.")
+                val functionName = json.optString("function_name", "")
+                val functionResult = json.opt("function_result")
+
+                pendingFunctionName = functionName // 🔥 저장
+
+                Log.d(TAG, "🧠 LLM 응답: $reply")
+                Log.d(TAG, "🔧 함수 이름: $functionName")
+                Log.d(TAG, "📦 함수 결과: $functionResult")
+
+                return@withContext reply
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ JSON 파싱 오류: ${e.message}")
+                return@withContext "응답 파싱 오류"
+            }
         } else {
+            Log.e(TAG, "❌ 서버 응답 오류: ${response.code}")
             return@withContext "서버 오류가 발생했습니다."
         }
     }
+
 
     private fun speakResponse(text: String) {
         if (::textToSpeech.isInitialized) {

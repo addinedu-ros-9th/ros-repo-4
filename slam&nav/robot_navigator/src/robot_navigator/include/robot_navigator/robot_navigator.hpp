@@ -36,6 +36,7 @@ struct RobotMonitorInfo {
     bool is_online;
     bool start_point_set;
     rclcpp::Time last_update;
+    rclcpp::Time canceled_time; // navigation canceled 시각
 };
 
 class RobotNavigator : public rclcpp::Node

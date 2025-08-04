@@ -44,8 +44,8 @@ void RobotNavigator::initializeWaypoints()
     waypoints_["lung_cancer"] = {"Lung Cancer Center", 5.07, -2.17, 0.0, "폐암 센터"};
     waypoints_["stomach_cancer"] = {"Stomach Cancer Center", 3.65, -2.17, 0.0, "위암 센터"};
     waypoints_["colon_cancer"] = {"Colon Cancer Center", 0.79, -2.17, 0.0, "대장암 센터"};
-    waypoints_["gateway_a"] = {"Gateway A", 0.0, 4.03, 180.0, "통로 A"};
-    waypoints_["gateway_b"] = {"Gateway B", -5.58, 4.03, 0.0, "통로 B"};
+    //waypoints_["gateway_a"] = {"Gateway A", 0.0, 4.03, 180.0, "통로 A"};
+    //waypoints_["gateway_b"] = {"Gateway B", -5.58, 4.03, 0.0, "통로 B"};
     waypoints_["x_ray"] = {"X-ray", -6, 4.03, 180.0, "X-ray 검사실"};
     waypoints_["ct"] = {"CT", -5.79, -1.88, 90.0, "CT 검사실"};
     waypoints_["echography"] = {"Echography", -4.9, -1.96, 90.0, "초음파 검사실"};
@@ -220,6 +220,24 @@ bool RobotNavigator::sendRobotToStartPoint(const std::string& robot_id)
     return sendNavigationGoal(robot_id, start_waypoint);
 }
 
+bool RobotNavigator::sendRobotToLobby(const std::string& robot_id)
+{
+    std::lock_guard<std::mutex> lock(robots_mutex_);
+    robots_[robot_id]->navigation_status = "moving_to_station";
+    
+    if (robots_.find(robot_id) == robots_.end()) {
+        RCLCPP_ERROR(this->get_logger(), "Robot %s not found", robot_id.c_str());
+        return false;
+    }
+
+    robots_mutex_.unlock();  // unlock before calling sendNavigationGoal
+    
+    RCLCPP_INFO(this->get_logger(), "Sending %s to lobby station", 
+               robot_id.c_str());
+    
+    return sendNavigationGoal(robot_id, "lobby_station");
+}
+
 void RobotNavigator::amclCallback(const std::string& robot_id, 
                                       const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg)
 {
@@ -277,11 +295,13 @@ void RobotNavigator::navigationCommandCallback(const std_msgs::msg::String::Shar
     }
     
     // set_start 명령 제거 (자동으로 설정되므로)
+    '''
     if (waypoint_name == "set_start") {
         publishCommandLog("INFO: Start point is now automatically updated upon reaching destinations");
         RCLCPP_INFO(this->get_logger(), "Start point is automatically updated when reaching destinations. Manual setting disabled.");
         return;
     }
+    '''
     
     if (waypoint_name == "go_start" || waypoint_name == "return_start") {
         if (sendRobotToStartPoint(robot_id)) {
@@ -290,6 +310,20 @@ void RobotNavigator::navigationCommandCallback(const std_msgs::msg::String::Shar
         } else {
             publishCommandLog("ERROR: Failed to send " + robot_id + " to start point");
             RCLCPP_ERROR(this->get_logger(), "Failed to send %s to start point", robot_id.c_str());
+        }
+        return;
+    }
+
+    if (waypoint_name == "return_lobby")
+    {
+        if (sendRobotToLobby(robot_id)) {
+            publishCommandLog("RETURN_LOBBY: " + robot_id + " returning to lobby station");
+            RCLCPP_INFO(this->get_logger(), "Sending %s to lobby station", robot_id.c_str());
+            robots_[robot_id]->navigation_status = "moving_to_station";
+        } else {
+            publishCommandLog("ERROR: Failed to send " + robot_id + " lobby station");
+            RCLCPP_ERROR(this->get_logger(), "Failed to send %s to lobby station", robot_id.c_str());
+            robots_[robot_id]->navigation_status = "failed";
         }
         return;
     }
@@ -449,21 +483,21 @@ void RobotNavigator::resultCallback(const std::string& robot_id, const GoalHandl
     
     switch (result.code) {
         case rclcpp_action::ResultCode::SUCCEEDED:
-            robots_[robot_id]->navigation_status = "reached";
+            robots_[robot_id]->navigation_status = "waiting_for_return";
             
             // 도착 시 자동으로 현재 목표를 새로운 시작점으로 설정
             if (robots_[robot_id]->current_target != "start_point") {  // 시작점 복귀가 아닌 경우만
                 std::string old_start = robots_[robot_id]->start_point_name;
                 robots_[robot_id]->start_point_name = robots_[robot_id]->current_target;
                 robots_[robot_id]->start_point_set = true;
-                
+                robots_[robot_id]->canceled_time = this->get_clock()->now(); // CANCELED 시각 기록
                 RCLCPP_INFO(this->get_logger(), "Robot %s successfully reached target: %s", 
                            robot_id.c_str(), robots_[robot_id]->current_target.c_str());
                 RCLCPP_INFO(this->get_logger(), "Auto-updated start point for %s: %s -> %s", 
                            robot_id.c_str(), old_start.c_str(), robots_[robot_id]->start_point_name.c_str());
                 
                 publishCommandLog("SUCCESS: " + robot_id + " reached " + robots_[robot_id]->current_target);
-                publishCommandLog("AUTO_START: Start point updated to " + robots_[robot_id]->start_point_name);
+                publishCommandLog("AUTO_START: Start point updated to " + robots_[robot_id]->start_point_name);              
             } else {
                 RCLCPP_INFO(this->get_logger(), "Robot %s returned to start point: %s", 
                            robot_id.c_str(), robots_[robot_id]->start_point_name.c_str());
@@ -479,6 +513,7 @@ void RobotNavigator::resultCallback(const std::string& robot_id, const GoalHandl
             
         case rclcpp_action::ResultCode::CANCELED:
             robots_[robot_id]->navigation_status = "idle";
+            robots_[robot_id]->canceled_time = this->get_clock()->now(); // CANCELED 시각 기록
             RCLCPP_WARN(this->get_logger(), "Robot %s navigation canceled", robot_id.c_str());
             publishCommandLog("CANCELED: " + robot_id + " navigation canceled");
             break;
@@ -493,6 +528,21 @@ void RobotNavigator::resultCallback(const std::string& robot_id, const GoalHandl
 
 void RobotNavigator::statusTimerCallback()
 {
+    // 10초 timeout 후 lobby_station 복귀 로직
+    {
+        std::lock_guard<std::mutex> lock(robots_mutex_);
+        for (auto& [robot_id, robot] : robots_) {
+            if (robot->navigation_status == "idle" &&
+                robot->canceled_time.nanoseconds() != 0) {
+                rclcpp::Duration elapsed = this->get_clock()->now() - robot->canceled_time;
+                if (elapsed.seconds() >= 10.0) {
+                    publishCommandLog("TIMEOUT: " + robot_id + " canceled -> returning to lobby_station");
+                    sendRobotToLobby(robot_id);
+                    robot->canceled_time = rclcpp::Time(0, 0, RCL_ROS_TIME);
+                }
+            }
+        }
+    }
     publishIndividualRobotData();
 }
 
