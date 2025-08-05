@@ -22,7 +22,7 @@ class RobotFunctions:
     def _get_current_position(self) -> Optional[Dict[str, float]]:
         """현재 로봇 위치 가져오기 - 내부 헬퍼 함수"""
         try:
-            response = requests.get(
+            response = requests.post(
                 f"{RobotConfig.CENTRAL_SERVER_URL}/get/robot_location",
                 json={"robot_id": 3},
                 timeout=5
