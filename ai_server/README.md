@@ -1,172 +1,162 @@
-# AI Server with Webcam Integration
+# AI Server
 
-이 프로젝트는 웹캠을 사용하여 영상을 캡처하고 Central Server로 전송하는 AI Server를 구현합니다.
+AI Server는 ROS2 기반의 카메라 스트리밍 및 AI 처리 서버입니다.
 
-## 시스템 구조
+## 🚀 주요 기능
 
+### 1. UDP 스트리밍
+- 전면 카메라 이미지를 UDP로 실시간 스트리밍
+- JPEG 압축을 통한 효율적인 데이터 전송
+- 설정 가능한 압축 품질 및 패킷 크기
+
+### 2. HTTP 카메라 전환 (NEW!)
+- HTTP 요청을 통한 카메라 전환 기능
+- 전면/후면 카메라 간 실시간 전환
+- RESTful API 형태의 간단한 인터페이스
+
+### 3. 이중 카메라 지원
+- 전면 카메라: `/dev/video0`
+- 후면 카메라: `/dev/video2`
+- 동시 초기화 및 관리
+
+## 📡 HTTP API
+
+### 카메라 전환 (IF-01)
 ```
-┌─────────────────┐    이미지 스트림     ┌─────────────────┐
-│   AI Server     │ ──────────────────> │ Central Server   │
-│                 │                     │                 │
-│ - 웹캠 캡처       │    상태 메시지      │ - 이미지 수신   │
-│ - 이미지 처리      │ ──────────────────> │ - 상태 모니터링 │
-│ - ROS2 발행      │                     │ - HTTP API      │
-└─────────────────┘                     └─────────────────┘
+POST /change/camera
 ```
 
-## 주요 기능
+#### 요청
+```json
+{
+  "robot_id": 3,
+  "camera": "front"  // "front" 또는 "back"
+}
+```
 
-### AI Server
-- 웹캠을 통한 실시간 비디오 캡처 (기본 해상도: 640x480, 30 FPS)
-- OpenCV를 사용한 이미지 처리
-- ROS2를 통한 이미지 스트리밍 (`webcam/image_raw` 토픽)
-- 상태 정보 전송 (`robot_status` 토픽)
-- 멀티스레드 구조로 안정적인 스트리밍
+#### 응답
+```json
+{
+  "status": "success"
+}
+```
 
-### Central Server
-- AI Server로부터 이미지 스트림 수신
-- 로봇 상태 모니터링
-- HTTP API 서버 (포트 8080)
-- MySQL 데이터베이스 연동
-- 상태 변경 서비스 제공
-
-## 필요한 의존성
-
-### 시스템 의존성
+### 사용 예시
 ```bash
-# OpenCV 설치
-sudo apt update
-sudo apt install libopencv-dev python3-opencv
+# 전면 카메라로 전환
+curl -X POST http://localhost:7777/change/camera \
+  -H "Content-Type: application/json" \
+  -d '{"robot_id":3, "camera":"front"}'
 
-# ROS2 의존성
-sudo apt install ros-humble-cv-bridge ros-humble-image-transport
-
-# MySQL 개발 라이브러리 (Central Server용)
-sudo apt install libmysqlcppconn-dev libmysqlclient-dev
+# 후면 카메라로 전환
+curl -X POST http://localhost:7777/change/camera \
+  -H "Content-Type: application/json" \
+  -d '{"robot_id":3, "camera":"back"}'
 ```
 
-### ROS2 패키지 의존성
-- `rclcpp`
-- `sensor_msgs`
-- `cv_bridge`
-- `image_transport`
-- `robot_interfaces` (커스텀 인터페이스)
+## 📡 UDP 프로토콜 (IF-01)
 
-## 빌드 및 실행
+### 실시간 카메라 이미지 전송
+- **IP/Port**: `192.168.0.74:7777`
+- **전송 주기**: 30 FPS
+- **프로토콜 구조**:
 
-### 자동 빌드
-```bash
-# 전체 자동 빌드
-./build_and_run.sh
+```
+Header (10 bytes):
+├── 1 byte: Start (0xAB)
+├── 1 byte: 카메라 타입 (0x00=front, 0x01=back)
+├── 4 bytes: 시퀀스 번호 (little-endian)
+└── 4 bytes: 타임스탬프 (milliseconds, little-endian)
+
+Payload:
+└── JPEG 이미지 데이터
 ```
 
-### 수동 빌드
+### 프로토콜 예시
+```
+Header: AB 00 01 00 00 00 64 00 00 00  (전면 카메라, 시퀀스 1, 타임스탬프 100ms)
+Payload: [JPEG 이미지 바이너리 데이터]
+```
+
+## 🧪 테스트
+
+### 웹 브라우저 테스트
+1. `test_camera_switch.html` 파일을 웹 브라우저에서 열기
+2. "전면 카메라" 또는 "후면 카메라" 버튼 클릭
+3. HTTP API를 통한 카메라 전환 확인
+4. UDP 스트리밍이 자동으로 변경됨
+
+### 터미널 테스트
 ```bash
-# 워크스페이스로 이동
-cd /home/wonho/ros-repo-4
+# 전면 카메라로 전환
+curl -X POST http://localhost:7777/change/camera \
+  -H "Content-Type: application/json" \
+  -d '{"robot_id":3, "camera":"front"}'
 
-# 인터페이스 먼저 빌드
-colcon build --packages-select robot_interfaces
+# 후면 카메라로 전환
+curl -X POST http://localhost:7777/change/camera \
+  -H "Content-Type: application/json" \
+  -d '{"robot_id":3, "camera":"back"}'
 
-# AI Server 빌드
+# UDP 패킷 수신 테스트 (다른 기기에서)
+nc -ul 7777  # UDP 패킷 헥스 덤프 확인
+```
+
+## ⚙️ 설정
+
+### config.yaml
+```yaml
+ai_server:
+  ip: "192.168.0.27"
+  port: 7777  # HTTP 서버 포트
+  udp_target:
+    ip: "192.168.0.74"
+    port: 7777  # UDP 이미지 수신 포트
+  max_packet_size: 60000
+```
+
+## 🔧 빌드 및 실행
+
+### 빌드
+```bash
+cd ai_server
 colcon build --packages-select ai_server
-
-# Central Server 빌드  
-colcon build --packages-select central_server
-
-# 환경 설정
-source install/setup.bash
 ```
 
 ### 실행
-
-#### 터미널 1: Central Server 실행
 ```bash
 source install/setup.bash
-ros2 run central_server central_server_node
+ros2 run ai_server ai_server
 ```
 
-#### 터미널 2: AI Server 실행
+## 📊 성능 정보
+
+- **UDP 스트리밍**: 30 FPS (전면 카메라)
+- **HTTP 응답**: 요청 시 즉시 응답
+- **카메라 전환**: 실시간 전환 (지연 < 100ms)
+- **이미지 품질**: JPEG 80% 품질
+
+## 🐛 문제 해결
+
+### 카메라 인식 문제
 ```bash
-source install/setup.bash
-ros2 run ai_server ai_server_node
+# 카메라 장치 확인
+ls -la /dev/video*
+
+# 카메라 정보 확인
+v4l2-ctl -d /dev/video0 --list-formats-ext
 ```
 
-## 토픽 및 서비스
+### HTTP 서버 포트 충돌
+- `config.yaml`에서 `port` 변경
+- 또는 기존 프로세스 종료: `sudo lsof -ti:7777 | xargs kill`
 
-### 발행되는 토픽
-- `webcam/image_raw` (sensor_msgs/Image): 웹캠 이미지 스트림
-- `robot_status` (robot_interfaces/RobotStatus): AI Server 상태 정보
+## 📝 로그 확인
 
-### 제공되는 서비스
-- `change_robot_status` (robot_interfaces/ChangeRobotStatus): 상태 변경 서비스
-
-## 모니터링 및 디버깅
-
-### 토픽 확인
 ```bash
-# 토픽 리스트 확인
-ros2 topic list
+# ROS2 로그 확인
+ros2 run ai_server ai_server --ros-args --log-level debug
 
-# 이미지 토픽 확인
-ros2 topic echo /webcam/image_raw
-
-# 상태 토픽 확인  
-ros2 topic echo /robot_status
+# 카메라 전환 로그
+ros2 run ai_server ai_server --ros-args --log-level info
 ```
-
-### 이미지 시각화
-```bash
-# rqt 이미지 뷰어로 웹캠 영상 확인
-ros2 run rqt_image_view rqt_image_view
-```
-
-### 로그 확인
-```bash
-# 실시간 로그 확인
-ros2 topic echo /rosout
-```
-
-## 문제 해결
-
-### 웹캠 관련 문제
-1. **웹캠이 인식되지 않는 경우**
-   ```bash
-   # 웹캠 디바이스 확인
-   ls /dev/video*
-   
-   # 권한 확인
-   sudo chmod 666 /dev/video0
-   ```
-
-2. **다른 카메라 사용하는 경우**
-   - `WebcamStreamer` 생성자의 `camera_id` 파라미터 수정
-
-### 빌드 오류
-1. **OpenCV 관련 오류**
-   ```bash
-   sudo apt install libopencv-dev python3-opencv
-   ```
-
-2. **의존성 오류**
-   ```bash
-   rosdep update
-   rosdep install --from-paths src --ignore-src -r -y
-   ```
-
-## 개발 참고사항
-
-### 코드 구조
-- `ai_server/src/main.cpp`: AI Server 메인 프로그램
-- `ai_server/src/ai_server.cpp`: AI Server 핵심 로직
-- `ai_server/src/webcam_streamer.cpp`: 웹캠 캡처 및 스트리밍
-- `central_server/src/central_server.cpp`: Central Server 수정된 버전
-
-### 확장 가능한 기능
-- AI 기반 이미지 분석 (객체 감지, 얼굴 인식 등)
-- 실시간 영상 압축 및 전송
-- 웹 기반 영상 스트리밍
-- 다중 카메라 지원
-
-## 라이센스
-Apache-2.0

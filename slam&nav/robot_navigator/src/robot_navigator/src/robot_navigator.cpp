@@ -47,8 +47,8 @@ void RobotNavigator::initializeWaypoints()
     //waypoints_["gateway_a"] = {"Gateway A", 0.0, 4.03, 180.0, "통로 A"};
     //waypoints_["gateway_b"] = {"Gateway B", -5.58, 4.03, 0.0, "통로 B"};
     waypoints_["x_ray"] = {"X-ray", -6, 4.03, 180.0, "X-ray 검사실"};
-    waypoints_["ct"] = {"CT", -5.79, -1.88, 90.0, "CT 검사실"};
-    waypoints_["echography"] = {"Echography", -4.9, -1.96, 90.0, "초음파 검사실"};
+    waypoints_["ct"] = {"CT", -5.58, -1.88, 90.0, "CT 검사실"};
+    waypoints_["echography"] = {"Echography", -5.58, -1.88, 90.0, "초음파 검사실"};
     
     RCLCPP_INFO(this->get_logger(), "Loaded %zu waypoints", waypoints_.size());
     
@@ -295,13 +295,13 @@ void RobotNavigator::navigationCommandCallback(const std_msgs::msg::String::Shar
     }
     
     // set_start 명령 제거 (자동으로 설정되므로)
-    '''
+    /*
     if (waypoint_name == "set_start") {
         publishCommandLog("INFO: Start point is now automatically updated upon reaching destinations");
         RCLCPP_INFO(this->get_logger(), "Start point is automatically updated when reaching destinations. Manual setting disabled.");
         return;
     }
-    '''
+    */
     
     if (waypoint_name == "go_start" || waypoint_name == "return_start") {
         if (sendRobotToStartPoint(robot_id)) {

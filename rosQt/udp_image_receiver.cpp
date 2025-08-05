@@ -101,23 +101,81 @@ void UdpImageReceiver::receiveImage()
                                (struct sockaddr*)&client_addr, &client_len);
     
     if (received > 0) {
+        qDebug() << "📦 UDP 데이터 수신됨 - 크기:" << received << "bytes";
+        
         // 첫 번째 데이터 수신 시 메시지
         if (!connection_established_) {
             qDebug() << "🎥 AI Server로부터 첫 이미지 데이터 수신됨!";
+            qDebug() << "📦 수신된 데이터 크기:" << received << "bytes";
+            
+            // 첫 번째 바이트들 확인
+            QString first_bytes;
+            for (int i = 0; i < std::min(10, (int)received); i++) {
+                first_bytes += QString("%1 ").arg(buffer[i], 2, 16, QChar('0'));
+            }
+            qDebug() << "🔍 첫 10바이트:" << first_bytes;
+            
             connection_established_ = true;
         }
         
-        // JPEG 디코딩
-        std::vector<uint8_t> jpeg_data(buffer.begin(), buffer.begin() + received);
-        cv::Mat image = cv::imdecode(jpeg_data, cv::IMREAD_COLOR);
-        
-        if (!image.empty()) {
-            // 16:9 비율로 자르기
-            cv::Mat cropped_image = cropTo16by9(image);
+        try {
+            // AI Server의 새로운 UDP 프로토콜: 10바이트 헤더 + 이미지 데이터
+            // 1byte: Start(0xAB), 1byte: 카메라타입, 4byte: 시퀀스번호, 4byte: 타임스탬프
+            const int header_size = 10;
             
-            // OpenCV Mat을 QPixmap으로 변환
-            QPixmap pixmap = matToQPixmap(cropped_image);
-            emit imageReceived(pixmap);
+            if (received <= header_size) {
+                qDebug() << "❌ 데이터가 너무 작음 - 헤더만 있음:" << received << "bytes";
+                return;
+            }
+            
+            // 헤더 확인
+            if (buffer[0] != 0xAB) {
+                qDebug() << "❌ 잘못된 시작 바이트:" << QString("0x%1").arg(buffer[0], 2, 16, QChar('0'));
+                return;
+            }
+            
+            // 카메라 타입 확인
+            uint8_t camera_type = buffer[1];
+            qDebug() << "📷 카메라 타입:" << (camera_type == 0x00 ? "전면" : "후면");
+            
+            // 시퀀스 번호 추출 (4바이트, little-endian)
+            uint32_t sequence = (buffer[5] << 24) | (buffer[4] << 16) | (buffer[3] << 8) | buffer[2];
+            qDebug() << "🔢 시퀀스 번호:" << sequence;
+            
+            // 타임스탬프 추출 (4바이트, little-endian)
+            uint32_t timestamp = (buffer[9] << 24) | (buffer[8] << 16) | (buffer[7] << 8) | buffer[6];
+            qDebug() << "⏰ 타임스탬프:" << timestamp;
+            
+            // 이미지 데이터 추출 (헤더 제외)
+            std::vector<uint8_t> jpeg_data(buffer.begin() + header_size, buffer.begin() + received);
+            qDebug() << "🔄 JPEG 디코딩 시작 - 데이터 크기:" << jpeg_data.size();
+            
+            cv::Mat image = cv::imdecode(jpeg_data, cv::IMREAD_COLOR);
+            
+            qDebug() << "🖼️ 이미지 디코딩 결과 - empty:" << image.empty() << "크기:" << QString("%1x%2").arg(image.size().width).arg(image.size().height);
+            
+            if (!image.empty()) {
+                // 16:9 비율로 자르기
+                cv::Mat cropped_image = cropTo16by9(image);
+                
+                // OpenCV Mat을 QPixmap으로 변환
+                QPixmap pixmap = matToQPixmap(cropped_image);
+                
+                qDebug() << "🎯 QPixmap 변환 결과 - empty:" << pixmap.isNull() << "크기:" << pixmap.size();
+                
+                if (!pixmap.isNull()) {
+                    emit imageReceived(pixmap);
+                    qDebug() << "📡 imageReceived 시그널 발송됨";
+                } else {
+                    qDebug() << "❌ QPixmap 변환 실패";
+                }
+            } else {
+                qDebug() << "❌ 이미지 디코딩 실패 - JPEG 데이터가 유효하지 않음";
+            }
+        } catch (const std::exception& e) {
+            qDebug() << "💥 이미지 처리 중 예외 발생:" << e.what();
+        } catch (...) {
+            qDebug() << "💥 이미지 처리 중 알 수 없는 예외 발생";
         }
     }
 }
