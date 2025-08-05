@@ -102,6 +102,7 @@ private:
     std::string findNearestWaypoint(double x, double y) const;
     void setStartPoint(const std::string& robot_id, const std::string& waypoint_name);
     bool sendRobotToStartPoint(const std::string& robot_id);
+    bool sendRobotToLobby(const std::string& robot_id);
     
     // Action 콜백들
     void goalResponseCallback(const std::string& robot_id, const GoalHandleNavigate::SharedPtr& goal_handle);
