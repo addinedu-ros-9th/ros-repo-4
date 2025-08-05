@@ -8,9 +8,8 @@ AIServer::AIServer()
       running_(false),
       gui_client_ip_("127.0.0.1"),   
       gui_client_port_(8888),        
-      max_packet_size_(60000),
-      webcam_streamer_(std::make_unique<WebcamStreamer>(0))
-    //   webcam_streamer_(std::make_unique<WebcamStreamer>(2))
+      max_packet_size_(60000)
+      // webcam_streamer_ 제거됨
 {
     RCLCPP_INFO(this->get_logger(), "AI Server 노드 생성중...");
 
@@ -27,7 +26,7 @@ void AIServer::loadConfig()
 {
     try {
         // 설정 파일 경로 (프로젝트 루트 기준)
-        std::string config_path = "../config.yaml";
+        std::string config_path = "../../config.yaml";  // ../config.yaml에서 ../../config.yaml로 수정
         YAML::Node config = YAML::LoadFile(config_path);
         
         // AI 서버 설정 읽기
@@ -172,11 +171,26 @@ void AIServer::runWebcamThread()
 {
     RCLCPP_INFO(this->get_logger(), "웹캠 스레드 시작");
     
-    front_camera_->start([this](const cv::Mat& frame) {
-        this->publishWebcamFrame(frame);
-        this->processFrame(frame);
-        this->sendImageViaUDP(frame);
-    });
+    // 현재 선택된 카메라에 따라 콜백 설정
+    auto front_callback = [this](const cv::Mat& frame) {
+        if (current_camera_ == 0) {  // 전면 카메라가 선택된 경우만 처리
+            this->publishWebcamFrame(frame);
+            this->processFrame(frame);
+            this->sendImageViaUDP(frame);
+        }
+    };
+    
+    auto back_callback = [this](const cv::Mat& frame) {
+        if (current_camera_ == 1) {  // 후면 카메라가 선택된 경우만 처리
+            this->publishWebcamFrame(frame);
+            this->processFrame(frame);
+            this->sendImageViaUDP(frame);
+        }
+    };
+    
+    // 두 카메라 모두 시작
+    front_camera_->start(front_callback);
+    back_camera_->start(back_callback);
     
     RCLCPP_INFO(this->get_logger(), "웹캠 스레드 종료");
 }
@@ -385,18 +399,34 @@ void AIServer::handleHttpRequest(int client_fd)
 
 void AIServer::handleCameraChangeRequest(int client_fd, const std::string& request)
 {
-    // JSON 파싱 (간단한 구현)
+    RCLCPP_INFO(this->get_logger(), "전체 HTTP 요청 내용:");
+    RCLCPP_INFO(this->get_logger(), "%s", request.c_str());
+    
+    // JSON 파싱 (개선된 구현)
     std::string camera_type = "front";  // 기본값
     
-    // "camera":"front" 또는 "camera":"back" 파싱
-    size_t camera_pos = request.find("\"camera\":\"");
-    if (camera_pos != std::string::npos) {
-        size_t start = camera_pos + 10;  // "camera":" 길이
-        size_t end = request.find("\"", start);
-        if (end != std::string::npos) {
-            camera_type = request.substr(start, end - start);
+    // 여러 가지 패턴으로 시도
+    std::vector<std::string> patterns = {
+        "\"camera\":\"",
+        "\"camera\": \"",
+        "\"camera\" : \"",
+        "\"camera\" :\""
+    };
+    
+    for (const auto& pattern : patterns) {
+        size_t camera_pos = request.find(pattern);
+        if (camera_pos != std::string::npos) {
+            size_t start = camera_pos + pattern.length();
+            size_t end = request.find("\"", start);
+            if (end != std::string::npos) {
+                camera_type = request.substr(start, end - start);
+                RCLCPP_INFO(this->get_logger(), "패턴 '%s'로 파싱 성공", pattern.c_str());
+                break;
+            }
         }
     }
+    
+    RCLCPP_INFO(this->get_logger(), "파싱된 카메라 타입: '%s'", camera_type.c_str());
     
     // 카메라 전환
     if (camera_type == "front") {
@@ -405,6 +435,8 @@ void AIServer::handleCameraChangeRequest(int client_fd, const std::string& reque
     } else if (camera_type == "back") {
         switchCamera(1);
         RCLCPP_INFO(this->get_logger(), "HTTP 요청: 후면 카메라로 전환");
+    } else {
+        RCLCPP_WARN(this->get_logger(), "알 수 없는 카메라 타입: '%s'", camera_type.c_str());
     }
     
     // 성공 응답
