@@ -5,8 +5,8 @@
 
 namespace Config {
     // 서버 IP 주소들
-    const std::string CENTRAL_SERVER_IP = "192.168.0.37";
-    const std::string LLM_SERVER_IP = "192.168.0.37";  // LLM 서버 IP (별도 설정 가능)
+    const std::string CENTRAL_SERVER_IP = "192.168.0.10";
+    const std::string LLM_SERVER_IP = "192.168.0.10";  // LLM 서버 IP (별도 설정 가능)
     
     // 포트 설정
     const int CENTRAL_SERVER_PORT = 8080;

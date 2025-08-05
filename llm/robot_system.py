@@ -200,7 +200,7 @@ class RobotSystem:
             print(message)
     
     def _init_exaone_model(self):
-        """간단한 EXAONE 모델 초기화"""
+        """간단한 EXAONE 모델 초기화 - 메모리 최적화"""
         try:
             from transformers import AutoModelForCausalLM, AutoTokenizer
             
@@ -213,18 +213,27 @@ class RobotSystem:
                 trust_remote_code=True
             )
             
-            # 모델 로드 (간단한 방식)
-            print("🤖 모델 로딩...")
-            self.model = AutoModelForCausalLM.from_pretrained(
-                self.model_name,
-                trust_remote_code=True
-            )
+            # 메모리 최적화 설정
+            print("🔧 메모리 최적화 설정 적용...")
             
-            # GPU로 이동 (가능한 경우)
+            # GPU로 이동 (가능한 경우) - 메모리 효율적인 방식
             if self.gpu_available:
-                self.model = self.model.to('cuda')
-                print("✅ GPU로 모델 이동 완료")
+                # 메모리 효율적인 모델 로딩
+                self.model = AutoModelForCausalLM.from_pretrained(
+                    self.model_name,
+                    trust_remote_code=True,
+                    torch_dtype=torch.float16,  # 반정밀도 사용으로 메모리 절약
+                    low_cpu_mem_usage=True,     # CPU 메모리 사용량 최소화
+                    device_map="auto"           # 자동 디바이스 매핑
+                )
+                print("✅ GPU로 메모리 최적화 모델 이동 완료")
             else:
+                # CPU 모드
+                self.model = AutoModelForCausalLM.from_pretrained(
+                    self.model_name,
+                    trust_remote_code=True,
+                    low_cpu_mem_usage=True
+                )
                 self.model = self.model.to('cpu')
                 print("✅ CPU로 모델 이동 완료")
             
@@ -232,7 +241,13 @@ class RobotSystem:
             if self.tokenizer.pad_token is None:
                 self.tokenizer.pad_token = self.tokenizer.eos_token
             
-            print("✅ 모델 로딩 완료!")
+            # 메모리 정리
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                import gc
+                gc.collect()
+            
+            print("✅ 메모리 최적화 모델 로딩 완료!")
             
         except Exception as e:
             print(f"❌ 모델 로딩 실패: {e}")
@@ -429,8 +444,14 @@ class RobotSystem:
             }
     
     def _call_real_exaone_simple_with_result(self, user_input: str) -> tuple[str, Any, str]:
-        """대폭 개선된 Agentic tool use - 맥락 인식과 함수 선택 개선 (함수 실행 결과 포함)"""
+        """대폭 개선된 Agentic tool use - 맥락 인식과 함수 선택 개선 (함수 실행 결과 포함) - 메모리 최적화"""
         try:
+            # 메모리 정리
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                import gc
+                gc.collect()
+            
             # 대화 히스토리를 포함한 맥락 구성
             conversation_context = ""
             if len(self.conversation_history) > 1:
@@ -441,98 +462,21 @@ class RobotSystem:
                     context_items.append(f"{entry['role']}: {entry['content']}")
                 conversation_context = "\n".join(context_items)
             
-            # tools 정의 (공식 문서 방식)
-            tools = [
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "query_facility",
-                        "description": "병원 내 시설의 위치를 조회할 때 사용. '어디야', '위치', '찾아' 등의 질문에 사용",
-                        "parameters": {
-                            "type": "object",
-                            "required": ["facility"],
-                            "properties": {
-                                "facility": {
-                                    "type": "string",
-                                    "description": "조회할 시설명 (CT, X-ray, 초음파, 폐암, 위암, 대장암, 유방암, 뇌종양 등)"
-                                }
-                            }
-                        }
-                    }
-                },
-                {
-                    "type": "function", 
-                    "function": {
-                        "name": "navigate",
-                        "description": "사용자를 특정 위치로 안내할 때 사용. '안내해줘', '데려다줘', '동행해줘', '가자' 등의 요청에 사용",
-                        "parameters": {
-                            "type": "object",
-                            "required": ["target"],
-                            "properties": {
-                                "target": {
-                                    "type": "string",
-                                    "description": "안내할 목적지"
-                                }
-                            }
-                        }
-                    }
-                },
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "general_response",
-                        "description": "일반적인 대화나 인사, 설명이 필요할 때 사용",
-                        "parameters": {
-                            "type": "object",
-                            "required": ["message"],
-                            "properties": {
-                                "message": {
-                                    "type": "string",
-                                    "description": "사용자의 메시지"
-                                }
-                            }
-                        }
-                    }
-                },
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "appointment_service",
-                        "description": "예약 및 진료 관련 문의에 사용. '예약', '진료', '병원 예약', '진료 시간', '예약 변경', '예약 취소' 등의 질문에 사용",
-                        "parameters": {
-                            "type": "object",
-                            "required": ["service_type"],
-                            "properties": {
-                                "service_type": {
-                                    "type": "string",
-                                    "description": "서비스 유형 (예약, 진료, 예약 변경, 예약 취소, 진료 시간 조회 등)",
-                                    "enum": ["예약", "진료", "예약 변경", "예약 취소", "진료 시간 조회", "예약 확인"]
-                                },
-                                "department": {
-                                    "type": "string",
-                                    "description": "진료과 (CT, X-ray, 초음파, 폐암, 위암, 대장암, 유방암, 뇌종양 등)"
-                                },
-                                "details": {
-                                    "type": "string",
-                                    "description": "추가 세부사항 (예약 날짜, 시간, 증상 등)"
-                                }
-                            }
-                        }
-                    }
-                }
-            ]
+            # tools 정의 (중복 제거된 메서드 사용)
+            tools = self._get_tools_definition()
             
             # 개선된 지시사항과 맥락을 포함한 메시지
-            system_prompt = f"""당신은 병원 안내 로봇입니다. 이름은 '영웅이'입니다. 친근하고 간결하게 답변하세요.
+            system_prompt = f"""당신은 아산 병원의 안내 로봇입니다. 이름은 '영웅이'입니다. 친근하고 간결하게 답변하세요.
 
 중요한 규칙:
-1. 위치 질문('어디야', '어디있어', '찾아')은 query_facility 사용
-2. 이동 요청('안내해줘', '데려다줘', '동행해줘', '가자', '가져다줘')은 navigate 사용  
-3. 일반 대화('안녕', '고마워', '뭐야', '영웅이', '영웅아')는 general_response 사용
-4. 사용자가 "영웅이" 또는 "영웅아"라고 부르면 친근하게 응답하세요
-5. 응답은 간결하고 자연스럽게 (길고 현학적인 답변 금지)
-6. 대화 맥락을 고려하여 이전 언급된 장소를 기억하세요
-7. 절대 자신을 "영웅아"라고 부르지 마세요. 항상 "저는 영웅이입니다"라고 말하세요
+1. 시설 위치에 대한 질문은 query_facility 사용
+2. 안내 요청은 navigate 사용  
+3. 현재 위치 질문은 get_position 사용
+4. 전체 시설 목록 질문은 list_facilities 사용
+5. 일상 대화는 general_response 사용
+6. 사용자가 "영웅이" 또는 "영웅아"라고 부르면 친근하게 응답하세요
+7. 응답은 간결하고 자연스럽게 (길고 현학적인 답변 금지)
+8. 대화 맥락을 고려하여 이전 언급된 장소를 기억하세요
 
 {f"이전 대화 맥락:{conversation_context}" if conversation_context else ""}
 
@@ -541,7 +485,7 @@ class RobotSystem:
             # 공식 문서 방식으로 메시지 구성
             messages = [{"role": "user", "content": system_prompt}]
             
-            # 공식 문서와 동일한 방식으로 호출
+            # 공식 문서와 동일한 방식으로 호출 - 메모리 최적화
             input_ids = self.tokenizer.apply_chat_template(
                 messages,
                 tokenize=True,
@@ -549,6 +493,12 @@ class RobotSystem:
                 return_tensors="pt",
                 tools=tools,
             )
+            
+            # 입력 길이 제한 (메모리 절약)
+            max_input_length = 2048
+            if input_ids.shape[1] > max_input_length:
+                input_ids = input_ids[:, -max_input_length:]
+                print(f"⚠️ 입력 길이 제한: {max_input_length} 토큰으로 자름")
             
             # 실시간 스트리밍을 위한 개선된 생성 로직
             print(f"🤖 {'🧠 Reasoning' if self.use_reasoning else '💬'} 모드로 실시간 답변 중:", end=" ", flush=True)
@@ -563,18 +513,19 @@ class RobotSystem:
                 skip_special_tokens=True
             )
             
-            # 생성 파라미터 설정 (EXAONE 4.0 공식 권장값 준수)
+            # 생성 파라미터 설정 (메모리 최적화)
             if self.fast_mode:
-                # 빠른 응답 모드 (공식 권장값 기반 + 최적화)
-                max_tokens = 1024  # 더 짧은 응답
-                temperature = 0.6 if self.use_reasoning else 0.1  # 공식 권장값 유지
-                top_p = 0.95  # 공식 권장값 고정
+                # 빠른 응답 모드 (메모리 절약)
+                max_tokens = 512  # 더 짧은 응답으로 메모리 절약
+                temperature = 0.6 if self.use_reasoning else 0.1
+                top_p = 0.95
             else:
-                # 일반 모드 설정 (EXAONE 4.0 공식 권장값)
-                max_tokens = 2048
-                temperature = 0.6 if self.use_reasoning else 0.1  # 공식 권장값
-                top_p = 0.95  # 공식 권장값 고정
+                # 일반 모드 설정 (메모리 절약)
+                max_tokens = 1024  # 기존 2048에서 줄임
+                temperature = 0.6 if self.use_reasoning else 0.1
+                top_p = 0.95
             
+            # 메모리 효율적인 생성 설정
             generation_kwargs = {
                 "input_ids": input_ids.to(self.model.device),
                 "max_new_tokens": max_tokens,
@@ -585,7 +536,8 @@ class RobotSystem:
                 "pad_token_id": self.tokenizer.pad_token_id,
                 "eos_token_id": self.tokenizer.eos_token_id,
                 "attention_mask": None,
-                "streamer": streamer,  # 스트리머 사용
+                "streamer": streamer,
+                "use_cache": True,  # 캐시 사용으로 메모리 효율성 향상
             }
             
             # 스트리밍 방식에 따른 처리
@@ -601,6 +553,11 @@ class RobotSystem:
                     full_streamed_text += text
                 
                 thread.join()  # 스레드 완료 대기
+                
+                # 스트리밍 완료 후 메모리 정리
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    gc.collect()
                 
                 # 스트리밍 완료 후 함수 호출 처리
                 if "<tool_call>" in full_streamed_text:
@@ -624,6 +581,10 @@ class RobotSystem:
             
         except Exception as e:
             print(f"❌ 모델 호출 실패: {e}")
+            # 오류 발생 시 메모리 정리
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                gc.collect()
             return "", None, None
     
     def _call_real_exaone_simple(self, user_input: str) -> str:
@@ -745,6 +706,22 @@ class RobotSystem:
                         else:
                             response = self._generate_simple_response(message)
                             return response, {"message": message}, function_name
+                    
+                    elif function_name == "get_position":
+                        result = self.robot_functions.get_position()
+                        
+                        if "error" not in result.get("result", ""):
+                            return f"현재 위치는 {result['result']}입니다. 😊", result, function_name
+                        else:
+                            return "죄송해요, 현재 위치를 확인할 수 없어요. 잠시 후 다시 시도해주세요.", result, function_name
+                    
+                    elif function_name == "list_facilities":
+                        result = self.robot_functions.list_facilities()
+                        
+                        if "error" not in result.get("result", ""):
+                            return f"{result['result']} 😊", result, function_name
+                        else:
+                            return "죄송해요, 시설 목록을 가져올 수 없어요. 잠시 후 다시 시도해주세요.", result, function_name
                     
                     elif function_name == "appointment_service":
                         service_type = arguments.get("service_type", "")
@@ -925,6 +902,112 @@ class RobotSystem:
             print(f"❌ Reasoning 응답 정리 실패: {e}")
             return response.strip() 
 
+    def _get_tools_definition(self):
+        """함수 호출을 위한 tools 정의 - 중복 제거용"""
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "query_facility",
+                    "description": "병원 내 시설의 위치를 조회할 때 사용. '어디야', '위치', '찾아' 등의 질문에 사용",
+                    "parameters": {
+                        "type": "object",
+                        "required": ["facility"],
+                        "properties": {
+                            "facility": {
+                                "type": "string",
+                                "description": "조회할 시설명 (CT, X-ray, 초음파, 폐암, 위암, 대장암, 유방암, 뇌종양 등)"
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                "type": "function", 
+                "function": {
+                    "name": "navigate",
+                    "description": "사용자를 특정 위치로 안내할 때 사용. '안내해줘', '데려다줘', '동행해줘', '가자' 등의 요청에 사용",
+                    "parameters": {
+                        "type": "object",
+                        "required": ["target"],
+                        "properties": {
+                            "target": {
+                                "type": "string",
+                                "description": "안내할 목적지"
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_position",
+                    "description": "현재 로봇의 위치를 조회할 때 사용. '현재 위치', '어디에 있어', '지금 어디야' 등의 질문에 사용",
+                    "parameters": {
+                        "type": "object",
+                        "required": [],
+                        "properties": {}
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "list_facilities",
+                    "description": "병원 내 모든 시설 목록을 조회할 때 사용. '어떤 시설이 있어', '전체 시설', '시설 목록' 등의 질문에 사용",
+                    "parameters": {
+                        "type": "object",
+                        "required": [],
+                        "properties": {}
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "general_response",
+                    "description": "일반적인 대화나 인사, 설명이 필요할 때 사용",
+                    "parameters": {
+                        "type": "object",
+                        "required": ["message"],
+                        "properties": {
+                            "message": {
+                                "type": "string",
+                                "description": "사용자의 메시지"
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "appointment_service",
+                    "description": "예약 및 진료 관련 문의에 사용. '예약', '진료', '병원 예약', '진료 시간', '예약 변경', '예약 취소' 등의 질문에 사용",
+                    "parameters": {
+                        "type": "object",
+                        "required": ["service_type"],
+                        "properties": {
+                            "service_type": {
+                                "type": "string",
+                                "description": "서비스 유형 (예약, 진료, 예약 변경, 예약 취소, 진료 시간 조회 등)",
+                                "enum": ["예약", "진료", "예약 변경", "예약 취소", "진료 시간 조회", "예약 확인"]
+                            },
+                            "department": {
+                                "type": "string",
+                                "description": "진료과 (CT, X-ray, 초음파, 폐암, 위암, 대장암, 유방암, 뇌종양 등)"
+                            },
+                            "details": {
+                                "type": "string",
+                                "description": "추가 세부사항 (예약 날짜, 시간, 증상 등)"
+                            }
+                        }
+                    }
+                }
+            }
+        ]
+
     def _call_real_exaone_reasoning(self, user_input: str) -> str:
         """Reasoning 모드용 EXAONE 호출 (<think> 블록 사용) - 실시간 스트리밍"""
         try:
@@ -939,15 +1022,17 @@ class RobotSystem:
                 conversation_context = "\n".join(context_items)
             
             # Reasoning 모드용 지시사항 - 함수 호출 방식 사용
-            system_prompt = f"""당신은 병원 안내 로봇입니다. 이름은 '영웅이'입니다. 
+            system_prompt = f"""당신은 아산 병원의 안내 로봇입니다. 이름은 '영웅이'입니다. 친근하고 간결하게 답변하세요.
 복잡한 질문에 대해서는 단계별로 생각한 후 적절한 함수를 호출하세요.
 
 중요한 규칙:
-1. 위치 질문('어디야', '어디있어', '찾아')은 query_facility 사용
-2. 이동 요청('안내해줘', '데려다줘', '동행해줘', '가자', '가져다줘')은 navigate 사용  
-3. 일반 대화('안녕', '고마워', '뭐야')는 general_response 사용
-4. 복잡한 설명이 필요한 질문도 general_response로 친근하게 답변
-5. 답변은 간결하고 자연스럽게 (길고 현학적인 답변 금지)
+1. 시설 위치에 대한 질문은 query_facility 사용
+2. 안내 요청은 navigate 사용  
+3. 현재 위치 질문은 get_position 사용
+4. 전체 시설 목록 질문은 list_facilities 사용
+5. 일상 대화는 general_response 사용
+6. 복잡한 설명이 필요한 질문도 general_response로 친근하게 답변
+7. 답변은 간결하고 자연스럽게 (길고 현학적인 답변 금지)
 
 {f"이전 대화 맥락:{conversation_context}" if conversation_context else ""}
 
@@ -956,86 +1041,8 @@ class RobotSystem:
 중요: 사용자가 "너가 설명한", "당신이 말한" 등의 표현을 사용하면, 
 이전 대화에서 자신이 설명한 내용을 참고해서 답변해주세요."""
             
-            # tools 정의 (non-reasoning 모드와 동일)
-            tools = [
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "query_facility",
-                        "description": "병원 내 시설의 위치를 조회할 때 사용. '어디야', '위치', '찾아' 등의 질문에 사용",
-                        "parameters": {
-                            "type": "object",
-                            "required": ["facility"],
-                            "properties": {
-                                "facility": {
-                                    "type": "string",
-                                    "description": "조회할 시설명 (CT, X-ray, 초음파, 폐암, 위암, 대장암, 유방암, 뇌종양 등)"
-                                }
-                            }
-                        }
-                    }
-                },
-                {
-                    "type": "function", 
-                    "function": {
-                        "name": "navigate",
-                        "description": "사용자를 특정 위치로 안내할 때 사용. '안내해줘', '데려다줘', '동행해줘', '가자' 등의 요청에 사용",
-                        "parameters": {
-                            "type": "object",
-                            "required": ["target"],
-                            "properties": {
-                                "target": {
-                                    "type": "string",
-                                    "description": "안내할 목적지"
-                                }
-                            }
-                        }
-                    }
-                },
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "general_response",
-                        "description": "일반적인 대화나 인사, 설명이 필요할 때 사용",
-                        "parameters": {
-                            "type": "object",
-                            "required": ["message"],
-                            "properties": {
-                                "message": {
-                                    "type": "string",
-                                    "description": "사용자의 메시지"
-                                }
-                            }
-                        }
-                    }
-                },
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "appointment_service",
-                        "description": "예약 및 진료 관련 문의에 사용. '예약', '진료', '병원 예약', '진료 시간', '예약 변경', '예약 취소' 등의 질문에 사용",
-                        "parameters": {
-                            "type": "object",
-                            "required": ["service_type"],
-                            "properties": {
-                                "service_type": {
-                                    "type": "string",
-                                    "description": "서비스 유형 (예약, 진료, 예약 변경, 예약 취소, 진료 시간 조회 등)",
-                                    "enum": ["예약", "진료", "예약 변경", "예약 취소", "진료 시간 조회", "예약 확인"]
-                                },
-                                "department": {
-                                    "type": "string",
-                                    "description": "진료과 (CT, X-ray, 초음파, 폐암, 위암, 대장암, 유방암, 뇌종양 등)"
-                                },
-                                "details": {
-                                    "type": "string",
-                                    "description": "추가 세부사항 (예약 날짜, 시간, 증상 등)"
-                                }
-                            }
-                        }
-                    }
-                }
-            ]
+            # tools 정의 (중복 제거된 메서드 사용)
+            tools = self._get_tools_definition()
             
             # 메시지 구성
             messages = [{"role": "user", "content": system_prompt}]
@@ -1104,9 +1111,9 @@ class RobotSystem:
                 
                 if "<tool_call>" in full_reasoning_text:
                     print("\n🔧 함수 호출 형식 감지됨")
-                    function_result = self._parse_and_execute_tool_call_improved(full_reasoning_text, user_input)
-                    print(f"🤖 답변: {function_result}")
-                    return function_result
+                    response, function_result, function_name = self._parse_and_execute_tool_call_with_result(full_reasoning_text, user_input)
+                    print(f"🤖 답변: {response}")
+                    return response
                 else:
                     # 일반 텍스트 응답 처리
                     if full_reasoning_text.strip() and "Available Tools" not in full_reasoning_text:
