@@ -35,6 +35,7 @@ private:
     void setWidgetClasses(); 
     void updateButtonStyles();  
     void resetAllButtonStyles(); 
+    int intToMapDepartmentId(QString dept);
     
 private:
     Status2Widget* status2_;

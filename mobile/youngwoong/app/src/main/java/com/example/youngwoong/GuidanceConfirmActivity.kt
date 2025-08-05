@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
+import android.util.Log
 import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
@@ -15,15 +16,12 @@ import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import android.util.Log
-
 
 class GuidanceConfirmActivity : AppCompatActivity() {
 
     private var isFromCheckin: Boolean = false
     private val robotLocationUrl = NetworkConfig.getRobotLocationUrl()
 
-    // ✅ 실제 측정된 Android 기준 좌표
     private val stationCoords = mapOf(
         "초음파 검사실" to Pair(-0.4028f, 16.5230f),
         "CT 검사실" to Pair(-1.8587f, 16.6412f),
@@ -50,11 +48,14 @@ class GuidanceConfirmActivity : AppCompatActivity() {
         val userName = intent.getStringExtra("user_name")
         val department = intent.getStringExtra("department")
         val selectedText = intent.getStringExtra("selected_text")
+        val patientId = intent.getStringExtra("patient_id") ?: ""
 
-        isFromCheckin = intent.getBooleanExtra("isFromCheckin", false) ||
-                (userName != null && department != null)
+        isFromCheckin = intent.getBooleanExtra(
+            "isFromCheckin",
+            false
+        ) || (userName != null && department != null)
 
-        // ✅ 안내 문구
+        // 📍 안내 문구 구성
         if (isFromCheckin) {
             val message = "${userName}님 ${department} 접수가 완료되었습니다.\n안내를 시작할까요?"
             val spannable = SpannableString(message)
@@ -87,7 +88,7 @@ class GuidanceConfirmActivity : AppCompatActivity() {
             textView.text = "안내를 시작할까요?"
         }
 
-        // ✅ 목적지 마커 표시
+        // 📍 목적지 마커 표시
         val targetName = selectedText ?: department
         stationCoords[targetName]?.let { (x, y) ->
             val (px, py) = mapToPixelDirect(x, y)
@@ -97,10 +98,9 @@ class GuidanceConfirmActivity : AppCompatActivity() {
                 destinationMarker.y = mapView.y + py - destinationMarker.height / 2
             }
         }
-        // ✅ 로봇 위치 받아오기
+
         fetchRobotPosition(robotMarker, mapView)
 
-        // ✅ 버튼 처리
         cancelButton.setOnClickListener {
             applyAlphaEffect(cancelButton)
             cancelButton.postDelayed({
@@ -119,24 +119,39 @@ class GuidanceConfirmActivity : AppCompatActivity() {
         confirmButton.setOnClickListener {
             applyAlphaEffect(confirmButton)
             confirmButton.postDelayed({
-                val intent = Intent(this, GuidanceWaitingActivity::class.java)
                 val centerName = selectedText ?: department ?: "해당 센터"
-                intent.putExtra("selected_text", centerName)
+                val stationId = stationNameToId(centerName)
+
+                Log.d(
+                    "DirectionAPI",
+                    "🔹 isFromCheckin: $isFromCheckin, patientId: $patientId, selectedText: $selectedText"
+                )
+
+                if (stationId != null) {
+                    sendDirectionRequest(patientId, stationId)
+                } else {
+                    Log.e("DirectionAPI", "❌ 목적지 매핑 실패: $centerName")
+                }
+
+                val intent = Intent(this, GuidanceWaitingActivity::class.java).apply {
+                    putExtra("selected_text", centerName)
+                    putExtra("isFromCheckin", isFromCheckin)
+                    putExtra("patient_id", patientId)
+                }
                 startActivity(intent)
                 overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
                 finish()
             }, 100)
         }
     }
+
     private fun fetchRobotPosition(robotMarker: ImageView, mapView: ImageView) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val json = JSONObject().apply {
-                    put("robot_id", "3")
-                }
+                val json = JSONObject().apply { put("robot_id", 3) }
 
-                Log.d("RobotPosition", "📤 전송 JSON: $json")
-                val requestBody = json.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
+                val requestBody = json.toString()
+                    .toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
                 val request = Request.Builder()
                     .url(robotLocationUrl)
                     .post(requestBody)
@@ -162,10 +177,10 @@ class GuidanceConfirmActivity : AppCompatActivity() {
                         Log.e("RobotPosition", "❌ 좌표 파싱 실패: x=$x, y=$y")
                     }
                 } else {
-                    Log.e("RobotPosition", "❌ 서버 응답 body 비어있음")
+                    Log.e("RobotPosition", "❌ 응답 body 없음")
                 }
             } catch (e: Exception) {
-                Log.e("RobotPosition", "❌ 로봇 위치 가져오기 실패", e)
+                Log.e("RobotPosition", "❌ 위치 요청 실패", e)
             }
         }
     }
@@ -175,13 +190,11 @@ class GuidanceConfirmActivity : AppCompatActivity() {
         view.postDelayed({ view.alpha = 1.0f }, 100)
     }
 
-    // ✅ 지도 좌표 → 픽셀 변환
     private fun mapToPixelDirect(x: Float, y: Float): Pair<Float, Float> {
         val xMin = -5.4995f
         val yMin = -10.0572f
         val xMax = 5.1066f
         val yMax = 9.8559f
-
         val imageWidth = 1020f
         val imageHeight = 530f
 
@@ -192,5 +205,62 @@ class GuidanceConfirmActivity : AppCompatActivity() {
         val pixelY = (y - yMin) * scaleY
 
         return pixelX to pixelY
+    }
+
+    private fun stationNameToId(name: String?): Int? {
+        return when (name) {
+            "초음파 검사실" -> 1
+            "CT 검사실" -> 2
+            "X-ray 검사실" -> 3
+            "대장암 센터" -> 4
+            "위암 센터" -> 5
+            "폐암 센터" -> 6
+            "유방암 센터" -> 7
+            "뇌종양 센터" -> 8
+            else -> null
+        }
+    }
+
+    private fun sendDirectionRequest(patientId: String?, stationId: Int) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val url = if (isFromCheckin) {
+                    NetworkConfig.getAuthDirectionUrl()
+                } else {
+                    NetworkConfig.getWithoutAuthDirectionUrl()
+                }
+
+                val json = JSONObject().apply {
+                    put("robot_id", 3)
+                    put("department_id", stationId)
+                    if (isFromCheckin && !patientId.isNullOrBlank()) {
+                        try {
+                            put("patient_id", patientId.toInt())  // Int로 변환
+                        } catch (e: NumberFormatException) {
+                            Log.e("DirectionAPI", "❌ patient_id 변환 실패: $patientId", e)
+                        }
+                    }
+                }
+
+                Log.d("DirectionAPI", "📤 안내 요청: $json → $url")
+
+                val request = Request.Builder()
+                    .url(url)
+                    .post(
+                        json.toString()
+                            .toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
+                    )
+                    .build()
+
+                val client = OkHttpClient()
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string()
+
+                Log.d("DirectionAPI", "📥 응답 코드: ${response.code}")
+                Log.d("DirectionAPI", "📥 응답 바디: $responseBody")
+            } catch (e: Exception) {
+                Log.e("DirectionAPI", "❌ 안내 API 호출 실패", e)
+            }
+        }
     }
 }

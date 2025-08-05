@@ -45,7 +45,7 @@
         android:padding="16dp"
         android:text="진료과는 뇌종양 센터 / 대장암 센터 등이 있습니다."
         android:textColor="#000000"
-        android:textSize="28sp"
+        android:textSize="24sp"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 

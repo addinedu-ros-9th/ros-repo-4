@@ -3,6 +3,12 @@
 #include <QDebug>
 #include <QStyle>
 #include <QPushButton>
+#include <yaml-cpp/yaml.h>  
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 
 Status2Widget::Status2Widget(QWidget *parent) 
@@ -21,7 +27,7 @@ Status2Widget::Status2Widget(QWidget *parent)
     arrowBtns[8] = ui->arrowBtn9;
     setWidgetClasses();
     setupKeyButton();
-    onClickKey5();  // 초기 상태 설정
+    onClickKey(5);  // 초기 상태 설정
 }
 
 Status2Widget::~Status2Widget()
@@ -172,188 +178,112 @@ void Status2Widget::setupKeyButton()
 {
     if (ui->arrowBtn1) {
         connect(ui->arrowBtn1, &QPushButton::clicked,
-                this, &Status2Widget::onClickKey1);
+                this, [this]() { onClickKey(1); });
     } 
     if (ui->arrowBtn2) {
         connect(ui->arrowBtn2, &QPushButton::clicked,
-                this, &Status2Widget::onClickKey2);
+                this, [this]() { onClickKey(2); });
     }
     if (ui->arrowBtn3) {
         connect(ui->arrowBtn3, &QPushButton::clicked,
-                this, &Status2Widget::onClickKey3);
+                this, [this]() { onClickKey(3); });
     }
     if (ui->arrowBtn4) {
         connect(ui->arrowBtn4, &QPushButton::clicked,
-                this, &Status2Widget::onClickKey4);
+                this, [this]() { onClickKey(4); });
     }
     if (ui->arrowBtn5) {
         connect(ui->arrowBtn5, &QPushButton::clicked,
-                this, &Status2Widget::onClickKey5);
+                this, [this]() { onClickKey(5); });
     }
     if (ui->arrowBtn6) {
         connect(ui->arrowBtn6, &QPushButton::clicked,
-                this, &Status2Widget::onClickKey6);
+                this, [this]() { onClickKey(6); });
     }
     if (ui->arrowBtn7) {
         connect(ui->arrowBtn7, &QPushButton::clicked,
-                this, &Status2Widget::onClickKey7);
+                this, [this]() { onClickKey(7); });
     }
     if (ui->arrowBtn8) {
         connect(ui->arrowBtn8, &QPushButton::clicked,
-                this, &Status2Widget::onClickKey8);
+                this, [this]() { onClickKey(8); });
     }
     if (ui->arrowBtn9) {
         connect(ui->arrowBtn9, &QPushButton::clicked,
-                this, &Status2Widget::onClickKey9);
+                this, [this]() { onClickKey(9); });
     }
 }
 
-void Status2Widget::onClickKey1()
+void Status2Widget::onClickKey(int clickedNumber)
 {
-    qDebug() << "Key 1 clicked";
-    for (int i = 0; i < 9; ++i) {
-        if (arrowBtns[i]) {
-            if (i == 0) {
-                arrowBtns[i]->setProperty("class", "arrowBtn active");
-            } else {
-                arrowBtns[i]->setProperty("class", "arrowBtn");
-            }
-            arrowBtns[i]->style()->unpolish(arrowBtns[i]);
-            arrowBtns[i]->style()->polish(arrowBtns[i]);
-            arrowBtns[i]->update();
-        }
-    }
-}
+    qDebug() << "Key " << clickedNumber << " clicked";
+    
+    std::string config_path = "../../config.yaml";
+    YAML::Node config = YAML::LoadFile(config_path);
+    std::string CENTRAL_IP = config["central_server"]["ip"].as<std::string>();
+    int CENTRAL_HTTP_PORT = config["central_server"]["http_port"].as<int>();
 
-void Status2Widget::onClickKey2()
-{
-    qDebug() << "Key 2 clicked";
-    for (int i = 0; i < 9; ++i) {
-        if (arrowBtns[i]) {
-            if (i == 1) {
-                arrowBtns[i]->setProperty("class", "arrowBtn active");
-            } else {
-                arrowBtns[i]->setProperty("class", "arrowBtn");
-            }
-            arrowBtns[i]->style()->unpolish(arrowBtns[i]);
-            arrowBtns[i]->style()->polish(arrowBtns[i]);
-            arrowBtns[i]->update();
-        }
-    }
-}
-void Status2Widget::onClickKey3()
-{
-    qDebug() << "Key 3 clicked";
-    for (int i = 0; i < 9; ++i) {
-        if (arrowBtns[i]) {
-            if (i == 2) {
-                arrowBtns[i]->setProperty("class", "arrowBtn active");
-            } else {
-                arrowBtns[i]->setProperty("class", "arrowBtn");
-            }
-            arrowBtns[i]->style()->unpolish(arrowBtns[i]);
-            arrowBtns[i]->style()->polish(arrowBtns[i]);
-            arrowBtns[i]->update();
-        }
-    }
-}
-void Status2Widget::onClickKey4()
-{
-    qDebug() << "Key 4 clicked";
-    for (int i = 0; i < 9; ++i) {
-        if (arrowBtns[i]) {
-            if (i == 3) {
-                arrowBtns[i]->setProperty("class", "arrowBtn active");
-            } else {
-                arrowBtns[i]->setProperty("class", "arrowBtn");
-            }
-            arrowBtns[i]->style()->unpolish(arrowBtns[i]);
-            arrowBtns[i]->style()->polish(arrowBtns[i]);
-            arrowBtns[i]->update();
-        }
-    }
-}
-void Status2Widget::onClickKey5()
-{
-    qDebug() << "Key 5 clicked";
-    for (int i = 0; i < 9; ++i) {
-        if (arrowBtns[i]) {
-            if (i == 4) {
-                arrowBtns[i]->setProperty("class", "arrowBtn active");
-            } else {
-                arrowBtns[i]->setProperty("class", "arrowBtn");
-            }
-            arrowBtns[i]->style()->unpolish(arrowBtns[i]);
-            arrowBtns[i]->style()->polish(arrowBtns[i]);
-            arrowBtns[i]->update();
-        }
-    }
-}
-void Status2Widget::onClickKey6()
-{
-    qDebug() << "Key 6 clicked";
-    for (int i = 0; i < 9; ++i) {
-        if (arrowBtns[i]) {
-            if (i == 5) {
-                arrowBtns[i]->setProperty("class", "arrowBtn active");
-            } else {
-                arrowBtns[i]->setProperty("class", "arrowBtn");
-            }
-            arrowBtns[i]->style()->unpolish(arrowBtns[i]);
-            arrowBtns[i]->style()->polish(arrowBtns[i]);
-            arrowBtns[i]->update();
-        }
-    }
-}
-void Status2Widget::onClickKey7()
-{
-    qDebug() << "Key 7 clicked";
-    for (int i = 0; i < 9; ++i) {
-        if (arrowBtns[i]) {
-            if (i == 6) {
-                arrowBtns[i]->setProperty("class", "arrowBtn active");
-            } else {
-                arrowBtns[i]->setProperty("class", "arrowBtn");
-            }
-            arrowBtns[i]->style()->unpolish(arrowBtns[i]);
-            arrowBtns[i]->style()->polish(arrowBtns[i]);
-            arrowBtns[i]->update();
-        }
-    }
-}
-void Status2Widget::onClickKey8()
-{
-    qDebug() << "Key 8 clicked";
-    for (int i = 0; i < 9; ++i) {
-        if (arrowBtns[i]) {
-            if (i == 7) {
-                arrowBtns[i]->setProperty("class", "arrowBtn active");
-            } else {
-                arrowBtns[i]->setProperty("class", "arrowBtn");
-            }
-            arrowBtns[i]->style()->unpolish(arrowBtns[i]);
-            arrowBtns[i]->style()->polish(arrowBtns[i]);
-            arrowBtns[i]->update();
-        }
-    }
-}
-void Status2Widget::onClickKey9()
-{
-    qDebug() << "Key 9 clicked";
-    for (int i = 0; i < 9; ++i) {
-        if (arrowBtns[i]) {
-            if (i == 8) {
-                arrowBtns[i]->setProperty("class", "arrowBtn active");
-            } else {
-                arrowBtns[i]->setProperty("class", "arrowBtn");
-            }
-            arrowBtns[i]->style()->unpolish(arrowBtns[i]);
-            arrowBtns[i]->style()->polish(arrowBtns[i]);
-            arrowBtns[i]->update();
-        }
-    }
-}
+    QString url = QString("http://%1:%2/command/move_teleop")
+                    .arg(CENTRAL_IP.c_str())
+                    .arg(CENTRAL_HTTP_PORT);
 
+    QJsonObject data;
+    data["robot_id"] = 3;
+    data["teleop_key"] = clickedNumber;
+    QJsonDocument doc(data);
+    QByteArray jsonData = doc.toJson();
+
+    qDebug() << "[로봇 위치 요청 URL]:" << url;
+    qDebug() << "[전송 데이터]:" << jsonData;
+    try
+    {
+        QNetworkRequest request{QUrl(url)};
+        request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+        QNetworkAccessManager* manager = new QNetworkAccessManager(this);
+        QNetworkReply* reply = manager->post(request, jsonData);
+
+        connect(reply, &QNetworkReply::finished, this, [this, reply, CENTRAL_IP, CENTRAL_HTTP_PORT, data, clickedNumber]() {
+            int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (statusCode == 200) {
+                qDebug() << "teleop " << clickedNumber << "key 명령 전송 성공. 200";
+
+                for (int i = 0; i < 9; ++i) {
+                    if (arrowBtns[i]) {
+                        if (i == clickedNumber - 1) {
+                            arrowBtns[i]->setProperty("class", "arrowBtn active");
+                        } else {
+                            arrowBtns[i]->setProperty("class", "arrowBtn");
+                        }
+                        arrowBtns[i]->style()->unpolish(arrowBtns[i]);
+                        arrowBtns[i]->style()->polish(arrowBtns[i]);
+                        arrowBtns[i]->update();
+                    }
+                }
+            } else if (statusCode == 400) {
+                qDebug() << "잘못된 요청입니다. 400 Bad Request";
+            } else if (statusCode == 401) {
+                qDebug() << "정상 요청, 정보 없음 or 응답 실패. 401";
+            } else if (statusCode == 404) {
+                qDebug() << "잘못된 요청 404 Not Found";
+            } else if (statusCode == 405) {
+                qDebug() << "메소드가 리소스 허용 안됨";
+            } else if (statusCode == 500) {
+                qDebug() << "서버 내부 오류 500 Internal Server Error";
+            } else if (statusCode == 503) {
+                qDebug() << "서비스 불가";
+            } else {
+                qDebug() << "알 수 없는 오류 발생. 상태 코드:" << statusCode;
+            }
+
+            reply->deleteLater();
+        });
+
+    } catch (const YAML::BadFile& e) {
+        qDebug() << "YAML 파일 로드 실패:" << e.what();
+        return;
+    }
+}
 
 void Status2Widget::show_at(const QPoint& pos)
 {
@@ -365,4 +295,52 @@ void Status2Widget::refresh()
 {
     qDebug() << "Status2 widget refresh";
 
+}
+
+QString Status2Widget::mapDepartmentIdToName(int dept_id) {
+    switch(dept_id) {
+        case 0: return "CT 검사실";
+        case 1: return "초음파 검사실";
+        case 2: return "X-ray 검사실";
+        case 3: return "대장암 센터";
+        case 4: return "위암 센터";
+        case 5: return "폐암 센터";
+        case 6: return "뇌졸중 센터";
+        case 7: return "유방암 센터";
+        default: return "알 수 없음 (" + QString::number(dept_id) + ")";
+    }
+}
+
+QString Status2Widget::mapNetworkStatusToString(int network) {
+    if (network == 0) {
+        return "없음";
+    } else if (network == 1) {
+        return "하";
+    } else if (network == 2) {
+        return "중";
+    } else if (network == 3) {
+        return "상";
+    } else if (network == 4) {
+        return "최상";
+    } else {
+        return "통신 안됨";
+    }
+}
+
+void Status2Widget::setRobotInfo(int orig, int dest, int battery, int network)
+{
+    orig_ = mapDepartmentIdToName(orig);
+    dest_ = mapDepartmentIdToName(dest);
+    battery_ = battery;
+    network_ = mapNetworkStatusToString(network);
+
+    if (ui->move_first) {
+        ui->move_first->setText(dest_);
+    }
+    if (ui->title5_status) {
+        ui->title5_status->setText(QString::number(battery_) + "%");
+    }
+    if (ui->title6_status) {
+        ui->title6_status->setText(network_);
+    }
 }

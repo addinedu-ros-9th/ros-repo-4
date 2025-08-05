@@ -12,6 +12,12 @@
 #include <QDebug>
 #include <QStyle>
 #include <QPushButton>
+#include <yaml-cpp/yaml.h>  
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 DashboardWidget::DashboardWidget(QWidget *parent) 
     : QWidget(parent)
@@ -24,7 +30,6 @@ DashboardWidget::DashboardWidget(QWidget *parent)
     , control_popup1_(nullptr) 
     , control_popup2_(nullptr) 
     , status_("이동중")
-    , control_status_("OFF")
     , camera_toggle_status_("전면")
 {
     ui->setupUi(this);  // UI 파일 설정
@@ -34,6 +39,7 @@ DashboardWidget::DashboardWidget(QWidget *parent)
     setupCameraWidget(); 
     setupControlButton();  // 추가
     setCameraToggleStatus();  // 초기 카메라 상태 설정
+    getRobotStatus();
 }
 
 DashboardWidget::~DashboardWidget()
@@ -79,11 +85,11 @@ void DashboardWidget::setStatus(const QString& newStatus)
             status_widget = new StatusWidget(this);
             status_widget->setGeometry(477, 549, 753, 281);
             status_widget->show();
-        } else if (control_status_ == "ON") {
+        } else if (status_ == "제어중") {
             status_widget2 = new Status2Widget(this);
             status_widget2->setGeometry(477, 549, 753, 281);
             status_widget2->show();
-        } else if (control_status_ == "OFF") {
+        } else if (status_ == "대기중") {
             status_widget3 = new Status3Widget(this);
             status_widget3->setGeometry(477, 549, 753, 281);  // 16:9 비율로 설정
             status_widget3->show();
@@ -100,16 +106,23 @@ void DashboardWidget::setStatus(const QString& newStatus)
             control_popup2_->hide();
         }
 
+        if (ui->controlBtn) {
+            if(status_ == "제어중") {
+                ui->controlBtn->setText("제어 중지");
+            } else if (status_ == "대기중") {
+                ui->controlBtn->setText("원격 제어");
+            }
+        }
+
         if (ui->status_label) {
             ui->status_label->setText(status_);
-            ui->status_label->setProperty("class", status_ == "이동중" ? "label primary" : "label gray");
+            ui->status_label->setProperty("class", status_ == "이동중" ? "label primary" : status_ == "제어중" ? "label secondary" : "label gray");
             ui->status_label->style()->unpolish(ui->status_label);
             ui->status_label->style()->polish(ui->status_label);
         } 
 
         if (ui->destinationBtn) {
-            ui->destinationBtn->setVisible(status_ != "이동중");
-            ui->destinationBtn->setVisible(control_status_ != "OFF");
+            ui->destinationBtn->setVisible(status_ == "제어중");
         }
     }
 }
@@ -128,57 +141,103 @@ void DashboardWidget::setCameraToggleStatus()
     }
 }
 
-void DashboardWidget::setControlStatus(const QString& newControlStatus)
+
+void DashboardWidget::getRobotStatus()
 {
-    if (control_status_ != newControlStatus) {
-        control_status_ = newControlStatus;
-        qDebug() << "제어 상태 변경:" << control_status_;
-        
-        if (status_widget2) {
-            status_widget2->hide();
-            delete status_widget2;
-            status_widget2 = nullptr;
-        }
-        if (status_widget3) {
-            status_widget3->hide();
-            delete status_widget3;
-            status_widget3 = nullptr;
-        }
+    std::string config_path = "../../config.yaml";
+    YAML::Node config = YAML::LoadFile(config_path);
+    std::string CENTRAL_IP = config["central_server"]["ip"].as<std::string>();
+    int CENTRAL_HTTP_PORT = config["central_server"]["http_port"].as<int>();
 
-        if (control_status_ == "ON") {
-            status_widget2 = new Status2Widget(this);
-            status_widget2->setGeometry(477, 549, 753, 281);
-            status_widget2->show();
-            status_widget2->setMoveFirstText("정지중");
-        } else if (control_status_ == "OFF") {
-            status_widget3 = new Status3Widget(this);
-            status_widget3->setGeometry(477, 549, 753, 281);  // 16:9 비율로 설정
-            status_widget3->show();
-        }
+    QString url = QString("http://%1:%2/get/robot_status")
+                    .arg(CENTRAL_IP.c_str())
+                    .arg(CENTRAL_HTTP_PORT);
 
-        if (ui->controlBtn) {
-            if(control_status_ == "ON") {
-                ui->controlBtn->setText("제어 중지");
-            } else if (control_status_ == "OFF") {
-                ui->controlBtn->setText("원격 제어");
+    QJsonObject data;
+    data["robot_id"] = 3;
+    QJsonDocument doc(data);
+    QByteArray jsonData = doc.toJson();
+
+    qDebug() << "[로봇 위치 요청 URL]:" << url;
+    qDebug() << "[전송 데이터]:" << jsonData;
+    try
+    {
+        QNetworkRequest request{QUrl(url)};
+        request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+        QNetworkAccessManager* manager = new QNetworkAccessManager(this);
+        QNetworkReply* reply = manager->post(request, jsonData);
+
+        connect(reply, &QNetworkReply::finished, this, [this, reply, CENTRAL_IP, CENTRAL_HTTP_PORT]() {
+            int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (statusCode == 200) {
+                QByteArray responseData = reply->readAll();
+                QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
+                QJsonObject result = jsonDoc.object();
+                qDebug() << "[응답 내용]:" << result;
+
+                if (result.contains("status") && result.contains("orig") && result.contains("dest") &&
+                    result.contains("battery") && result.contains("network")) {
+                    if (result["status"].toString() == "unknown") {
+                        QString robot_status = "대기중";
+                        setStatus(robot_status);
+                    } else if (result["status"].toString() == "idle") {
+                        QString robot_status = "대기중";
+                        setStatus(robot_status);
+                    } else if (result["status"].toString() == "moving") {
+                        QString robot_status = "이동중";
+                        setStatus(robot_status);
+                    } else if (result["status"].toString() == "assigned") {
+                        QString robot_status = "제어중";
+                        setStatus(robot_status);
+                    } else {
+                        QString robot_status = result["status"].toString();
+                        setStatus(robot_status);
+                    }
+                    int robot_orig = result["orig"].toInt();
+                    int robot_dest = result["dest"].toInt();
+                    int robot_battery = result["battery"].toInt();
+                    int robot_network = result["network"].toInt();
+                    
+                    // 현재 활성화된 status widget에 따라 적절한 메소드 호출
+                    if (status_widget) {
+                        status_widget->setRobotInfo(robot_orig, robot_dest, robot_battery, robot_network);
+                    } else if (status_widget2) {
+                        status_widget2->setRobotInfo(robot_orig, robot_dest, robot_battery, robot_network);
+                        // status_widget2에도 setRobotInfo 메소드가 있다면 호출
+                        // status_widget2->setRobotInfo(robot_orig, robot_dest, robot_battery, robot_network);
+                    } else if (status_widget3) {
+                        // status_widget3에도 setRobotInfo 메소드가 있다면 호출
+                        // status_widget3->setRobotInfo(robot_orig, robot_dest, robot_battery, robot_network);
+                    }
+                } else {
+                    qDebug() << "응답에 위치 정보가 없습니다.";
+                }
+            } else if (statusCode == 400) {
+                qDebug() << "잘못된 요청입니다. 400 Bad Request";
+            } else if (statusCode == 401) {
+                qDebug() << "정상 요청, 정보 없음 or 응답 실패. 401";
+            } else if (statusCode == 404) {
+                qDebug() << "잘못된 요청 404 Not Found";
+            } else if (statusCode == 405) {
+                qDebug() << "메소드가 리소스 허용 안됨";
+            } else if (statusCode == 500) {
+                qDebug() << "서버 내부 오류 500 Internal Server Error";
+            } else if (statusCode == 503) {
+                qDebug() << "서비스 불가";
+            } else {
+                qDebug() << "알 수 없는 오류 발생. 상태 코드:" << statusCode;
             }
-        }
-        if (ui->destinationBtn) {
-            ui->destinationBtn->setVisible(status_ != "이동중");
-            ui->destinationBtn->setVisible(control_status_ != "OFF");
-        }
+
+            reply->deleteLater();
+        });
+
+    } catch (const YAML::BadFile& e) {
+        qDebug() << "YAML 파일 로드 실패:" << e.what();
+        return;
     }
 }
 
-QString DashboardWidget::getStatus() const
-{
-    return status_;
-}
-
-QString DashboardWidget::getControlStatus() const
-{
-    return control_status_;
-}
 
 void DashboardWidget::setupControlButton()
 {
@@ -197,26 +256,69 @@ void DashboardWidget::setupControlButton()
 
     if (ui->camera_toggle1) {
         connect(ui->camera_toggle1, &QPushButton::clicked,
-                this, &DashboardWidget::onCameraToggle1Clicked);
+                this, &DashboardWidget::onCameraToggleClicked);
     }
     if (ui->camera_toggle2) {
         connect(ui->camera_toggle2, &QPushButton::clicked,
-                this, &DashboardWidget::onCameraToggle2Clicked);
+                this, &DashboardWidget::onCameraToggleClicked);
     }
 }
 
-void DashboardWidget::onCameraToggle1Clicked()
+void DashboardWidget::onCameraToggleClicked()
 {
-    camera_toggle_status_ = "전면";
-    setCameraToggleStatus();
-    qDebug() << "전면 카메라로 전환됨";
-}
+    std::string config_path = "../../config.yaml";
+    YAML::Node config = YAML::LoadFile(config_path);
+    std::string CENTRAL_IP = config["central_server"]["ip"].as<std::string>();
+    int CENTRAL_HTTP_PORT = config["central_server"]["http_port"].as<int>();
 
-void DashboardWidget::onCameraToggle2Clicked()
-{
-    camera_toggle_status_ = "후면";
-    setCameraToggleStatus();
-    qDebug() << "후면 카메라로 전환됨";
+    QString url = QString("http://%1:%2/change/camera")
+                    .arg(CENTRAL_IP.c_str())
+                    .arg(CENTRAL_HTTP_PORT);
+
+    QJsonObject data;
+    data["robot_id"] = 3;
+    data["dest"] = camera_toggle_status_ == "전면" ? "front" : "back";  // 전면/후면 카메라 설정
+    QJsonDocument doc(data);
+    QByteArray jsonData = doc.toJson();
+
+    qDebug() << "[로봇 위치 요청 URL]:" << url;
+    qDebug() << "[전송 데이터]:" << jsonData;
+    try
+    {
+        QNetworkRequest request{QUrl(url)};
+        request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+        QNetworkAccessManager* manager = new QNetworkAccessManager(this);
+        QNetworkReply* reply = manager->post(request, jsonData);
+
+        connect(reply, &QNetworkReply::finished, this, [this, reply, CENTRAL_IP, CENTRAL_HTTP_PORT]() {
+            int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (statusCode == 200) {
+                qDebug() << "카메라 변경 성공. 200";
+                camera_toggle_status_ = camera_toggle_status_ == "전면" ? "후면" : "전면";
+                setCameraToggleStatus();
+                qDebug() << camera_toggle_status_ << " 카메라로 전환됨";
+            } else if (statusCode == 400) {
+                qDebug() << "잘못된 요청입니다. 400 Bad Request";
+            } else if (statusCode == 401) {
+                qDebug() << "정상 요청, 정보 없음 or 응답 실패. 401";
+            } else if (statusCode == 404) {
+                qDebug() << "잘못된 요청 404 Not Found";
+            } else if (statusCode == 405) {
+                qDebug() << "메소드가 리소스 허용 안됨";
+            } else if (statusCode == 500) {
+                qDebug() << "서버 내부 오류 500 Internal Server Error";
+            } else if (statusCode == 503) {
+                qDebug() << "서비스 불가";
+            } else {
+                qDebug() << "알 수 없는 오류 발생. 상태 코드:" << statusCode;
+            }
+            reply->deleteLater();
+        });
+    } catch (const YAML::BadFile& e) {
+        qDebug() << "YAML 파일 로드 실패:" << e.what();
+        return;
+    }
 }
 
 void DashboardWidget::setupStatusWidget()
@@ -254,7 +356,7 @@ void DashboardWidget::onControlButtonClicked()
         }
         if (!control_popup1_) {
             control_popup1_ = new ControlPopup1(this);
-            connect(control_popup1_, &ControlPopup1::stopRequested, this, &DashboardWidget::setStatusToIdle);
+            connect(control_popup1_, &ControlPopup1::stopRequested, this, &DashboardWidget::setStatusToAssigned);
         }
         
         control_popup1_->show();
@@ -262,8 +364,112 @@ void DashboardWidget::onControlButtonClicked()
         control_popup1_->activateWindow();
 
         
+    } else if (status_ == "제어중") {
+        std::string config_path = "../../config.yaml";
+        YAML::Node config = YAML::LoadFile(config_path);
+        std::string CENTRAL_IP = config["central_server"]["ip"].as<std::string>();
+        int CENTRAL_HTTP_PORT = config["central_server"]["http_port"].as<int>();
+
+        QString url = QString("http://%1:%2/cancel_command")
+                        .arg(CENTRAL_IP.c_str())
+                        .arg(CENTRAL_HTTP_PORT);
+
+        QJsonObject data;
+        data["robot_id"] = 3;
+        QJsonDocument doc(data);
+        QByteArray jsonData = doc.toJson();
+
+        qDebug() << "[로봇 위치 요청 URL]:" << url;
+        qDebug() << "[전송 데이터]:" << jsonData;
+        try
+        {
+            QNetworkRequest request{QUrl(url)};
+            request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+            QNetworkAccessManager* manager = new QNetworkAccessManager(this);
+            QNetworkReply* reply = manager->post(request, jsonData);
+
+            connect(reply, &QNetworkReply::finished, this, [this, reply, CENTRAL_IP, CENTRAL_HTTP_PORT]() {
+                int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                if (statusCode == 200) {
+                    qDebug() << "원격 제어 취소 명령 전송 성공. 200";
+                    setStatus("대기중");
+                } else if (statusCode == 400) {
+                    qDebug() << "잘못된 요청입니다. 400 Bad Request";
+                } else if (statusCode == 401) {
+                    qDebug() << "정상 요청, 정보 없음 or 응답 실패. 401";
+                } else if (statusCode == 404) {
+                    qDebug() << "잘못된 요청 404 Not Found";
+                } else if (statusCode == 405) {
+                    qDebug() << "메소드가 리소스 허용 안됨";
+                } else if (statusCode == 500) {
+                    qDebug() << "서버 내부 오류 500 Internal Server Error";
+                } else if (statusCode == 503) {
+                    qDebug() << "서비스 불가";
+                } else {
+                    qDebug() << "알 수 없는 오류 발생. 상태 코드:" << statusCode;
+                }
+
+                reply->deleteLater();
+            });
+
+        } catch (const YAML::BadFile& e) {
+            qDebug() << "YAML 파일 로드 실패:" << e.what();
+            return;
+        }
     } else {
-        setControlStatus(control_status_ == "ON" ? "OFF" : "ON");
+        std::string config_path = "../../config.yaml";
+        YAML::Node config = YAML::LoadFile(config_path);
+        std::string CENTRAL_IP = config["central_server"]["ip"].as<std::string>();
+        int CENTRAL_HTTP_PORT = config["central_server"]["http_port"].as<int>();
+
+        QString url = QString("http://%1:%2/cancel_command")
+                        .arg(CENTRAL_IP.c_str())
+                        .arg(CENTRAL_HTTP_PORT);
+
+        QJsonObject data;
+        data["robot_id"] = 3;
+        QJsonDocument doc(data);
+        QByteArray jsonData = doc.toJson();
+
+        qDebug() << "[로봇 위치 요청 URL]:" << url;
+        qDebug() << "[전송 데이터]:" << jsonData;
+        try
+        {
+            QNetworkRequest request{QUrl(url)};
+            request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+            QNetworkAccessManager* manager = new QNetworkAccessManager(this);
+            QNetworkReply* reply = manager->post(request, jsonData);
+
+            connect(reply, &QNetworkReply::finished, this, [this, reply, CENTRAL_IP, CENTRAL_HTTP_PORT]() {
+                int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                if (statusCode == 200) {
+                    qDebug() << "원격 제어 시작 명령 전송 성공. 200";
+                    setStatus("제어중");
+                } else if (statusCode == 400) {
+                    qDebug() << "잘못된 요청입니다. 400 Bad Request";
+                } else if (statusCode == 401) {
+                    qDebug() << "정상 요청, 정보 없음 or 응답 실패. 401";
+                } else if (statusCode == 404) {
+                    qDebug() << "잘못된 요청 404 Not Found";
+                } else if (statusCode == 405) {
+                    qDebug() << "메소드가 리소스 허용 안됨";
+                } else if (statusCode == 500) {
+                    qDebug() << "서버 내부 오류 500 Internal Server Error";
+                } else if (statusCode == 503) {
+                    qDebug() << "서비스 불가";
+                } else {
+                    qDebug() << "알 수 없는 오류 발생. 상태 코드:" << statusCode;
+                }
+
+                reply->deleteLater();
+            });
+
+        } catch (const YAML::BadFile& e) {
+            qDebug() << "YAML 파일 로드 실패:" << e.what();
+            return;
+        }
     }
 }
 
@@ -331,9 +537,8 @@ void DashboardWidget::setupCameraWidget()
     }
 }
 
-void DashboardWidget::setStatusToIdle() {
-    setStatus("대기중");
-    setControlStatus(control_status_ == "ON" ? "OFF" : "ON");
+void DashboardWidget::setStatusToAssigned() {
+    setStatus("제어중");
 }
 
 void DashboardWidget::onImageReceived(const QPixmap& pixmap)
@@ -400,8 +605,7 @@ void DashboardWidget::setWidgetClasses()
     }
     if (ui->destinationBtn) {
         ui->destinationBtn->setProperty("class", "btn outlined primary_dark small");
-        ui->destinationBtn->setVisible(status_ != "이동중");
-        ui->destinationBtn->setVisible(control_status_ != "OFF");
+        ui->destinationBtn->setVisible(status_ == "제어중");
     }
     if (ui->controlBtn) {
         ui->controlBtn->setProperty("class", "btn outlined primary_dark small");

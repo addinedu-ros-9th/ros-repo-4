@@ -367,6 +367,11 @@ class AuthenticationActivity : AppCompatActivity() {
                     putExtra("user_name", userName)
                     putExtra("department", department)
                     putExtra("isFromCheckin", true)
+
+                    // 주민번호(13자리)가 아닌 경우에만 patient_id로 전달
+                    if (maxLength == 8) {
+                        putExtra("patient_id", realInput.joinToString(""))
+                    }
                 }
                 startActivity(intent)
                 finish()
@@ -375,3 +380,4 @@ class AuthenticationActivity : AppCompatActivity() {
         popup.show(supportFragmentManager, "CheckinPopup")
     }
 }
+
