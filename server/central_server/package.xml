@@ -11,10 +11,7 @@
   
   <depend>rclcpp</depend>
   <depend>robot_interfaces</depend>
-  <depend>sensor_msgs</depend>
   <depend>nav_msgs</depend>
-  <depend>cv_bridge</depend>
-  <depend>image_transport</depend>
   <depend>domain_bridge</depend>
 
   <export>

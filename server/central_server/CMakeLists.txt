@@ -11,11 +11,7 @@ find_package(yaml-cpp REQUIRED)
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(robot_interfaces REQUIRED)
-find_package(sensor_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
-find_package(cv_bridge REQUIRED)
-find_package(image_transport REQUIRED)
-find_package(OpenCV REQUIRED)
 find_package(domain_bridge REQUIRED)
 
 # HTTP 서버를 위한 라이브러리들
@@ -38,10 +34,7 @@ add_executable(central_server_node
 ament_target_dependencies(central_server_node
   rclcpp
   robot_interfaces
-  sensor_msgs
   nav_msgs
-  cv_bridge
-  image_transport
   domain_bridge
 )
 
@@ -51,7 +44,6 @@ target_link_libraries(central_server_node
   mysqlclient 
   pthread
   ${JSONCPP_LIBRARIES}
-  ${OpenCV_LIBS}
   yaml-cpp
   OpenSSL::SSL
   OpenSSL::Crypto

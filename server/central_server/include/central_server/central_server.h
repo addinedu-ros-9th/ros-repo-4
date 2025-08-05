@@ -2,12 +2,8 @@
 #define CENTRAL_SERVER_H
 
 #include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/image.hpp>
 #include <robot_interfaces/msg/robot_status.hpp>
 #include <robot_interfaces/srv/change_robot_status.hpp>
-#include <image_transport/image_transport.hpp>
-#include <cv_bridge/cv_bridge.hpp>
-#include <opencv2/opencv.hpp>
 
 #include "database_manager.h"
 #include "http_server.h"
@@ -33,7 +29,6 @@ private:
     // 기존 함수들
     void runDatabaseThread();
     void runHttpThread();
-    void imageCallback(const sensor_msgs::msg::Image::ConstSharedPtr& msg);
     void statusCallback(const robot_interfaces::msg::RobotStatus::SharedPtr msg);
     void changeStatusCallback(
         const std::shared_ptr<robot_interfaces::srv::ChangeRobotStatus::Request> request,
@@ -53,8 +48,6 @@ private:
     std::unique_ptr<HttpServer> http_server_;
     std::unique_ptr<RobotNavigationManager> nav_manager_;
     
-    std::shared_ptr<image_transport::ImageTransport> image_transport_;
-    image_transport::Subscriber image_subscriber_;
     rclcpp::Subscription<robot_interfaces::msg::RobotStatus>::SharedPtr status_subscriber_;
     rclcpp::Service<robot_interfaces::srv::ChangeRobotStatus>::SharedPtr status_service_;
     

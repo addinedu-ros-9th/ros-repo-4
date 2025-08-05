@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import os
+# CUDA 메모리 최적화 환경 변수 설정
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+
 from flask import Flask, request, jsonify, Response, stream_template
 from flask_cors import CORS
 import json
@@ -8,6 +13,7 @@ import sys
 import time
 import io
 import torch
+import gc
 from robot_system import RobotSystem
 
 app = Flask(__name__)
@@ -15,10 +21,20 @@ CORS(app)  # CORS 활성화
 
 print("🚀 PyTorch 기반 RobotSystem 서버 초기화 중...")
 
+# GPU 메모리 정리 함수
+def clear_gpu_memory():
+    """GPU 메모리 정리"""
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        gc.collect()
+        print("🧹 GPU 메모리 정리 완료")
+
 # GPU 환경 확인
 if torch.cuda.is_available():
     print(f"✅ GPU 모드: {torch.cuda.get_device_name(0)}")
     print(f"📊 CUDA 버전: {torch.version.cuda}")
+    # 초기 메모리 정리
+    clear_gpu_memory()
 elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
     print("✅ Apple Silicon MPS 모드")
 else:
@@ -42,6 +58,9 @@ robot = RobotSystem(
 def chat():
     """일반 채팅 API - 최종 응답만 반환"""
     try:
+        # 요청 전 메모리 정리
+        clear_gpu_memory()
+        
         data = request.get_json()
         user_input = data.get('message', '')
         
@@ -61,6 +80,9 @@ def chat():
         print(f"🔧 실행된 함수: {function_name}")
         print(f"🔧 함수 결과: {function_result}")
         
+        # 응답 후 메모리 정리
+        clear_gpu_memory()
+        
         return jsonify({
             'response': response,
             'function_result': function_result,
@@ -69,6 +91,7 @@ def chat():
         
     except Exception as e:
         print(f"❌ 처리 오류: {e}")
+        clear_gpu_memory()  # 오류 발생 시에도 메모리 정리
         return jsonify({'error': f'서버 오류: {str(e)}'}), 500
 
 @app.route('/api/health', methods=['GET'])
@@ -107,6 +130,9 @@ def health_check():
 def stream_chat():
     """실시간 스트리밍 채팅 (Server-Sent Events) - PyTorch 최적화"""
     try:
+        # 요청 전 메모리 정리
+        clear_gpu_memory()
+        
         data = request.get_json()
         user_input = data.get('message', '')
         
@@ -145,20 +171,28 @@ def stream_chat():
                     yield f"data: {json.dumps({'type': 'complete', 'content': response, 'function_result': function_result, 'function_name': function_name})}\n\n"
                 else:
                     yield f"data: {json.dumps({'type': 'error', 'content': '응답을 생성할 수 없습니다'})}\n\n"
+                
+                # 스트리밍 완료 후 메모리 정리
+                clear_gpu_memory()
                     
             except Exception as e:
                 error_msg = f"스트리밍 오류: {str(e)}"
                 yield f"data: {json.dumps({'type': 'error', 'content': error_msg})}\n\n"
+                clear_gpu_memory()  # 오류 발생 시에도 메모리 정리
         
         return Response(generate_stream(), mimetype='text/event-stream')
         
     except Exception as e:
+        clear_gpu_memory()  # 오류 발생 시에도 메모리 정리
         return jsonify({'error': f'스트리밍 서버 오류: {str(e)}'}), 500
 
 @app.route('/api/token_stream', methods=['POST'])
 def token_stream_chat():
     """토큰 단위 실시간 스트리밍 - PyTorch 최적화"""
     try:
+        # 요청 전 메모리 정리
+        clear_gpu_memory()
+        
         data = request.get_json()
         user_input = data.get('message', '')
         
@@ -191,14 +225,19 @@ def token_stream_chat():
                     yield f"data: {json.dumps({'type': 'complete', 'content': response, 'function_result': function_result, 'function_name': function_name})}\n\n"
                 else:
                     yield f"data: {json.dumps({'type': 'error', 'content': '응답을 생성할 수 없습니다'})}\n\n"
+                
+                # 스트리밍 완료 후 메모리 정리
+                clear_gpu_memory()
                     
             except Exception as e:
                 error_msg = f"토큰 스트리밍 오류: {str(e)}"
                 yield f"data: {json.dumps({'type': 'error', 'content': error_msg})}\n\n"
+                clear_gpu_memory()  # 오류 발생 시에도 메모리 정리
         
         return Response(generate_token_stream(), mimetype='text/event-stream')
         
     except Exception as e:
+        clear_gpu_memory()  # 오류 발생 시에도 메모리 정리
         return jsonify({'error': f'토큰 스트리밍 서버 오류: {str(e)}'}), 500
 
 @app.route('/api/gpu_status', methods=['GET'])

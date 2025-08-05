@@ -190,30 +190,6 @@ void CentralServer::runHttpThread() {
     RCLCPP_INFO(this->get_logger(), "HTTP 스레드 종료중...");
 }
 
-void CentralServer::imageCallback(const sensor_msgs::msg::Image::ConstSharedPtr& msg)
-{
-    try {
-        // ROS2 Image 메시지를 OpenCV Mat으로 변환
-        cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(msg, "bgr8");
-        
-        // 이미지 정보 로그 (너무 자주 출력하지 않도록 제한)
-        static int frame_count = 0;
-        frame_count++;
-        
-        if (frame_count % 60 == 0) { // 60프레임마다 로그
-            RCLCPP_INFO(this->get_logger(), 
-                       "AI 서버로부터 이미지 수신 - 크기: %dx%d, 프레임 #%d", 
-                       cv_ptr->image.cols, cv_ptr->image.rows, frame_count);
-        }
-        
-        // 여기에 이미지 처리 로직을 추가할 수 있습니다
-        // 예: 이미지 저장, 분석, 웹으로 스트리밍 등
-        
-    } catch (cv_bridge::Exception& e) {
-        RCLCPP_ERROR(this->get_logger(), "이미지 변환 실패: %s", e.what());
-    }
-}
-
 void CentralServer::statusCallback(const robot_interfaces::msg::RobotStatus::SharedPtr msg)
 {
     RCLCPP_INFO(this->get_logger(), 
@@ -296,17 +272,7 @@ void CentralServer::broadcastToGuiClients(const std::string& message)
 
 void CentralServer::init() {
     RCLCPP_INFO(this->get_logger(), "[init] this ptr: %p", (void*)this);
-    try {
-        auto self = rclcpp::Node::shared_from_this();
-        RCLCPP_INFO(this->get_logger(), "[init] shared_from_this() ptr: %p", (void*)self.get());
-        image_transport_ = std::make_shared<image_transport::ImageTransport>(self);
-    } catch (const std::exception& e) {
-        RCLCPP_ERROR(this->get_logger(), "[init] Exception during shared_from_this(): %s", e.what());
-        throw;
-    }
-    image_subscriber_ = image_transport_->subscribe(
-        "webcam/image_raw", 1, 
-        std::bind(&CentralServer::imageCallback, this, std::placeholders::_1));
+    
     status_subscriber_ = this->create_subscription<robot_interfaces::msg::RobotStatus>(
         "robot_status", 10,
         std::bind(&CentralServer::statusCallback, this, std::placeholders::_1));
