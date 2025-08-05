@@ -19,7 +19,7 @@ public:
     ~UdpImageSender();
     
     bool initialize();
-    void sendImage(const cv::Mat& image);
+    void sendImage(const cv::Mat& image, int camera_type = 0); // camera_type: 0=front, 1=back
     void stop();
     
     // 설정 함수들
@@ -44,8 +44,12 @@ private:
     std::atomic<bool> initialized_;
     std::mutex send_mutex_;
     
+    // 프로토콜 관련
+    uint32_t sequence_number_;
+    
     // 헬퍼 함수들
     std::vector<uchar> compressImage(const cv::Mat& image);
+    std::vector<uchar> createPacketHeader(int camera_type);
     bool sendData(const std::vector<uchar>& data);
     bool sendPackets(const std::vector<uchar>& data);
 };

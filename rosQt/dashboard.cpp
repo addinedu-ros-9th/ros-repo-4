@@ -510,8 +510,18 @@ void DashboardWidget::setupMapWidget()
 
 void DashboardWidget::setupCameraWidget()
 {
+    // config.yaml에서 UDP 포트 읽기
+    int udp_port = 8888;  // 기본값
+    try {
+        std::string config_path = "../../config.yaml";
+        YAML::Node config = YAML::LoadFile(config_path);
+        udp_port = config["ros_gui_client"]["udp_receive_port"].as<int>();
+    } catch (const std::exception& e) {
+        qDebug() << "config.yaml 로드 실패, 기본 포트 8888 사용:" << e.what();
+    }
+    
     // UDP 이미지 수신기 생성
-    udp_receiver_ = new UdpImageReceiver("127.0.0.1", 8888, this);
+    udp_receiver_ = new UdpImageReceiver("127.0.0.1", udp_port, this);
     
     // 시그널 연결
     connect(udp_receiver_, &UdpImageReceiver::imageReceived, 
@@ -528,7 +538,7 @@ void DashboardWidget::setupCameraWidget()
     
     // camera_img에 기본 텍스트 설정
     if (ui->camera_img) {
-        ui->camera_img->setText("AI Server 연결 중...\n127.0.0.1:8888");
+        ui->camera_img->setText(QString("AI Server 연결 중...\n127.0.0.1:%1").arg(udp_port));
         ui->camera_img->setAlignment(Qt::AlignCenter);
         ui->camera_img->setScaledContents(true);
         
@@ -546,19 +556,30 @@ void DashboardWidget::onImageReceived(const QPixmap& pixmap)
     static bool first_image = true;
     if (first_image) {
         qDebug() << "✅ AI Server 연결 성공! 이미지 수신 시작";
+        qDebug() << "📸 첫 이미지 크기:" << pixmap.size();
         first_image = false;
     }
 
     if (ui->camera_img) {
+        qDebug() << "🎥 이미지 수신됨 - 크기:" << pixmap.size() << "camera_img 크기:" << ui->camera_img->size();
+        
         // camera_img에 받은 이미지 표시
-        ui->camera_img->setPixmap(pixmap.scaled(
+        QPixmap scaled_pixmap = pixmap.scaled(
             ui->camera_img->size(), 
             Qt::KeepAspectRatio, 
             Qt::SmoothTransformation
-        ));
+        );
+        
+        qDebug() << "🖼️ 스케일된 이미지 크기:" << scaled_pixmap.size();
+        
+        ui->camera_img->setPixmap(scaled_pixmap);
 
         // 연결 성공 시 스타일 초기화
         ui->camera_img->setStyleSheet("");
+        
+        qDebug() << "✅ 이미지 표시 완료";
+    } else {
+        qDebug() << "❌ camera_img 위젯이 null입니다!";
     }
 }
 

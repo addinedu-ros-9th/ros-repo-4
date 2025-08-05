@@ -4,7 +4,8 @@
 
 UdpImageSender::UdpImageSender(const std::string& target_ip, int target_port)
     : socket_fd_(-1), target_ip_(target_ip), target_port_(target_port),
-      compression_quality_(80), max_packet_size_(60000), initialized_(false)
+      compression_quality_(80), max_packet_size_(60000), initialized_(false),
+      sequence_number_(0)
 {
 }
 
@@ -45,7 +46,7 @@ bool UdpImageSender::initialize()
     return true;
 }
 
-void UdpImageSender::sendImage(const cv::Mat& image)
+void UdpImageSender::sendImage(const cv::Mat& image, int camera_type)
 {
     if (!initialized_ || image.empty()) {
         return;
@@ -62,10 +63,21 @@ void UdpImageSender::sendImage(const cv::Mat& image)
             return;
         }
         
+        // 프로토콜 헤더 생성
+        std::vector<uchar> header = createPacketHeader(camera_type);
+        
+        // 헤더와 이미지 데이터 결합
+        std::vector<uchar> packet_data;
+        packet_data.insert(packet_data.end(), header.begin(), header.end());
+        packet_data.insert(packet_data.end(), compressed_data.begin(), compressed_data.end());
+        
         // UDP로 전송
-        if (!sendData(compressed_data)) {
+        if (!sendData(packet_data)) {
             std::cerr << "UDP 전송 실패!" << std::endl;
         }
+        
+        // 시퀀스 번호 증가
+        sequence_number_++;
         
     } catch (const std::exception& e) {
         std::cerr << "이미지 전송 중 오류: " << e.what() << std::endl;
@@ -195,4 +207,33 @@ bool UdpImageSender::sendPackets(const std::vector<uchar>& data)
     }
     
     return true;
+}
+
+std::vector<uchar> UdpImageSender::createPacketHeader(int camera_type)
+{
+    std::vector<uchar> header;
+    
+    // 1byte: Start(0xAB)
+    header.push_back(0xAB);
+    
+    // 1byte: 카메라 타입(0x00=front/0x01=back)
+    header.push_back(static_cast<uchar>(camera_type));
+    
+    // 4byte: 시퀀스 번호 (little-endian)
+    header.push_back(static_cast<uchar>(sequence_number_ & 0xFF));
+    header.push_back(static_cast<uchar>((sequence_number_ >> 8) & 0xFF));
+    header.push_back(static_cast<uchar>((sequence_number_ >> 16) & 0xFF));
+    header.push_back(static_cast<uchar>((sequence_number_ >> 24) & 0xFF));
+    
+    // 4byte: 타임스탬프 (현재 시간을 밀리초 단위로, little-endian)
+    auto now = std::chrono::system_clock::now();
+    auto duration = now.time_since_epoch();
+    auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+    
+    header.push_back(static_cast<uchar>(millis & 0xFF));
+    header.push_back(static_cast<uchar>((millis >> 8) & 0xFF));
+    header.push_back(static_cast<uchar>((millis >> 16) & 0xFF));
+    header.push_back(static_cast<uchar>((millis >> 24) & 0xFF));
+    
+    return header;
 }

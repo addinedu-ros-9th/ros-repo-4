@@ -12,6 +12,11 @@
 #include <atomic>
 #include <memory>
 #include <yaml-cpp/yaml.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <string>
 
 #include "ai_server/webcam_streamer.h"
 #include "ai_server/udp_image_sender.h"
@@ -34,11 +39,18 @@ private:
     int gui_client_port_;
     int max_packet_size_;
 
-    // 웹캠 스트리머
-    std::unique_ptr<WebcamStreamer> webcam_streamer_;
+    // 웹캠 스트리머 (전면/후면 카메라)
+    std::unique_ptr<WebcamStreamer> front_camera_;
+    std::unique_ptr<WebcamStreamer> back_camera_;
+    std::atomic<int> current_camera_; // 0: front, 1: back
     
     // UDP 이미지 전송기
     std::unique_ptr<UdpImageSender> udp_sender_;
+    
+    // HTTP 서버 관련
+    int http_server_fd_;
+    int http_port_;
+    std::thread http_server_thread_;
     
     // ROS2 퍼블리셔/서브스크라이버
     image_transport::Publisher image_publisher_;
@@ -60,6 +72,17 @@ private:
     // 스레드 실행 함수들
     void runWebcamThread();
     void runProcessingThread();
+    void runHttpServerThread();
+    
+    // HTTP 서버 함수들
+    bool initializeHttpServer();
+    void handleHttpRequest(int client_fd);
+    void handleCameraChangeRequest(int client_fd, const std::string& request);
+    std::string createHttpResponse(const cv::Mat& image);
+    cv::Mat getCurrentCameraFrame();
+    
+    // 카메라 전환 함수
+    void switchCamera(int camera_id);
     
     // Image Transport
     std::shared_ptr<image_transport::ImageTransport> image_transport_;
