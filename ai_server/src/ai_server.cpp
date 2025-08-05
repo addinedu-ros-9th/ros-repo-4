@@ -9,9 +9,8 @@ AIServer::AIServer()
       gui_client_ip_("127.0.0.1"),   
       gui_client_port_(8888),        
       max_packet_size_(60000),
-      current_camera_(0),  // 기본값: 전면 카메라
-      http_server_fd_(-1),
-      http_port_(8888)     // HTTP 서버 포트
+      webcam_streamer_(std::make_unique<WebcamStreamer>(0))
+    //   webcam_streamer_(std::make_unique<WebcamStreamer>(2))
 {
     RCLCPP_INFO(this->get_logger(), "AI Server 노드 생성중...");
 
