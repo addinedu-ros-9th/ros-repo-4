@@ -268,20 +268,20 @@ void DashboardWidget::onCameraToggleClicked()
 {
     std::string config_path = "../../config.yaml";
     YAML::Node config = YAML::LoadFile(config_path);
-    std::string CENTRAL_IP = config["central_server"]["ip"].as<std::string>();
-    int CENTRAL_HTTP_PORT = config["central_server"]["http_port"].as<int>();
+    std::string AI_SERVER_IP = config["ai_server"]["ip"].as<std::string>();
+    int AI_SERVER_PORT = config["ai_server"]["port"].as<int>();
 
     QString url = QString("http://%1:%2/change/camera")
-                    .arg(CENTRAL_IP.c_str())
-                    .arg(CENTRAL_HTTP_PORT);
+                    .arg(AI_SERVER_IP.c_str())
+                    .arg(AI_SERVER_PORT);
 
     QJsonObject data;
     data["robot_id"] = 3;
-    data["dest"] = camera_toggle_status_ == "전면" ? "front" : "back";  // 전면/후면 카메라 설정
+    data["camera"] = camera_toggle_status_ == "전면" ? "back" : "front";  // 전면일 때 후면으로, 후면일 때 전면으로
     QJsonDocument doc(data);
     QByteArray jsonData = doc.toJson();
 
-    qDebug() << "[로봇 위치 요청 URL]:" << url;
+    qDebug() << "[카메라 전환 요청 URL]:" << url;
     qDebug() << "[전송 데이터]:" << jsonData;
     try
     {
@@ -291,7 +291,7 @@ void DashboardWidget::onCameraToggleClicked()
         QNetworkAccessManager* manager = new QNetworkAccessManager(this);
         QNetworkReply* reply = manager->post(request, jsonData);
 
-        connect(reply, &QNetworkReply::finished, this, [this, reply, CENTRAL_IP, CENTRAL_HTTP_PORT]() {
+        connect(reply, &QNetworkReply::finished, this, [this, reply, AI_SERVER_IP, AI_SERVER_PORT]() {
             int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
             if (statusCode == 200) {
                 qDebug() << "카메라 변경 성공. 200";

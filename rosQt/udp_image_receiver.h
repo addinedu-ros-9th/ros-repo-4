@@ -20,7 +20,7 @@ class UdpImageReceiver : public QObject
     Q_OBJECT
 
 public:
-    explicit UdpImageReceiver(const QString& ip = "127.0.0.1", int port = 7777, QObject *parent = nullptr);
+    explicit UdpImageReceiver(const QString& ip = "127.0.0.1", int port = 8888, QObject *parent = nullptr);
     ~UdpImageReceiver();
     
     bool initialize();
