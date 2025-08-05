@@ -511,8 +511,12 @@ void DashboardWidget::setupMapWidget()
 void DashboardWidget::setupCameraWidget()
 {
     // UDP 이미지 수신기 생성
-    udp_receiver_ = new UdpImageReceiver("127.0.0.1", 8888, this);
-    
+    std::string config_path = "../../config.yaml";
+    YAML::Node config = YAML::LoadFile(config_path);
+    std::string CENTRAL_IP = config["ai_server"]["ip"].as<std::string>();
+    int CENTRAL_HTTP_PORT = config["ros_gui_client"]["udp_receive_port"].as<int>();
+    udp_receiver_ = new UdpImageReceiver(QString::fromStdString(CENTRAL_IP), CENTRAL_HTTP_PORT, this);
+
     // 시그널 연결
     connect(udp_receiver_, &UdpImageReceiver::imageReceived, 
             this, &DashboardWidget::onImageReceived);
@@ -528,7 +532,7 @@ void DashboardWidget::setupCameraWidget()
     
     // camera_img에 기본 텍스트 설정
     if (ui->camera_img) {
-        ui->camera_img->setText("AI Server 연결 중...\n127.0.0.1:8888");
+        ui->camera_img->setText("AI Server 연결 중...\n" + QString::fromStdString(CENTRAL_IP) + ":" + QString::number(CENTRAL_HTTP_PORT));
         ui->camera_img->setAlignment(Qt::AlignCenter);
         ui->camera_img->setScaledContents(true);
         
@@ -575,7 +579,12 @@ void DashboardWidget::onConnectionError(const QString& error)
 // 새로 추가할 슬롯
 void DashboardWidget::onConnectionEstablished()
 {
-    qDebug() << "🔗 AI Server UDP 소켓 연결됨 (127.0.0.1:8888)";
+    std::string config_path = "../../config.yaml";
+    YAML::Node config = YAML::LoadFile(config_path);
+    std::string CENTRAL_IP = config["ai_server"]["ip"].as<std::string>();
+    int CENTRAL_HTTP_PORT = config["ros_gui_client"]["udp_receive_port"].as<int>();
+    
+    qDebug() << "🔗 AI Server UDP 소켓 연결됨 (" + QString::fromStdString(CENTRAL_IP) + ":" + QString::number(CENTRAL_HTTP_PORT) + ")";
     
     if (ui->camera_img) {
         ui->camera_img->setText("AI Server 연결됨\n이미지 수신 대기 중...");
