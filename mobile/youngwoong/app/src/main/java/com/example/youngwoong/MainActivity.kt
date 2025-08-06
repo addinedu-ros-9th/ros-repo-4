@@ -1,18 +1,24 @@
 package com.example.youngwoong
 
+import android.Manifest
 import android.content.Intent
-import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
+import android.content.pm.PackageManager
+import android.os.*
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.view.MotionEvent
 import android.widget.Button
 import android.widget.ImageView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 
 class MainActivity : AppCompatActivity() {
+
     private lateinit var leftEye: ImageView
     private lateinit var rightEye: ImageView
     private lateinit var tapPrompt: ImageView
@@ -20,12 +26,14 @@ class MainActivity : AppCompatActivity() {
 
     private val handler = Handler(Looper.getMainLooper())
     private var angle = 0.0
-
     private var currentOffsetAngle = 0.0
     private var targetOffsetAngle = 0.0
-
     private var currentVerticalOffset = 0.0
     private var targetVerticalOffset = 0.0
+
+    private lateinit var speechRecognizer: SpeechRecognizer
+    private lateinit var speechIntent: Intent
+    private val wakeWords = listOf("영웅아", "영화", "영아","영우아", "영웅이")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,30 +43,85 @@ class MainActivity : AppCompatActivity() {
         rightEye = findViewById(R.id.right_eye)
         tapPrompt = findViewById(R.id.tap_prompt)
         testButton = findViewById(R.id.testButton)
-        
-        // 디버깅: 버튼이 제대로 찾아졌는지 확인
-        if (testButton == null) {
-            println("ERROR: testButton이 null입니다!")
-        } else {
-            println("SUCCESS: testButton을 찾았습니다!")
-            // 버튼을 강제로 보이게 설정
-            testButton?.visibility = android.view.View.VISIBLE
+
+        testButton?.apply {
+            visibility = android.view.View.VISIBLE
+            setOnClickListener {
+                startActivity(Intent(this@MainActivity, TestRobotSystemActivity::class.java))
+            }
         }
-        
-        // 테스트 버튼이 null이 아닌지 확인 후 클릭 이벤트 설정
-        testButton?.setOnClickListener {
-            val intent = Intent(this, TestRobotSystemActivity::class.java)
-            startActivity(intent)
-        }
+
+        setupSTT()
+        checkPermissions()
 
         startEyeAnimation()
         startPromptBlink()
     }
 
+    private fun checkPermissions() {
+        val permissions = listOf(Manifest.permission.RECORD_AUDIO)
+        val notGranted = permissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (notGranted.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, notGranted.toTypedArray(), 1001)
+        } else {
+            startListening()
+        }
+    }
+
+    private fun setupSTT() {
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
+        speechRecognizer.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {}
+            override fun onError(error: Int) {
+                // 재시작
+                speechRecognizer.cancel()
+                startListening()
+            }
+
+            override fun onResults(results: Bundle?) {
+                val result = results
+                    ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    ?.getOrNull(0) ?: return
+
+                for (keyword in wakeWords) {
+                    if (result.contains(keyword)) {
+                        val intent = Intent(this@MainActivity, VoiceGuideActivity::class.java)
+                        intent.putExtra("voice_triggered", true)
+                        startActivity(intent)
+                        finish()
+                        return
+                    }
+                }
+
+                // 계속 듣기
+                startListening()
+            }
+
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+
+        speechIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR")
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        }
+    }
+
+    private fun startListening() {
+        speechRecognizer.startListening(speechIntent)
+    }
+
     private fun startEyeAnimation() {
         val radiusX = 30f
         val radiusY = 15f
-        val baseYOffset = 20f  // ⭐ 아래로 내리기
+        val baseYOffset = 20f
 
         val runnable = object : Runnable {
             override fun run() {
@@ -73,7 +136,6 @@ class MainActivity : AppCompatActivity() {
 
                 leftEye.translationX = offsetX
                 leftEye.translationY = offsetY
-
                 rightEye.translationX = offsetX
                 rightEye.translationY = offsetY
 
@@ -86,20 +148,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun startPromptBlink() {
         val blinkHandler = Handler(Looper.getMainLooper())
-
         val blinkRunnable = object : Runnable {
             var visible = true
             override fun run() {
-                tapPrompt.animate()
-                    .alpha(if (visible) 1f else 0f)
-                    .setDuration(500)
-                    .start()
-
+                tapPrompt.animate().alpha(if (visible) 1f else 0f).setDuration(500).start()
                 visible = !visible
                 blinkHandler.postDelayed(this, 700)
             }
         }
-
         blinkHandler.post(blinkRunnable)
     }
 
@@ -112,5 +168,10 @@ class MainActivity : AppCompatActivity() {
             return true
         }
         return super.onTouchEvent(event)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        speechRecognizer.destroy()
     }
 }
