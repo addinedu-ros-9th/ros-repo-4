@@ -10,7 +10,7 @@ find_package(yaml-cpp REQUIRED)
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(robot_interfaces REQUIRED)
+find_package(control_interfaces REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(domain_bridge REQUIRED)
 
@@ -35,7 +35,7 @@ add_executable(central_server_node
 # 의존성 연결
 ament_target_dependencies(central_server_node
   rclcpp
-  robot_interfaces
+  control_interfaces
   nav_msgs
   domain_bridge
 )

@@ -10,7 +10,7 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
   
   <depend>rclcpp</depend>
-  <depend>robot_interfaces</depend>
+  <depend>control_interfaces</depend>
   <depend>nav_msgs</depend>
   <depend>domain_bridge</depend>
 
