@@ -21,13 +21,15 @@
 #include <QJsonObject>
 #include "user_info.h"
 
+
+
 DashboardWidget::DashboardWidget(QWidget *parent) 
     : QWidget(parent)
     , ui(new Ui_DashboardWidget)
     , ros_timer_(new QTimer(this))
     , status_widget(nullptr) 
-    , status_widget2(nullptr) // 추가
-    , status_widget3(nullptr) // 추가
+    , status_widget2(nullptr) 
+    , status_widget3(nullptr)
     , map_widget(nullptr)
     , udp_receiver_(nullptr) 
     , control_popup1_(nullptr) 
@@ -43,15 +45,18 @@ DashboardWidget::DashboardWidget(QWidget *parent)
     , status_("idle")
     , control_status_("대기중")
     , camera_toggle_status_("전면")
+    , websocket_(nullptr)  
 {
     ui->setupUi(this);  // UI 파일 설정
     setWidgetClasses();
     setupStatusWidget();
     setupMapWidget();
     setupCameraWidget(); 
-    setupControlButton();  // 추가
+    setupControlButton(); 
     setCameraToggleStatus();  // 초기 카메라 상태 설정
     getRobotStatus();
+
+    setupWebSocket(); 
 
     // 5초마다 로봇 위치 가져오기
     connect(ros_timer_, &QTimer::timeout, this, &DashboardWidget::get_robot_location);
@@ -61,6 +66,11 @@ DashboardWidget::DashboardWidget(QWidget *parent)
 
 DashboardWidget::~DashboardWidget()
 {
+    if (websocket_) {
+        websocket_->close();
+        delete websocket_;
+    }
+
     if (udp_receiver_) {     
         udp_receiver_->stop();
         delete udp_receiver_;
@@ -73,6 +83,152 @@ DashboardWidget::~DashboardWidget()
     }
     delete ui;
 }
+
+void DashboardWidget::setupWebSocket()
+{
+    try {
+        std::string config_path = "../../config.yaml";
+        YAML::Node config = YAML::LoadFile(config_path);
+        std::string CENTRAL_IP = config["central_server"]["ip"].as<std::string>();
+        int WEBSOCKET_PORT = config["websocket_port"].as<int>();
+        
+        QString websocket_url = QString("ws://%1:%2")
+                                .arg(QString::fromStdString(CENTRAL_IP))
+                                .arg(WEBSOCKET_PORT);
+        
+        websocket_ = new QWebSocket("", QWebSocketProtocol::VersionLatest, this);
+        
+        // 시그널 연결
+        connect(websocket_, &QWebSocket::connected, this, &DashboardWidget::onWebSocketConnected);
+        connect(websocket_, &QWebSocket::disconnected, this, &DashboardWidget::onWebSocketDisconnected);
+        connect(websocket_, &QWebSocket::textMessageReceived, this, &DashboardWidget::onWebSocketMessageReceived);
+        connect(websocket_, QOverload<QAbstractSocket::SocketError>::of(&QWebSocket::error),
+                this, &DashboardWidget::onWebSocketError);
+        
+        qDebug() << "🔗 WebSocket 연결 시도:" << websocket_url;
+        websocket_->open(QUrl(websocket_url));
+        
+    } catch (const std::exception& e) {
+        qDebug() << "❌ WebSocket 설정 실패:" << e.what();
+    }
+}
+
+void DashboardWidget::onWebSocketConnected()
+{
+    qDebug() << "✅ Central Server WebSocket 연결 성공!";
+    
+    // 클라이언트 타입을 GUI로 설정하는 메시지 전송 (선택사항)
+    QJsonObject register_msg;
+    register_msg["type"] = "register";
+    register_msg["client_type"] = "gui";
+    register_msg["admin_id"] = QString::fromStdString(UserInfoManager::get_user_id());
+    
+    QJsonDocument doc(register_msg);
+    websocket_->sendTextMessage(doc.toJson());
+}
+
+// WebSocket 연결 해제
+void DashboardWidget::onWebSocketDisconnected()
+{
+    qDebug() << "❌ Central Server WebSocket 연결 해제됨";
+    
+    // 3초 후 재연결 시도
+    QTimer::singleShot(3000, this, &DashboardWidget::setupWebSocket);
+}
+
+// WebSocket 메시지 수신
+void DashboardWidget::onWebSocketMessageReceived(const QString& message)
+{
+    qDebug() << "📨 WebSocket 메시지 수신:" << message;
+    
+    QJsonDocument doc = QJsonDocument::fromJson(message.toUtf8());
+    if (!doc.isObject()) {
+        qDebug() << "❌ 잘못된 JSON 형식";
+        return;
+    }
+    
+    QJsonObject data = doc.object();
+    QString type = data["type"].toString();
+    
+    if (type == "alert_occupied") {
+        handleAlertOccupied(data);
+    } else if (type == "alert_idle") {
+        handleAlertIdle(data);
+    // } else if (type == "navigating_complete") {
+    //     handleNavigatingComplete(data);
+    } else {
+        qDebug() << "🔍 알 수 없는 메시지 타입:" << type;
+    }
+}
+
+// WebSocket 오류 처리
+void DashboardWidget::onWebSocketError(QAbstractSocket::SocketError error)
+{
+    qDebug() << "❌ WebSocket 오류:" << error << websocket_->errorString();
+    
+    // 5초 후 재연결 시도
+    QTimer::singleShot(5000, this, &DashboardWidget::setupWebSocket);
+}
+
+// 관리자 사용중 알림 처리
+void DashboardWidget::handleAlertOccupied(const QJsonObject& data)
+{
+    int robot_id = data["robot_id"].toInt();
+    QString timestamp = data["timestamp"].toString();
+    
+    qDebug() << "🚨 로봇" << robot_id << "환자 사용중 알림 수신";
+    
+    // 현재 로봇이 해당 로봇인 경우에만 처리
+    if (robot_id == 3) {  // 현재 로봇 ID가 3이라고 가정
+        setControlStatus("환자사용중");
+        
+        // 알림 메시지 표시 (선택사항)
+        if (ui->status_label) {
+            ui->status_label->setText("환자사용중");
+        }
+
+        qDebug() << "✅ 로봇 상태를 '환자사용중'으로 변경";
+    }
+}
+
+// 사용 가능 알림 처리
+void DashboardWidget::handleAlertIdle(const QJsonObject& data)
+{
+    int robot_id = data["robot_id"].toInt();
+    QString timestamp = data["timestamp"].toString();
+    
+    qDebug() << "✅ 로봇" << robot_id << "사용 가능 알림 수신";
+    
+    // 현재 로봇이 해당 로봇인 경우에만 처리
+    if (robot_id == 3) {  // 현재 로봇 ID가 3이라고 가정
+        setControlStatus("대기중");
+        
+        // 알림 메시지 표시 (선택사항)
+        if (ui->status_label) {
+            ui->status_label->setText("대기중");
+        }
+        
+        qDebug() << "✅ 로봇 상태를 '대기중'으로 변경";
+    }
+}
+
+// // 길안내 완료 알림 처리
+// void DashboardWidget::handleNavigatingComplete(const QJsonObject& data)
+// {
+//     int robot_id = data["robot_id"].toInt();
+//     QString timestamp = data["timestamp"].toString();
+    
+//     qDebug() << "🎯 로봇" << robot_id << "길안내 완료 알림 수신";
+    
+//     // 현재 로봇이 해당 로봇인 경우에만 처리
+//     if (robot_id == 3) {  // 현재 로봇 ID가 3이라고 가정
+//         // 길안내 완료 처리 (필요에 따라 구현)
+//         qDebug() << "✅ 길안내 완료 처리";
+        
+//         // 예: 상태 업데이트, 알림 표시 등
+//         getRobotStatus();  // 로봇 상태 다시 확인
+//     }
+// }
 
 void DashboardWidget::setStatus(const QString& newStatus)
 {
@@ -158,7 +314,7 @@ void DashboardWidget::setControlStatus(const QString& newStatus)
 
         if (ui->status_label) {
             ui->status_label->setText(control_status_);
-            ui->status_label->setProperty("class", control_status_ == "환자사용중" ? "label primary" : control_status_ == "관리자사용중" ? "label secondary" : "label gray");
+            ui->status_label->setProperty("class", control_status_ == "환자사용중" ? "label primary" : control_status_ == "관리자사용중" ? "label error" : "label gray");
             ui->status_label->style()->unpolish(ui->status_label);
             ui->status_label->style()->polish(ui->status_label);
         } 

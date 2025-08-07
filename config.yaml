@@ -58,3 +58,5 @@ database:
   username: "root"
   password: "0000"
   database: "HeroDB"
+
+websocket_port : 3000
