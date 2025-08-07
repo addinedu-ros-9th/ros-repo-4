@@ -20,6 +20,11 @@ ai_server:
   udp_port: 5005      # UDP 이미지 전송용
   status_port: 5006   # 상태 정보 전송용
 
+  # UDP 이미지 전송 타겟 설정
+  udp_target:
+    ip: "192.168.0.74"  # 팀원 PC IP (원호 PC)
+    port: 8888          # 팀원 PC의 UDP 수신 포트
+
   target_central_server:
     ip: network.taeho_pc
     port: 5005 

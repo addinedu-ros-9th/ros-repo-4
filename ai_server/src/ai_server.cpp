@@ -8,7 +8,8 @@ AIServer::AIServer()
       running_(false),
       gui_client_ip_("127.0.0.1"),   
       gui_client_port_(8888),        
-      max_packet_size_(60000)
+      max_packet_size_(60000),
+      http_port_(5005)  // 기본 HTTP 포트 설정
       // webcam_streamer_ 제거됨
 {
     RCLCPP_INFO(this->get_logger(), "AI Server 노드 생성중...");
