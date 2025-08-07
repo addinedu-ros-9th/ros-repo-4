@@ -29,7 +29,7 @@ DashboardWidget::DashboardWidget(QWidget *parent)
     , udp_receiver_(nullptr) 
     , control_popup1_(nullptr) 
     , control_popup2_(nullptr) 
-    , status_("이동중")
+    , status_("idle")
     , camera_toggle_status_("전면")
 {
     ui->setupUi(this);  // UI 파일 설정
@@ -81,11 +81,11 @@ void DashboardWidget::setStatus(const QString& newStatus)
         }
 
         // 새 status_widget 생성
-        if (status_ == "이동중") {
+        if (status_ == "환자사용중") {
             status_widget = new StatusWidget(this);
             status_widget->setGeometry(477, 549, 753, 281);
             status_widget->show();
-        } else if (status_ == "제어중") {
+        } else if (status_ == "관리자사용중") {
             status_widget2 = new Status2Widget(this);
             status_widget2->setGeometry(477, 549, 753, 281);
             status_widget2->show();
@@ -107,7 +107,7 @@ void DashboardWidget::setStatus(const QString& newStatus)
         }
 
         if (ui->controlBtn) {
-            if(status_ == "제어중") {
+            if(status_ == "관리자사용중") {
                 ui->controlBtn->setText("제어 중지");
             } else if (status_ == "대기중") {
                 ui->controlBtn->setText("원격 제어");
@@ -116,13 +116,13 @@ void DashboardWidget::setStatus(const QString& newStatus)
 
         if (ui->status_label) {
             ui->status_label->setText(status_);
-            ui->status_label->setProperty("class", status_ == "이동중" ? "label primary" : status_ == "제어중" ? "label secondary" : "label gray");
+            ui->status_label->setProperty("class", status_ == "환자사용중" ? "label primary" : status_ == "관리자사용중" ? "label secondary" : "label gray");
             ui->status_label->style()->unpolish(ui->status_label);
             ui->status_label->style()->polish(ui->status_label);
         } 
 
         if (ui->destinationBtn) {
-            ui->destinationBtn->setVisible(status_ == "제어중");
+            ui->destinationBtn->setVisible(status_ == "관리자사용중");
         }
     }
 }
@@ -178,22 +178,22 @@ void DashboardWidget::getRobotStatus()
 
                 if (result.contains("status") && result.contains("orig") && result.contains("dest") &&
                     result.contains("battery") && result.contains("network")) {
-                    if (result["status"].toString() == "unknown") {
-                        QString robot_status = "대기중";
-                        setStatus(robot_status);
-                    } else if (result["status"].toString() == "idle") {
-                        QString robot_status = "대기중";
-                        setStatus(robot_status);
-                    } else if (result["status"].toString() == "moving") {
-                        QString robot_status = "이동중";
-                        setStatus(robot_status);
-                    } else if (result["status"].toString() == "assigned") {
-                        QString robot_status = "제어중";
-                        setStatus(robot_status);
-                    } else {
-                        QString robot_status = result["status"].toString();
-                        setStatus(robot_status);
-                    }
+                    // if (result["status"].toString() == "unknown") {
+                    //     QString robot_status = "대기중";
+                    //     setStatus(robot_status);
+                    // } else if (result["status"].toString() == "idle") {
+                    //     QString robot_status = "대기중";
+                    //     setStatus(robot_status);
+                    // } else if (result["status"].toString() == "moving") {
+                    //     QString robot_status = "환자사용중";
+                    //     setStatus(robot_status);
+                    // } else if (result["status"].toString() == "assigned") {
+                    //     QString robot_status = "관리자사용중";
+                    //     setStatus(robot_status);
+                    // } else {
+                    //     QString robot_status = result["status"].toString();
+                    //     setStatus(robot_status);
+                    // }
                     int robot_orig = result["orig"].toInt();
                     int robot_dest = result["dest"].toInt();
                     int robot_battery = result["battery"].toInt();
@@ -324,7 +324,7 @@ void DashboardWidget::onCameraToggleClicked()
 void DashboardWidget::setupStatusWidget()
 {
     // StatusWidget 생성
-    if (status_ == "이동중") {
+    if (status_ == "환자사용중") {
         status_widget = new StatusWidget(this);
         status_widget->setGeometry(477, 549, 753, 281);  // 위치와 크기 조정
         status_widget->show();
@@ -339,7 +339,7 @@ void DashboardWidget::onControlButtonClicked()
 {
     qDebug() << "🎮 Control 버튼 클릭! 현재 상태:" << status_;
     
-    if (status_ == "이동중") {
+    if (status_ == "환자사용중") {
         // 이동 중일 때 - control_popup1 표시
         qDebug() << "이동 중 상태 → ControlPopup1 표시";
         
@@ -364,7 +364,7 @@ void DashboardWidget::onControlButtonClicked()
         control_popup1_->activateWindow();
 
         
-    } else if (status_ == "제어중") {
+    } else if (status_ == "관리자사용중") {
         std::string config_path = "../../config.yaml";
         YAML::Node config = YAML::LoadFile(config_path);
         std::string CENTRAL_IP = config["central_server"]["ip"].as<std::string>();
@@ -446,7 +446,7 @@ void DashboardWidget::onControlButtonClicked()
                 int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
                 if (statusCode == 200) {
                     qDebug() << "원격 제어 시작 명령 전송 성공. 200";
-                    setStatus("제어중");
+                    setStatus("관리자사용중");
                 } else if (statusCode == 400) {
                     qDebug() << "잘못된 요청입니다. 400 Bad Request";
                 } else if (statusCode == 401) {
@@ -548,7 +548,7 @@ void DashboardWidget::setupCameraWidget()
 }
 
 void DashboardWidget::setStatusToAssigned() {
-    setStatus("제어중");
+    setStatus("관리자사용중");
 }
 
 void DashboardWidget::onImageReceived(const QPixmap& pixmap)
@@ -626,7 +626,7 @@ void DashboardWidget::setWidgetClasses()
     }
     if (ui->destinationBtn) {
         ui->destinationBtn->setProperty("class", "btn outlined primary_dark small");
-        ui->destinationBtn->setVisible(status_ == "제어중");
+        ui->destinationBtn->setVisible(status_ == "관리자사용중");
     }
     if (ui->controlBtn) {
         ui->controlBtn->setProperty("class", "btn outlined primary_dark small");
@@ -648,7 +648,7 @@ void DashboardWidget::setWidgetClasses()
     }
     
     if (ui->status_label) {
-        ui->status_label->setProperty("class", status_ == "이동중" ? "label primary" : "label gray");
+        ui->status_label->setProperty("class", status_ == "환자사용중" ? "label primary" : status_ == "관리자사용중" ? "label secondary" : "label gray");
         ui->status_label->setText(status_);
     }
 }
