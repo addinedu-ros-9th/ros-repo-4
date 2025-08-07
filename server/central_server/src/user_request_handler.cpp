@@ -285,14 +285,14 @@ std::string UserRequestHandler::processDirectionRequest(int robot_id, int depart
     }
     
     // 5. robot_log에 insert
-    std::string current_datetime = db_manager_->getCurrentDate();
+    std::string current_datetime = db_manager_->getCurrentDateTime();
     if (current_datetime.empty()) {
         return createErrorResponse("Failed to get current datetime");
     }
     
     // patient_id 저장 (nullptr이면 NULL, 아니면 실제 patient_id)
     bool success = db_manager_->insertRobotLogWithType(robot_id, patient_id, current_datetime, 
-                                                     orig_department_id, department_id, log_type);
+                                                     orig_department_id, department_id, log_type, "");
     
     if (!success) {
         return createErrorResponse("Failed to insert robot log");
@@ -335,13 +335,13 @@ std::string UserRequestHandler::processRobotReturnRequest(int robot_id, int* pat
     }
     
     // 4. robot_log에 데이터 저장
-    std::string current_datetime = db_manager_->getCurrentDate();
+    std::string current_datetime = db_manager_->getCurrentDateTime();
     if (current_datetime.empty()) {
         return createErrorResponse("현재 날짜/시간을 가져올 수 없습니다");
     }
     
     bool log_success = db_manager_->insertRobotLogWithType(robot_id, patient_id, current_datetime, 
-                                                         orig_department_id, 8, log_type);
+                                                         orig_department_id, 8, log_type, "");
     if (!log_success) {
         return createErrorResponse("로봇 로그 저장 실패");
     }
