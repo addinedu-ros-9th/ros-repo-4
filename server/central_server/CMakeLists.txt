@@ -27,6 +27,8 @@ add_executable(central_server_node
   src/central_server.cpp
   src/database_manager.cpp
   src/http_server.cpp
+  src/admin_request_handler.cpp
+  src/user_request_handler.cpp
   src/robot_navigation_manager.cpp
 )
 

@@ -2,8 +2,8 @@ package com.example.youngwoong
 
 object NetworkConfig {
     // 서버 IP 주소들 - 여기서만 변경하면 됩니다
-    private const val CENTRAL_SERVER_IP = "192.168.0.37"
-    private const val LLM_SERVER_IP = "192.168.0.37"  // LLM 서버 IP (별도 설정 가능)
+    private const val CENTRAL_SERVER_IP = "192.168.0.10"
+    private const val LLM_SERVER_IP = "192.168.0.10"  // LLM 서버 IP (별도 설정 가능)
     
     // 포트 설정
     private const val CENTRAL_SERVER_PORT = "8080"

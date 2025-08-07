@@ -30,6 +30,8 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 import java.util.*
 
+data class LLMResult(val reply: String, val functionName: String)
+
 class VoiceGuideActivity : AppCompatActivity() {
 
     private var isListening = false
@@ -286,15 +288,19 @@ class VoiceGuideActivity : AppCompatActivity() {
     private fun setupTTS() {
         textToSpeech = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                val koreaResult = textToSpeech.setLanguage(Locale.KOREA)
-                if (koreaResult == TextToSpeech.LANG_MISSING_DATA || koreaResult == TextToSpeech.LANG_NOT_SUPPORTED) {
-                    Toast.makeText(this, "TTS 언어 설정 실패", Toast.LENGTH_SHORT).show()
-                }
+                val result = textToSpeech.setLanguage(Locale.KOREA)
                 textToSpeech.setSpeechRate(0.9f)
                 textToSpeech.setPitch(1.0f)
+
+                // ✅ TTS 초기화 후 호출 여부 확인
+                if (intent.getBooleanExtra("voice_triggered", false)) {
+                    speakResponse("병원 안내 로봇 영웅이 입니다. 무엇을 도와드릴까요?")
+                }
+
+            } else {
+                Toast.makeText(this, "TTS 초기화 실패", Toast.LENGTH_SHORT).show()
             }
         }
-
         textToSpeech.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) {}
             override fun onDone(utteranceId: String?) {
@@ -319,12 +325,30 @@ class VoiceGuideActivity : AppCompatActivity() {
     private fun sendMessageToLLM(message: String) {
         lifecycleScope.launch {
             try {
-                val response = sendMessageToServer(message)
+                val result = sendMessageToServer(message)
                 runOnUiThread {
                     stopLoadingDots()
-                    textBotMessage.text = response
+                    textBotMessage.text = result.reply
                     textPrompt.text = "터치로 대화를 시작합니다"
-                    speakResponse(response)
+                    speakResponse(result.reply)
+
+                    // ✅ navigate 호출이면 GuidanceWaitingActivity로 이동
+                    if (result.functionName == "navigate") {
+                        Log.d(TAG, "🧭 navigate 호출 → GuidanceWaitingActivity로 이동")
+                        // TTS 끝난 후 이동하도록 딜레이
+                        textToSpeech.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                            override fun onDone(utteranceId: String?) {
+                                runOnUiThread {
+                                    val intent = Intent(this@VoiceGuideActivity, GuidanceWaitingActivity::class.java)
+                                    startActivity(intent)
+                                    finish()
+                                }
+                            }
+
+                            override fun onStart(utteranceId: String?) {}
+                            override fun onError(utteranceId: String?) {}
+                        })
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "LLM 오류: ${e.message}")
@@ -338,7 +362,8 @@ class VoiceGuideActivity : AppCompatActivity() {
         }
     }
 
-    private suspend fun sendMessageToServer(message: String): String = withContext(Dispatchers.IO) {
+
+    private suspend fun sendMessageToServer(message: String): LLMResult = withContext(Dispatchers.IO) {
         val jsonBody = JSONObject().apply { put("message", message) }
         val request = Request.Builder()
             .url("$BASE_URL/api/chat")
@@ -357,20 +382,18 @@ class VoiceGuideActivity : AppCompatActivity() {
                 val functionName = json.optString("function_name", "")
                 val functionResult = json.opt("function_result")
 
-                pendingFunctionName = functionName // 🔥 저장
-
                 Log.d(TAG, "🧠 LLM 응답: $reply")
                 Log.d(TAG, "🔧 함수 이름: $functionName")
                 Log.d(TAG, "📦 함수 결과: $functionResult")
 
-                return@withContext reply
+                return@withContext LLMResult(reply, functionName)
             } catch (e: Exception) {
                 Log.e(TAG, "❌ JSON 파싱 오류: ${e.message}")
-                return@withContext "응답 파싱 오류"
+                return@withContext LLMResult("응답 파싱 오류", "")
             }
         } else {
             Log.e(TAG, "❌ 서버 응답 오류: ${response.code}")
-            return@withContext "서버 오류가 발생했습니다."
+            return@withContext LLMResult("서버 오류가 발생했습니다.", "")
         }
     }
 
