@@ -733,6 +733,7 @@ void DashboardWidget::setWidgetClasses()
     }
     if (ui->controlBtn) {
         ui->controlBtn->setProperty("class", "btn outlined primary_dark small");
+        ui->controlBtn->setVisible(status_ != "환자사용중");
     }
     if (ui->camera_toggle_bg) {
         ui->camera_toggle_bg->setProperty("class", "bg graye radius");

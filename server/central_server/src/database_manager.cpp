@@ -280,7 +280,7 @@ bool DatabaseManager::authenticateAdmin(const std::string& admin_id, const std::
     
     try {
         std::unique_ptr<sql::PreparedStatement> pstmt(
-            connection->prepareStatement("SELECT admin_id, name, email, hospital_name FROM Admin WHERE admin_id = ? AND password = ?")
+            connection->prepareStatement("SELECT admin_id, name, email, hospital_name FROM admin WHERE admin_id = ? AND password = ?")
         );
         pstmt->setString(1, admin_id);
         pstmt->setString(2, password);
@@ -321,7 +321,7 @@ bool DatabaseManager::isAdminIdExists(const std::string& admin_id) {
     
     try {
         std::unique_ptr<sql::PreparedStatement> pstmt(
-            connection->prepareStatement("SELECT COUNT(*) FROM Admin WHERE admin_id = ?")
+            connection->prepareStatement("SELECT COUNT(*) FROM admin WHERE admin_id = ?")
         );
         pstmt->setString(1, admin_id);
         
@@ -354,7 +354,7 @@ bool DatabaseManager::getAdminById(const std::string& admin_id, AdminInfo& admin
     
     try {
         std::unique_ptr<sql::PreparedStatement> pstmt(
-            connection->prepareStatement("SELECT admin_id, name, email, hospital_name FROM Admin WHERE admin_id = ?")
+            connection->prepareStatement("SELECT admin_id, name, email, hospital_name FROM admin WHERE admin_id = ?")
         );
         pstmt->setString(1, admin_id);
         
