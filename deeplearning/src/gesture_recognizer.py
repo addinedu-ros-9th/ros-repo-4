@@ -344,7 +344,7 @@ class GestureRecognizer:
                     p1 = (int(keypoints[idx1, 0]), int(keypoints[idx1, 1]))
                     p2 = (int(keypoints[idx2, 0]), int(keypoints[idx2, 1]))
                     cv2.line(frame, p1, p2, (255, 255, 255), 2)
-            
+        
             # 관절점 그리기 (predict_webcam_realtime.py와 동일)
             for idx in self.upper_body_joints:
                 if keypoints[idx, 2] > 0.3:

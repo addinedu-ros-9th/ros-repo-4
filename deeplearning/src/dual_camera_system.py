@@ -37,10 +37,10 @@ class SharedPersonTracker:
         self.next_unified_id = 0
         
         # 최대 기억할 사람 수 제한
-        self.max_people = 10
+        self.max_people = 15  # 10 → 15로 늘림 (ID 재할당 빈도 감소)
         
-        # 사용 가능한 ID 풀 (0-9)
-        self.available_ids = set(range(10))
+        # 사용 가능한 ID 풀 (0-14)
+        self.available_ids = set(range(15))  # 10 → 15로 늘림
         
         # 카메라별 최신 감지 결과 (원본)
         self.camera_raw_detections = {
@@ -49,8 +49,8 @@ class SharedPersonTracker:
         }
         
         # 매칭 설정
-        self.cross_camera_match_threshold = 0.4
-        self.match_timeout = 8.0
+        self.cross_camera_match_threshold = 0.7  # 0.4 → 0.7로 높임 (더 엄격하게)
+        self.match_timeout = 15.0  # 8.0 → 15.0으로 늘림 (ID 유지 시간 증가)
         
         self.lock = threading.Lock()
         print("✅ 공유 사람 추적기 초기화 완료")
@@ -141,19 +141,39 @@ class SharedPersonTracker:
                                 # 공간적 매칭 시도
                                 score = self._calculate_cross_camera_similarity(other_bbox, current_bbox, other_camera, camera_name)
                                 if score > self.cross_camera_match_threshold:
-                                    # 매칭 성공 - 기존 통합 ID 사용
-                                    unified_detection = current_detection.copy()
-                                    unified_detection['id'] = unified_id
-                                    unified_detections.append(unified_detection)
-                                    used_unified_ids.add(unified_id)
-                                    
-                                    # 매칭 정보 업데이트
-                                    data['camera_ids'][camera_name] = current_detection['id']
-                                    data['last_seen'][camera_name] = elapsed_time
-                                    data['bbox'][camera_name] = current_detection['bbox']
-                                    
-                                    print(f"✅ 카메라 간 이동 감지: {other_camera} → {camera_name} ({unified_id})")
-                                    break
+                                    # 실제 이동인지 확인 (시간 차이가 충분히 있어야 함)
+                                    if time_diff > 2.0:  # 최소 2초 이상 차이가 있어야 실제 이동으로 간주
+                                        # 매칭 성공 - 기존 통합 ID 사용
+                                        unified_detection = current_detection.copy()
+                                        unified_detection['id'] = unified_id
+                                        unified_detections.append(unified_detection)
+                                        used_unified_ids.add(unified_id)
+                                        
+                                        # 매칭 정보 업데이트
+                                        data['camera_ids'][camera_name] = current_detection['id']
+                                        data['last_seen'][camera_name] = elapsed_time
+                                        data['bbox'][camera_name] = current_detection['bbox']
+                                        
+                                        print(f"✅ 실제 카메라 간 이동 감지: {other_camera} → {camera_name} ({unified_id}) - 시간차: {time_diff:.1f}초")
+                                        break
+                                    else:
+                                        # 시간 차이가 너무 작으면 같은 프레임의 다른 감지로 간주
+                                        if hasattr(self, 'debug_counter'):
+                                            self.debug_counter += 1
+                                        else:
+                                            self.debug_counter = 0
+                                            
+                                        if self.debug_counter % 60 == 0:  # 60프레임마다 디버깅
+                                            print(f"⚠️ 시간 차이 부족으로 매칭 거부: {time_diff:.1f}초 < 2.0초")
+                                else:
+                                    # 매칭 점수가 낮으면 디버깅 (60프레임마다)
+                                    if hasattr(self, 'debug_counter'):
+                                        self.debug_counter += 1
+                                    else:
+                                        self.debug_counter = 0
+                                        
+                                    if self.debug_counter % 60 == 0:
+                                        print(f"⚠️ 매칭 점수 부족: {score:.3f} < {self.cross_camera_match_threshold}")
             
             return unified_detections
     
@@ -202,18 +222,18 @@ class SharedPersonTracker:
         return unified_id
     
     def _calculate_cross_camera_similarity(self, bbox1, bbox2, camera1, camera2):
-        """두 카메라 간 바운딩 박스 유사도 계산 (적당한 기준)"""
+        """두 카메라 간 바운딩 박스 유사도 계산 (더 엄격하게)"""
         x1_1, y1_1, x2_1, y2_1 = bbox1
         x1_2, y1_2, x2_2, y2_2 = bbox2
         
         area1 = (x2_1 - x1_1) * (y2_1 - y1_1)
         area2 = (x2_2 - x1_2) * (y2_2 - y1_2)
         
-        # 면적 비율 유사도 (적당하게)
+        # 면적 비율 유사도 (더 엄격하게)
         area_ratio = min(area1, area2) / max(area1, area2) if max(area1, area2) > 0 else 0
         
-        # 면적 차이가 너무 크면 매칭 거부 (더 관대하게)
-        if area_ratio < 0.1:  # 면적 차이가 90% 이상이면 매칭 거부 (0.3 → 0.1로 더 관대하게)
+        # 면적 차이가 너무 크면 매칭 거부 (더 엄격하게)
+        if area_ratio < 0.3:  # 면적 차이가 70% 이상이면 매칭 거부 (0.1 → 0.3으로 더 엄격하게)
             return 0.0
         
         # 위치 유사도 (카메라별 특성 고려)
@@ -228,17 +248,17 @@ class SharedPersonTracker:
             back_normalized = (height_ratio - back_center_y) / height_ratio
             position_similarity = 1.0 - abs(front_normalized - back_normalized)
             
-            # 위치 차이가 너무 크면 매칭 거부 (더 관대하게)
-            if position_similarity < 0.2:  # 위치 차이가 80% 이상이면 매칭 거부 (0.4 → 0.2로 더 관대하게)
+            # 위치 차이가 너무 크면 매칭 거부 (더 엄격하게)
+            if position_similarity < 0.4:  # 위치 차이가 60% 이상이면 매칭 거부 (0.2 → 0.4로 더 엄격하게)
                 return 0.0
         else:
             position_similarity = 0.5  # 기본값
         
-        # 종합 점수 (면적 비율에 더 높은 가중치, 적당하게)
-        total_score = (area_ratio * 0.6 + position_similarity * 0.4)
+        # 종합 점수 (면적 비율에 더 높은 가중치, 더 엄격하게)
+        total_score = (area_ratio * 0.7 + position_similarity * 0.3)  # 0.6/0.4 → 0.7/0.3으로 조정
         
-        # 디버깅 정보 (15프레임마다 - 더 자주 출력)
-        if hasattr(self, 'debug_counter') and self.debug_counter % 15 == 0:
+        # 디버깅 정보 (30프레임마다 - 덜 자주 출력)
+        if hasattr(self, 'debug_counter') and self.debug_counter % 30 == 0:
             print(f"🔍 카메라 간 매칭 시도: {camera1} ↔ {camera2}")
             print(f"   - 면적 비율: {area_ratio:.3f}")
             print(f"   - 위치 유사도: {position_similarity:.3f}")
