@@ -2,8 +2,8 @@
 #define CENTRAL_SERVER_H
 
 #include <rclcpp/rclcpp.hpp>
-#include <robot_interfaces/msg/robot_status.hpp>
-#include <robot_interfaces/srv/change_robot_status.hpp>
+#include <control_interfaces/srv/event_handle.h>
+#include <control_interfaces/srv/track_handle.h>
 
 #include "database_manager.h"
 #include "http_server.h"
@@ -29,17 +29,15 @@ private:
     // 기존 함수들
     void runDatabaseThread();
     void runHttpThread();
-    void statusCallback(const robot_interfaces::msg::RobotStatus::SharedPtr msg);
-    void changeStatusCallback(
-        const std::shared_ptr<robot_interfaces::srv::ChangeRobotStatus::Request> request,
-        std::shared_ptr<robot_interfaces::srv::ChangeRobotStatus::Response> response);
+    void eventHandleCallback(
+        const std::shared_ptr<control_interfaces::srv::EventHandle::Request> request,
+        std::shared_ptr<control_interfaces::srv::EventHandle::Response> response);
+    void trackHandleCallback(
+        const std::shared_ptr<control_interfaces::srv::TrackHandle::Request> request,
+        std::shared_ptr<control_interfaces::srv::TrackHandle::Response> response);
     
-    // HTTP 기반 실시간 통신 함수들
+    // HTTP 서버 설정
     void setupHttpServer();
-    void sendRobotLocationToGui(int robot_id, float location_x, float location_y);
-    void sendRobotStatusToGui(int robot_id, const std::string& status, const std::string& source);
-    void sendArrivalNotificationToGui(int robot_id);
-    void broadcastToGuiClients(const std::string& message);
     
     // 기존 멤버 변수들
     std::atomic<bool> running_;
@@ -48,8 +46,8 @@ private:
     std::unique_ptr<HttpServer> http_server_;
     std::unique_ptr<RobotNavigationManager> nav_manager_;
     
-    rclcpp::Subscription<robot_interfaces::msg::RobotStatus>::SharedPtr status_subscriber_;
-    rclcpp::Service<robot_interfaces::srv::ChangeRobotStatus>::SharedPtr status_service_;
+    rclcpp::Service<control_interfaces::srv::EventHandle>::SharedPtr event_service_;
+    rclcpp::Service<control_interfaces::srv::TrackHandle>::SharedPtr track_service_;
     
     std::thread db_thread_;
     std::thread http_thread_;

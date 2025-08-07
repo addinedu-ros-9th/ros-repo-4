@@ -11,7 +11,7 @@ WORKSPACE_ROOT="/home/wonho/ros-repo-4"
 cd $WORKSPACE_ROOT
 
 echo "1. 인터페이스 빌드중..."
-colcon build --packages-select robot_interfaces
+colcon build --packages-select control_interfaces
 if [ $? -ne 0 ]; then
     echo "❌ 인터페이스 빌드 실패!"
     exit 1

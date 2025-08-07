@@ -338,20 +338,6 @@ Json::Value HttpServer::parseJson(const std::string& jsonStr) {
     return root;
 }
 
-// 유틸리티 함수들
-Json::Value HttpServer::parseJson(const std::string& jsonStr) {
-    Json::Value root;
-    Json::CharReaderBuilder builder;
-    std::string errors;
-    
-    std::istringstream stream(jsonStr);
-    if (!Json::parseFromStream(builder, stream, &root, &errors)) {
-        throw std::runtime_error("JSON 파싱 실패: " + errors);
-    }
-    
-    return root;
-}
-
 std::string HttpServer::createSuccessResponse(const std::string& name, 
                                             const std::string& datetime, 
                                             const std::string& department,

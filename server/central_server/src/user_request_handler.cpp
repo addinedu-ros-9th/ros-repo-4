@@ -9,13 +9,6 @@
 UserRequestHandler::UserRequestHandler(std::shared_ptr<DatabaseManager> db_manager, 
                                      std::shared_ptr<RobotNavigationManager> nav_manager)
     : db_manager_(db_manager), nav_manager_(nav_manager) {
-    // WebSocket 서버 초기화 및 시작
-    websocket_server_ = std::make_unique<WebSocketServer>(Config::GUI_PORT);
-    if (!websocket_server_->start()) {
-        std::cerr << "[USER] WebSocket 서버 시작 실패" << std::endl;
-    } else {
-        std::cout << "[USER] WebSocket 서버 시작 완료 (포트: " << Config::GUI_PORT << ")" << std::endl;
-    }
 }
 
 // User GUI API 핸들러들
@@ -408,76 +401,8 @@ std::string UserRequestHandler::createStatusResponse(int status_code) {
 
 
 
-// 메시지 전송 함수들
 
-void UserRequestHandler::sendAlertOccupied(int robot_id) {
-    std::cout << "[USER] 모든 클라이언트에게 관리자 사용중 블락 알림 전송 중..." << std::endl;
-    
-    // JSON 메시지 생성
-    Json::Value message;
-    message["type"] = "alert_occupied";
-    message["robot_id"] = robot_id;
-    message["timestamp"] = std::to_string(time(nullptr));
-    
-    Json::StreamWriterBuilder builder;
-    std::string json_message = Json::writeString(builder, message);
-    
-    // 모든 클라이언트에게 브로드캐스트
-    websocket_server_->broadcastMessage(json_message);
-    
-    std::cout << "[USER] 모든 클라이언트에게 관리자 사용중 블락 알림 전송 완료: Robot " << robot_id << std::endl;
-}
 
-void UserRequestHandler::sendAlertIdle(int robot_id) {
-    std::cout << "[USER] 모든 클라이언트에게 사용 가능한 상태 알림 전송 중..." << std::endl;
-    
-    // JSON 메시지 생성
-    Json::Value message;
-    message["type"] = "alert_idle";
-    message["robot_id"] = robot_id;
-    message["timestamp"] = std::to_string(time(nullptr));
-    
-    Json::StreamWriterBuilder builder;
-    std::string json_message = Json::writeString(builder, message);
-    
-    // 모든 클라이언트에게 브로드캐스트
-    websocket_server_->broadcastMessage(json_message);
-    
-    std::cout << "[USER] 모든 클라이언트에게 사용 가능한 상태 알림 전송 완료: Robot " << robot_id << std::endl;
-}
 
-void UserRequestHandler::sendNavigatingComplete(int robot_id) {
-    std::cout << "[USER] GUI 클라이언트들에게 길안내 완료 알림 전송 중..." << std::endl;
-    
-    // JSON 메시지 생성
-    Json::Value message;
-    message["type"] = "navigating_complete";
-    message["robot_id"] = robot_id;
-    message["timestamp"] = std::to_string(time(nullptr));
-    
-    Json::StreamWriterBuilder builder;
-    std::string json_message = Json::writeString(builder, message);
-    
-    // GUI 클라이언트들에게만 브로드캐스트
-    websocket_server_->broadcastMessageToType("gui", json_message);
-    
-    std::cout << "[USER] GUI 클라이언트들에게 길안내 완료 알림 전송 완료: Robot " << robot_id << std::endl;
-}
-
-// 연결된 클라이언트 정보 조회
-
-std::vector<std::string> UserRequestHandler::getConnectedClients() const {
-    return websocket_server_->getConnectedIPs();
-}
-
-bool UserRequestHandler::isClientConnected(const std::string& ip_address) const {
-    return websocket_server_->isClientConnected(ip_address);
-}
-
-// 클라이언트 타입 관리
-
-bool UserRequestHandler::setClientType(const std::string& ip_address, const std::string& client_type) {
-    return websocket_server_->setClientType(ip_address, client_type);
-}
 
  
