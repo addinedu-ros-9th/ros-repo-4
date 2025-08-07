@@ -14,6 +14,11 @@ namespace Config {
     
     // ESP32 IP 주소
     const std::string ESP32_IP = "192.168.0.34";
+    
+    // GUI 설정
+    const std::string GUI_IP = "192.168.1.100";
+    const int GUI_PORT = 3000;
+    const int GUI_TIMEOUT = 5;  // 초
 }
 
 #endif // CENTRAL_SERVER_CONFIG_H 

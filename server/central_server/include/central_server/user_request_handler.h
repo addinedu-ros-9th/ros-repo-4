@@ -6,6 +6,7 @@
 #include <string>
 #include "central_server/database_manager.h"
 #include "central_server/robot_navigation_manager.h"
+#include "central_server/websocket_server.h"
 
 class UserRequestHandler {
 public:
@@ -29,11 +30,28 @@ public:
     std::string handlePauseRequest(const Json::Value& request);
     std::string handleRestartNavigation(const Json::Value& request);
     std::string handleStopNavigating(const Json::Value& request);
+    
+
+    
+
+    
+    // 연결된 클라이언트 정보 조회
+    std::vector<std::string> getConnectedClients() const;
+    bool isClientConnected(const std::string& ip_address) const;
+    
+    // 메시지 전송 함수들
+    void sendAlertOccupied(int robot_id);                    // 모든 클라이언트에게
+    void sendAlertIdle(int robot_id);                        // 모든 클라이언트에게
+    void sendNavigatingComplete(int robot_id);               // GUI 클라이언트에게만
+    
+    // 클라이언트 타입 관리
+    bool setClientType(const std::string& ip_address, const std::string& client_type);
 
 private:
     std::shared_ptr<DatabaseManager> db_manager_;
     std::shared_ptr<RobotNavigationManager> nav_manager_;
-
+    std::unique_ptr<WebSocketServer> websocket_server_;
+    
     // 공통 인증 로직
     std::string handleCommonAuth(const PatientInfo& patient);
     
