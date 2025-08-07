@@ -28,8 +28,8 @@ DatabaseManager::~DatabaseManager() {
 void DatabaseManager::loadConnectionConfig() {
     host_ = "localhost";
     username_ = "root";
-    // password_ = "heR@491!"; 
-    password_ = "0000"; 
+    password_ = "heR@491!"; 
+    // password_ = "0000"; 
     database_ = "HeroDB";
     port_ = 3306;
 }
