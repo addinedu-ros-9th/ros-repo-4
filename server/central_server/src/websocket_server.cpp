@@ -212,6 +212,62 @@ bool WebSocketServer::setClientType(const std::string& ip_address, const std::st
     return true;
 }
 
+// 로봇 알림 메시지 전송 함수들
+
+void WebSocketServer::sendAlertOccupied(int robot_id) {
+    std::cout << "[WebSocket] 모든 클라이언트에게 관리자 사용중 블락 알림 전송 중..." << std::endl;
+    
+    // JSON 메시지 생성
+    Json::Value message;
+    message["type"] = "alert_occupied";
+    message["robot_id"] = robot_id;
+    message["timestamp"] = std::to_string(time(nullptr));
+    
+    Json::StreamWriterBuilder builder;
+    std::string json_message = Json::writeString(builder, message);
+    
+    // 모든 클라이언트에게 브로드캐스트
+    broadcastMessage(json_message);
+    
+    std::cout << "[WebSocket] 모든 클라이언트에게 관리자 사용중 블락 알림 전송 완료: Robot " << robot_id << std::endl;
+}
+
+void WebSocketServer::sendAlertIdle(int robot_id) {
+    std::cout << "[WebSocket] 모든 클라이언트에게 사용 가능한 상태 알림 전송 중..." << std::endl;
+    
+    // JSON 메시지 생성
+    Json::Value message;
+    message["type"] = "alert_idle";
+    message["robot_id"] = robot_id;
+    message["timestamp"] = std::to_string(time(nullptr));
+    
+    Json::StreamWriterBuilder builder;
+    std::string json_message = Json::writeString(builder, message);
+    
+    // 모든 클라이언트에게 브로드캐스트
+    broadcastMessage(json_message);
+    
+    std::cout << "[WebSocket] 모든 클라이언트에게 사용 가능한 상태 알림 전송 완료: Robot " << robot_id << std::endl;
+}
+
+void WebSocketServer::sendNavigatingComplete(int robot_id) {
+    std::cout << "[WebSocket] GUI 클라이언트들에게 길안내 완료 알림 전송 중..." << std::endl;
+    
+    // JSON 메시지 생성
+    Json::Value message;
+    message["type"] = "navigating_complete";
+    message["robot_id"] = robot_id;
+    message["timestamp"] = std::to_string(time(nullptr));
+    
+    Json::StreamWriterBuilder builder;
+    std::string json_message = Json::writeString(builder, message);
+    
+    // GUI 클라이언트들에게만 브로드캐스트
+    broadcastMessageToType("gui", json_message);
+    
+    std::cout << "[WebSocket] GUI 클라이언트들에게 길안내 완료 알림 전송 완료: Robot " << robot_id << std::endl;
+}
+
 void WebSocketServer::serverLoop() {
     std::cout << "[WebSocket] 서버 루프 시작" << std::endl;
     

@@ -66,6 +66,13 @@ private:
     
     // 유틸리티 함수들
     Json::Value parseJson(const std::string& jsonStr);
+    std::string createSuccessResponse(const std::string& name, 
+                                    const std::string& datetime, 
+                                    const std::string& department,
+                                    const std::string& status,
+                                    int patient_id);
+    std::string createErrorResponse(const std::string& message);
+    std::string createStatusResponse(int status_code);
     
     // HTTP 요청 파싱
     HttpRequest parseHttpRequest(const std::string& request);

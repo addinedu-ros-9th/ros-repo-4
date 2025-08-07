@@ -12,7 +12,6 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(control_interfaces REQUIRED)
 find_package(nav_msgs REQUIRED)
-find_package(domain_bridge REQUIRED)
 
 # HTTP 서버를 위한 라이브러리들
 find_package(PkgConfig REQUIRED)
@@ -37,7 +36,6 @@ ament_target_dependencies(central_server_node
   rclcpp
   control_interfaces
   nav_msgs
-  domain_bridge
 )
 
 # MySQL 라이브러리 직접 링크

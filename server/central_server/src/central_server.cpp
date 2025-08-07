@@ -190,95 +190,58 @@ void CentralServer::runHttpThread() {
     RCLCPP_INFO(this->get_logger(), "HTTP 스레드 종료중...");
 }
 
-void CentralServer::statusCallback(const robot_interfaces::msg::RobotStatus::SharedPtr msg)
+void CentralServer::eventHandleCallback(
+    const std::shared_ptr<control_interfaces::srv::EventHandle::Request> request,
+    std::shared_ptr<control_interfaces::srv::EventHandle::Response> response)
 {
     RCLCPP_INFO(this->get_logger(), 
-               "AI 서버 상태 수신 - Robot ID: %d, Status: %s", 
-               msg->robot_id, msg->status.c_str());
+               "이벤트 핸들 요청 - Event Type: %s", 
+               request->event_type.c_str());
     
-    // HTTP를 통해 GUI 클라이언트들에게 로봇 상태 전송
-    sendRobotStatusToGui(msg->robot_id, msg->status, "robot_controller");
-    
-    if (db_manager_->isConnected()) {
-        RCLCPP_DEBUG(this->get_logger(), "상태를 데이터베이스에 저장 중...");
+    // 이벤트 타입에 따른 처리
+    if (request->event_type == "alert_occupied") {
+        // 관리자 사용중 블락 알림
+        response->status = "success";
+    } else if (request->event_type == "alert_idle") {
+        // 사용 가능한 상태 알림
+        response->status = "success";
+    } else if (request->event_type == "navigating_complete") {
+        // 길안내 완료 알림
+        response->status = "success";
+    } else {
+        response->status = "unknown_event";
     }
+    
+    RCLCPP_INFO(this->get_logger(), "이벤트 핸들 서비스 응답 완료");
 }
 
-void CentralServer::changeStatusCallback(
-    const std::shared_ptr<robot_interfaces::srv::ChangeRobotStatus::Request> request,
-    std::shared_ptr<robot_interfaces::srv::ChangeRobotStatus::Response> response)
+void CentralServer::trackHandleCallback(
+    const std::shared_ptr<control_interfaces::srv::TrackHandle::Request> request,
+    std::shared_ptr<control_interfaces::srv::TrackHandle::Response> response)
 {
     RCLCPP_INFO(this->get_logger(), 
-               "상태 변경 요청 - Robot ID: %d, New Status: %s", 
-               request->robot_id, request->new_status.c_str());
+               "트랙 핸들 요청 - Event Type: %s, Left Angle: %.2f, Right Angle: %.2f", 
+               request->event_type.c_str(), request->left_angle, request->right_angle);
     
-    // HTTP를 통해 GUI 클라이언트들에게 상태 변경 알림
-    sendRobotStatusToGui(request->robot_id, request->new_status, "user_gui");
+    // 트랙 핸들 처리
+    response->status = "success";
+    response->distance = 0.0; // 실제 거리 계산 로직 필요
     
-    response->success = true;
-    response->message = "상태 변경 완료";
-    
-    RCLCPP_INFO(this->get_logger(), "상태 변경 서비스 응답 완료");
+    RCLCPP_INFO(this->get_logger(), "트랙 핸들 서비스 응답 완료");
 }
 
-void CentralServer::sendRobotLocationToGui(int robot_id, float location_x, float location_y)
-{
-    Json::Value message;
-    message["robot_id"] = robot_id;
-    message["location_x"] = location_x;
-    message["location_y"] = location_y;
-    
-    std::string json_message = message.toStyledString();
-    broadcastToGuiClients(json_message);
-    
-    RCLCPP_INFO(this->get_logger(), "로봇 위치 전송: Robot ID %d at (%.2f, %.2f)", 
-               robot_id, location_x, location_y);
-}
 
-void CentralServer::sendRobotStatusToGui(int robot_id, const std::string& status, const std::string& source)
-{
-    Json::Value message;
-    message["robot_id"] = robot_id;
-    message["status"] = status;
-    message["source"] = source;
-    
-    std::string json_message = message.toStyledString();
-    broadcastToGuiClients(json_message);
-    
-    RCLCPP_INFO(this->get_logger(), "로봇 상태 전송: Robot ID %d, Status %s, Source %s", 
-               robot_id, status.c_str(), source.c_str());
-}
-
-void CentralServer::sendArrivalNotificationToGui(int robot_id)
-{
-    Json::Value message;
-    message["robot_id"] = robot_id;
-    message["status"] = "arrived";
-    
-    std::string json_message = message.toStyledString();
-    broadcastToGuiClients(json_message);
-    
-    RCLCPP_INFO(this->get_logger(), "도착 알림 전송: Robot ID %d", robot_id);
-}
-
-void CentralServer::broadcastToGuiClients(const std::string& message)
-{
-    // HttpServer를 통해 GUI 클라이언트들에게 메시지 브로드캐스트
-    if (http_server_) {
-        http_server_->broadcastToClients(message);
-        RCLCPP_DEBUG(this->get_logger(), "GUI 클라이언트들에게 메시지 브로드캐스트: %s", message.c_str());
-    }
-}
 
 void CentralServer::init() {
     RCLCPP_INFO(this->get_logger(), "[init] this ptr: %p", (void*)this);
     
-    status_subscriber_ = this->create_subscription<robot_interfaces::msg::RobotStatus>(
-        "robot_status", 10,
-        std::bind(&CentralServer::statusCallback, this, std::placeholders::_1));
-    status_service_ = this->create_service<robot_interfaces::srv::ChangeRobotStatus>(
-        "change_robot_status",
-        std::bind(&CentralServer::changeStatusCallback, this, 
+    event_service_ = this->create_service<control_interfaces::srv::EventHandle>(
+        "event_handle",
+        std::bind(&CentralServer::eventHandleCallback, this, 
                  std::placeholders::_1, std::placeholders::_2));
-    RCLCPP_INFO(this->get_logger(), "ROS2 토픽 및 서비스 설정 완료");
+    track_service_ = this->create_service<control_interfaces::srv::TrackHandle>(
+        "track_handle",
+        std::bind(&CentralServer::trackHandleCallback, this, 
+                 std::placeholders::_1, std::placeholders::_2));
+    RCLCPP_INFO(this->get_logger(), "ROS2 서비스 설정 완료");
 }

@@ -19,6 +19,8 @@
 #include <openssl/buffer.h>
 #include <iostream>
 #include <algorithm>
+#include <json/json.h>
+#include <ctime>
 
 class WebSocketServer {
 public:
@@ -52,6 +54,11 @@ public:
     
     // 클라이언트 타입 설정
     bool setClientType(const std::string& ip_address, const std::string& client_type);
+    
+    // 로봇 알림 메시지 전송 함수들
+    void sendAlertOccupied(int robot_id);                    // 모든 클라이언트에게
+    void sendAlertIdle(int robot_id);                        // 모든 클라이언트에게
+    void sendNavigatingComplete(int robot_id);               // GUI 클라이언트에게만
     
     // 클라이언트 관리
     size_t getClientCount() const;
