@@ -88,14 +88,15 @@ std::string AdminRequestHandler::handleGetRobotLocation(const Json::Value& reque
         return createErrorResponse("robot_id는 정수 또는 문자열이어야 합니다");
     }
     
-    // 실제 로봇 위치 정보 조회 (amcl_pose에서 받은 데이터)
-    // TODO: nav_manager_에서 현재 로봇 위치 정보를 가져와야 함
-    // 현재는 더미 데이터로 응답
+    // 실제 로봇 위치 정보 조회 (RobotNavigationManager에서 받은 데이터)
+    double x = nav_manager_->getCurrentRobotX();
+    double y = nav_manager_->getCurrentRobotY();
+    double yaw = nav_manager_->getCurrentRobotYaw();
     
     Json::Value response;
-    response["x"] = 5.0;  // TODO: 실제 로봇 위치로 변경
-    response["y"] = -1.0; // TODO: 실제 로봇 위치로 변경
-    response["yaw"] = -0.532151; // TODO: 실제 로봇 방향으로 변경
+    response["x"] = x;
+    response["y"] = y;
+    response["yaw"] = yaw;
     
     std::cout << "[ADMIN] 로봇 위치 정보 반환: Robot " << robot_id 
               << " - 위치: (" << response["x"].asDouble() << ", " << response["y"].asDouble() 
@@ -120,15 +121,20 @@ std::string AdminRequestHandler::handleGetRobotStatus(const Json::Value& request
         return createErrorResponse("네비게이션 관리자를 사용할 수 없습니다");
     }
     
+    // 실제 로봇 상태 정보 조회
     std::string nav_status = nav_manager_->getCurrentNavStatus();
+    std::string start_point = nav_manager_->getCurrentStartPoint();
+    std::string target = nav_manager_->getCurrentTarget();
+    int battery = nav_manager_->getCurrentBattery();
+    int network_level = nav_manager_->getCurrentNetworkLevel();
     
     // IF-04 명세에 따라 응답
     Json::Value response;
     response["status"] = nav_status.empty() ? "unknown" : nav_status;
-    response["orig"] = 0;  // TODO: 실제 출발지 정보 조회
-    response["dest"] = 3;  // TODO: 실제 목적지 정보 조회
-    response["battery"] = 70;  // TODO: 실제 배터리 정보 조회
-    response["network"] = 4;   // TODO: 실제 네트워크 정보 조회
+    response["orig"] = start_point.empty() ? -1 : std::stoi(start_point);  // 출발지 정보
+    response["dest"] = target.empty() ? -1 : std::stoi(target);  // 목적지 정보
+    response["battery"] = battery;  // 실제 배터리 정보
+    response["network"] = network_level;   // 실제 네트워크 정보
     
     std::cout << "[ADMIN] 로봇 상태 정보 반환: Robot " << robot_id 
               << " - Status: " << response["status"].asString() << std::endl;
@@ -145,13 +151,40 @@ std::string AdminRequestHandler::handleGetPatientInfo(const Json::Value& request
         return createErrorResponse("필수 필드가 누락되었습니다: robot_id");
     }
     
-    // TODO: 실제 데이터베이스에서 해당 로봇을 이용중인 환자 정보 조회
+    int robot_id;
+    if (request["robot_id"].isString()) {
+        robot_id = std::stoi(request["robot_id"].asString());
+    } else if (request["robot_id"].isInt()) {
+        robot_id = request["robot_id"].asInt();
+    } else {
+        return createErrorResponse("robot_id는 정수 또는 문자열이어야 합니다");
+    }
+    
+    // 로봇 상태 확인 - navigating일 때만 환자 정보 반환
+    if (!nav_manager_) {
+        return createErrorResponse("네비게이션 관리자를 사용할 수 없습니다");
+    }
+    
+    std::string nav_status = nav_manager_->getCurrentNavStatus();
+    if (nav_status != "navigating") {
+        return createErrorResponse("로봇이 네비게이션 중이 아닙니다. 현재 상태: " + nav_status);
+    }
+    
+    // 실제 데이터베이스에서 해당 로봇의 최근 환자 정보 조회
+    PatientInfo patient;
+    if (!db_manager_->getPatientByRobotId(robot_id, patient)) {
+        return createErrorResponse("해당 로봇을 이용중인 환자 정보가 없습니다");
+    }
+    
     // IF-05 명세에 따라 응답
     Json::Value response;
-    response["patient_id"] = "00000000";
-    response["phone"] = "010-1111-1111";
-    response["rfid"] = "33F7ADEC";
-    response["name"] = "김환자";
+    response["patient_id"] = std::to_string(patient.patient_id);
+    response["phone"] = patient.phone;
+    response["rfid"] = patient.rfid;
+    response["name"] = patient.name;
+    
+    std::cout << "[ADMIN] 환자 정보 반환: Robot " << robot_id 
+              << " (상태: " << nav_status << ")" << std::endl;
     
     Json::StreamWriterBuilder builder;
     return Json::writeString(builder, response);
@@ -161,16 +194,14 @@ std::string AdminRequestHandler::handleControlByAdmin(const Json::Value& request
     std::cout << "[ADMIN] 원격 제어 요청 처리" << std::endl;
     
     // 요청 데이터 검증
-    if (!request.isMember("robot_id")) {
+    if (!request.isMember("robot_id") || !request.isMember("admin_id")) {
         return "400"; // Bad Request
     }
     
     int robot_id = request["robot_id"].asInt();
-    
-    // TODO: 실제 로봇 시스템에서 원격 제어 모드 활성화
-    std::cout << "[ADMIN] 원격 제어 요청 처리 완료: Robot " << robot_id << std::endl;
-    
-    return "200"; // 성공
+    std::string admin_id = request["admin_id"].asString();
+    // 공통 함수를 사용하여 원격 제어 명령 처리
+    return sendControlCommand(robot_id, nullptr, "admin_control", "원격 제어", admin_id);
 }
 
 std::string AdminRequestHandler::handleReturnCommand(const Json::Value& request) {
@@ -495,6 +526,46 @@ std::string AdminRequestHandler::createSuccessResponse(const Json::Value& data) 
 std::string AdminRequestHandler::createStatusResponse(int status_code) {
     Json::Value response;
     response["status_code"] = status_code;
+    
+    Json::StreamWriterBuilder builder;
+    return Json::writeString(builder, response);
+}
+
+std::string AdminRequestHandler::sendControlCommand(int robot_id, int* patient_id, const std::string& log_type, 
+                                                   const std::string& command_name, const std::string& admin_id) {
+    // 1. 제어 명령 전송
+    if (nav_manager_) {
+        bool success = nav_manager_->sendControlEvent(log_type);
+        if (success) {
+            std::cout << "[ADMIN] 로봇 " << command_name << " 명령 전송 완료: " << log_type << " 전송 성공" << std::endl;
+        } else {
+            std::cout << "[ADMIN] 로봇 " << command_name << " 명령 전송 실패: " << log_type << " 전송 실패" << std::endl;
+            return createErrorResponse(command_name + " 명령 전송 실패");
+        }
+    } else {
+        return createErrorResponse("네비게이션 관리자를 사용할 수 없습니다");
+    }
+    
+    // 2. robot_log에 데이터 저장
+    std::string current_datetime = db_manager_->getCurrentDateTime();
+    if (current_datetime.empty()) {
+        return createErrorResponse("현재 날짜/시간을 가져올 수 없습니다");
+    }
+    
+    bool log_success = db_manager_->insertRobotLogWithType(robot_id, patient_id, current_datetime, 
+                                                         0, 0, log_type, admin_id);  // orig_department_id = 0, dest_department_id = 0 (제어 중)
+    if (!log_success) {
+        return createErrorResponse("로봇 로그 저장 실패");
+    }
+    
+    std::cout << "[ADMIN] 로봇 " << command_name << " 명령 처리 완료: Robot " << robot_id 
+              << ", Patient: " << (patient_id ? std::to_string(*patient_id) : "NULL") 
+              << ", Type: " << log_type << std::endl;
+    
+    // 3. 응답 반환
+    Json::Value response;
+    response["status_code"] = 200;
+    response["message"] = command_name + " 모드 활성화 완료";
     
     Json::StreamWriterBuilder builder;
     return Json::writeString(builder, response);

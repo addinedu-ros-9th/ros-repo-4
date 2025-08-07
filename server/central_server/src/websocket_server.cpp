@@ -1,6 +1,5 @@
 #include "central_server/websocket_server.h"
 #include <sstream>
-#include <json/json.h>
 
 WebSocketServer::WebSocketServer(int port)
     : port_(port), server_socket_(-1), running_(false) {

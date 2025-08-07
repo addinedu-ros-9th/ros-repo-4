@@ -233,6 +233,8 @@ std::string UserRequestHandler::handleAlertTimeout(const Json::Value& request) {
     }
     
     int robot_id = request["robot_id"].asInt();
+    std::string patient_id_str = request["patient_id"].asString();
+    int patient_id = std::stoi(patient_id_str);
     
     // 30초 타임아웃 발생 시 return_command 메시지를 서비스를 통해 전송
     return sendReturnCommand(robot_id, &patient_id, "return_command");
@@ -330,7 +332,6 @@ std::string UserRequestHandler::processDirectionRequest(int robot_id, int depart
     // 3. 현재 로봇 위치 확인
     double current_x = nav_manager_->getCurrentRobotX();
     double current_y = nav_manager_->getCurrentRobotY();
-    double current_yaw = nav_manager_->getCurrentRobotYaw();
     
     // 4. 가장 가까운 부서 찾기 (출발지)
     int orig_department_id = db_manager_->findNearestDepartment(current_x, current_y);
@@ -368,7 +369,7 @@ std::string UserRequestHandler::processDirectionRequest(int robot_id, int depart
     return createStatusResponse(200);
 }
 
-std::string UserRequestHandler::sendReturnCommand(int robot_id, int* patient_id, const std::string& log_type, bool save_log = true) {
+std::string UserRequestHandler::sendReturnCommand(int robot_id, int* patient_id, const std::string& log_type, bool save_log) {
     // 1. 복귀 명령 전송
     if (nav_manager_) {
         bool success = nav_manager_->sendControlEvent(log_type);
