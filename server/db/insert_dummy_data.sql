@@ -66,6 +66,8 @@ INSERT INTO `log_type` (`type`, `description`) VALUES
 ('patient_navigating', '환자 길안내'),
 ('unknown_navigating', '알 수 없는 사용자 길안내'),
 ('admin_navigating', '관리자 길안내'),
+('moving_by_patient', '환자 요청 길안내'),
+('moving_by_unknown', '알 수 없는 사용자 요청 길안내'),
 ('pause_request', '일시정지 요청'),
 ('restart_navigating', '안내 재개 요청'),
 ('stop_navigation', '길안내 중단'),
@@ -75,6 +77,8 @@ INSERT INTO `log_type` (`type`, `description`) VALUES
 ('patient_return', '환자 반환 요청'),
 ('unknow_return', '알 수 없는 사용자 반환 요청'),
 ('admin_return', '관리자 반환 요청'),
+('return_by_patient', '환자 요청 반환'),
+('return_by_unknown', '알 수 없는 사용자 요청 반환'),
 ('return_command', '제한 시간 종료 후 서버에서 자동 반환 명령'),
 ('arrived_to_station', '대기 장소 도착'),
 
@@ -118,8 +122,8 @@ INSERT INTO `robot_log` (`robot_id`, `patient_id`, `dttm`, `type`, `admin_id`) V
 (3, 10021002, '2025-01-25 10:35:00', 'navigating_complete', NULL),
 
 -- 관리자 길안내
-(3, NULL, '2025-01-25 10:55:00', 'admin_navigating', 1),
-(3, NULL, '2025-01-25 11:05:00', 'navigating_complete', 1),
+(3, NULL, '2025-01-25 10:55:00', 'admin_navigating', 'admin1'),
+(3, NULL, '2025-01-25 11:05:00', 'navigating_complete', 'admin1'),
 
 -- 스크린터치 호출
 (3, 10031003, '2025-01-25 13:45:00', 'call_with_screen', NULL),
@@ -134,12 +138,12 @@ INSERT INTO `robot_log` (`robot_id`, `patient_id`, `dttm`, `type`, `admin_id`) V
 (3, 10011001, '2025-01-25 09:15:00', 'arrived_to_station', NULL),
 
 -- 관리자 반환
-(3, NULL, '2025-01-25 11:10:00', 'admin_return', 1),
-(3, NULL, '2025-01-25 11:15:00', 'arrived_to_station', 1),
+(3, NULL, '2025-01-25 11:10:00', 'admin_return', 'admin1'),
+(3, NULL, '2025-01-25 11:15:00', 'arrived_to_station', 'admin1'),
 
 -- 수동제어
-(3, NULL, '2025-01-25 12:00:00', 'teleop_request', 1),
-(3, NULL, '2025-01-25 12:05:00', 'teleop_complete', 1),
+(3, NULL, '2025-01-25 12:00:00', 'teleop_request', 'admin1'),
+(3, NULL, '2025-01-25 12:05:00', 'teleop_complete', 'admin1'),
 
 -- 충전
 (3, NULL, '2025-01-25 16:00:00', 'charging_request', NULL),
@@ -163,5 +167,11 @@ INSERT INTO `navigating_log` (`robot_id`, `dttm`, `orig`, `dest`) VALUES
 (3, '2025-01-25 09:10:00', 0, 8),
 
 -- 관리자 반환: 대장암센터 → 로비 (반환 시작)
-(3, '2025-01-25 11:10:00', 3, 8);
+(3, '2025-01-25 11:10:00', 3, 8),
+
+-- 김환자 반환 완료: 로비 도착
+(3, '2025-01-25 09:15:00', 0, 8),
+
+-- 관리자 반환 완료: 로비 도착
+(3, '2025-01-25 11:15:00', 3, 8);
 

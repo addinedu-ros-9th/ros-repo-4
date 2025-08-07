@@ -12,6 +12,10 @@ import os
 import threading
 import numpy as np
 from collections import deque
+import sys
+
+# SlidingShiftGCN 모델 import를 위한 경로 추가
+sys.path.append('/home/ckim/ros-repo-4/deeplearning/gesture_recognition/src')
 
 # 모듈 import
 from person_tracker import PersonTracker
@@ -24,151 +28,190 @@ os.environ['OPENCV_VIDEOIO_PRIORITY_GSTREAMER'] = '0'
 
 
 class SharedPersonTracker:
-    """전면/후면 카메라 간 사람 매칭을 위한 공유 추적기"""
+    """전면/후면 카메라 간 사람 매칭을 위한 공유 추적기 (도플갱어 방지)"""
     def __init__(self):
         print("🔄 공유 사람 추적기 초기화")
         
-        # 카메라별 독립적인 추적기 (각각의 히스토그램 기억)
-        self.front_tracker = PersonTracker()
-        self.back_tracker = PersonTracker()
-        
-        # 통합된 사람 데이터 (카메라 간 매칭)
+        # 통합된 사람 데이터 (도플갱어 방지)
         self.unified_people = {}
         self.next_unified_id = 0
         
-        # 카메라별 최신 감지 결과
-        self.camera_detections = {
+        # 최대 기억할 사람 수 제한
+        self.max_people = 10
+        
+        # 사용 가능한 ID 풀 (0-9)
+        self.available_ids = set(range(10))
+        
+        # 카메라별 최신 감지 결과 (원본)
+        self.camera_raw_detections = {
             'front': [],
             'back': []
         }
         
-        # 매칭 설정 (더 엄격하게)
-        self.cross_camera_match_threshold = 0.6  # 0.4 → 0.6으로 더 엄격하게
-        self.match_timeout = 10.0 
+        # 매칭 설정
+        self.cross_camera_match_threshold = 0.4
+        self.match_timeout = 8.0
         
         self.lock = threading.Lock()
         print("✅ 공유 사람 추적기 초기화 완료")
         
     def add_frame(self, frame, frame_id, elapsed_time, camera_name):
-        """특정 카메라의 프레임 추가"""
+        """특정 카메라의 프레임 추가 (원본 감지 결과만 저장)"""
+        # 원본 PersonTracker로 감지
         if camera_name == 'front':
+            if not hasattr(self, 'front_tracker'):
+                self.front_tracker = PersonTracker()
             self.front_tracker.add_frame(frame, frame_id, elapsed_time)
+            self.camera_raw_detections['front'] = self.front_tracker.get_latest_detections()
         else:
+            if not hasattr(self, 'back_tracker'):
+                self.back_tracker = PersonTracker()
             self.back_tracker.add_frame(frame, frame_id, elapsed_time)
+            self.camera_raw_detections['back'] = self.back_tracker.get_latest_detections()
+        
+        # 주기적으로 오래된 매핑 정리
+        if frame_id % 60 == 0:
+            self.cleanup_old_mappings(elapsed_time)
+        
+        # 주기적으로 PersonTracker 초기화 (메모리 관리)
+        if frame_id % 300 == 0:
+            print(f"🔄 {camera_name} 카메라 PersonTracker 초기화")
+            if camera_name == 'front':
+                self.front_tracker = PersonTracker()
+            else:
+                self.back_tracker = PersonTracker()
         
     def get_latest_detections(self, camera_name, elapsed_time):
-        """특정 카메라의 최신 감지 결과 반환 (통합 ID 적용)"""
+        """특정 카메라의 최신 감지 결과 반환 (도플갱어 방지)"""
         with self.lock:
-            # 해당 카메라의 원본 감지 결과 가져오기
-            if camera_name == 'front':
-                raw_detections = self.front_tracker.get_latest_detections()
-            else:
-                raw_detections = self.back_tracker.get_latest_detections()
+            # 1단계: 현재 카메라의 원본 감지 결과 가져오기
+            raw_detections = self.camera_raw_detections.get(camera_name, [])
             
-            # 통합 ID 매핑 적용
+            # 2단계: 기존 통합 ID와 매칭 시도
             unified_detections = []
-            for detection in raw_detections:
-                unified_id = self._get_unified_id(detection, camera_name, elapsed_time)
-                unified_detection = detection.copy()
-                unified_detection['id'] = unified_id
-                unified_detections.append(unified_detection)
+            used_unified_ids = set()  # 현재 카메라에서 사용된 통합 ID 추적
             
-            # 카메라별 결과 저장
-            self.camera_detections[camera_name] = unified_detections
+            for detection in raw_detections:
+                person_id = detection['id']
+                bbox = detection['bbox']
+                
+                # 기존 통합 ID와 매칭 시도
+                matched_unified_id = self._find_existing_match(detection, camera_name, elapsed_time)
+                
+                if matched_unified_id:
+                    # 기존 통합 ID 사용
+                    unified_detection = detection.copy()
+                    unified_detection['id'] = matched_unified_id
+                    unified_detections.append(unified_detection)
+                    used_unified_ids.add(matched_unified_id)
+                    
+                    # 매칭 정보 업데이트
+                    self.unified_people[matched_unified_id]['last_seen'][camera_name] = elapsed_time
+                    self.unified_people[matched_unified_id]['bbox'][camera_name] = bbox
+                else:
+                    # 새로운 통합 ID 할당 (도플갱어 방지)
+                    new_unified_id = self._assign_new_unified_id(detection, camera_name, elapsed_time)
+                    unified_detection = detection.copy()
+                    unified_detection['id'] = new_unified_id
+                    unified_detections.append(unified_detection)
+                    used_unified_ids.add(new_unified_id)
+            
+            # 3단계: 다른 카메라에서 현재 카메라로 이동한 사람 확인
+            other_camera = 'back' if camera_name == 'front' else 'front'
+            other_detections = self.camera_raw_detections.get(other_camera, [])
+            
+            for detection in other_detections:
+                other_person_id = detection['id']
+                other_bbox = detection['bbox']
+                
+                # 이미 현재 카메라에서 사용된 통합 ID는 제외
+                for unified_id, data in self.unified_people.items():
+                    if (unified_id not in used_unified_ids and 
+                        other_camera in data['camera_ids'] and 
+                        data['camera_ids'][other_camera] == other_person_id):
+                        
+                        # 시간 차이 확인
+                        other_last_seen = data['last_seen'].get(other_camera, 0)
+                        time_diff = elapsed_time - other_last_seen
+                        
+                        if time_diff <= self.match_timeout:
+                            # 공간적 매칭 시도
+                            score = self._calculate_cross_camera_similarity(other_bbox, bbox, other_camera, camera_name)
+                            if score > self.cross_camera_match_threshold:
+                                # 매칭 성공 - 기존 통합 ID 사용
+                                unified_detection = detection.copy()
+                                unified_detection['id'] = unified_id
+                                unified_detections.append(unified_detection)
+                                used_unified_ids.add(unified_id)
+                                
+                                # 매칭 정보 업데이트
+                                data['camera_ids'][camera_name] = detection['id']
+                                data['last_seen'][camera_name] = elapsed_time
+                                data['bbox'][camera_name] = detection['bbox']
+                                
+                                print(f"✅ 카메라 간 이동 감지: {other_camera} → {camera_name} ({unified_id})")
+                                break
             
             return unified_detections
     
-    def _get_unified_id(self, detection, camera_name, elapsed_time):
-        """감지된 사람에 대한 통합 ID 반환 (카메라 간 매칭)"""
+    def _find_existing_match(self, detection, camera_name, elapsed_time):
+        """기존 통합 ID와 매칭 시도"""
         person_id = detection['id']
         bbox = detection['bbox']
-        confidence = detection['confidence']
         
-        # 현재 카메라에서 이미 매핑된 ID가 있는지 확인
         for unified_id, data in self.unified_people.items():
             if camera_name in data['camera_ids'] and data['camera_ids'][camera_name] == person_id:
-                # 기존 매핑 업데이트
-                data['last_seen'][camera_name] = elapsed_time
-                data['bbox'][camera_name] = bbox
                 return unified_id
         
-        # 다른 카메라에서 매칭 가능한 사람 찾기
-        best_match_id = None
-        best_score = 0.0
+        return None
+    
+    def _assign_new_unified_id(self, detection, camera_name, elapsed_time):
+        """새로운 통합 ID 할당 (도플갱어 방지)"""
+        # 최대 인원 제한 확인
+        if len(self.unified_people) >= self.max_people:
+            # 가장 오래된 사람 제거
+            oldest_id = min(self.unified_people.keys(), 
+                          key=lambda x: self.unified_people[x]['created_time'])
+            removed_person = self.unified_people.pop(oldest_id)
+            removed_id_num = int(oldest_id.split('_')[1])
+            self.available_ids.add(removed_id_num)
+            print(f"🗑️ 최대 인원 초과로 오래된 사람 제거: {oldest_id}")
         
-        for unified_id, data in self.unified_people.items():
-            # 다른 카메라에서 감지된 사람과 매칭 시도
-            other_camera = 'back' if camera_name == 'front' else 'front'
-            if other_camera in data['camera_ids']:
-                # 현재 카메라에 이미 매핑된 통합 ID는 제외 (중복 매칭 방지)
-                if camera_name in data['camera_ids']:
-                    continue
-                    
-                other_bbox = data['bbox'].get(other_camera)
-                if other_bbox:
-                    # 시간 차이 확인 (너무 오래된 매칭은 제외)
-                    other_last_seen = data['last_seen'].get(other_camera, 0)
-                    time_diff = elapsed_time - other_last_seen
-                    
-                    if time_diff <= self.match_timeout:  # 타임아웃 내에만 매칭
-                        # 공간적 매칭
-                        score = self._calculate_cross_camera_similarity(bbox, other_bbox, camera_name, other_camera)
-                        if score > best_score and score > self.cross_camera_match_threshold:
-                            best_score = score
-                            best_match_id = unified_id
-        
-        if best_match_id:
-            # 기존 통합 ID에 현재 카메라 정보 추가
-            self.unified_people[best_match_id]['camera_ids'][camera_name] = person_id
-            self.unified_people[best_match_id]['last_seen'][camera_name] = elapsed_time
-            self.unified_people[best_match_id]['bbox'][camera_name] = bbox
-            
-            # 매칭 성공 디버깅
-            if hasattr(self, 'debug_counter'):
-                self.debug_counter += 1
-            else:
-                self.debug_counter = 0
-                
-            if self.debug_counter % 5 == 0:  # 10 → 5로 더 자주 출력
-                print(f"✅ 카메라 간 매칭 성공: {person_id} → {best_match_id} (점수: {best_score:.3f})")
-                print(f"   현재 매핑 상태: {self.unified_people[best_match_id]['camera_ids']}")
-                print(f"   전체 통합 ID 개수: {len(self.unified_people)}")
-            
-            return best_match_id
+        # 사용 가능한 ID 중 가장 작은 번호 선택
+        if self.available_ids:
+            next_id = min(self.available_ids)
+            self.available_ids.remove(next_id)
         else:
-            # 새로운 통합 ID 생성
-            unified_id = f"Person_{self.next_unified_id}"
-            self.next_unified_id += 1
-            
-            self.unified_people[unified_id] = {
-                'camera_ids': {camera_name: person_id},
-                'last_seen': {camera_name: elapsed_time},
-                'bbox': {camera_name: bbox},
-                'created_time': elapsed_time
-            }
-            
-            # 새 ID 생성 디버깅
-            if hasattr(self, 'debug_counter') and self.debug_counter % 5 == 0:  # 10 → 5로 더 자주 출력
-                print(f"🆕 새로운 통합 ID 생성: {person_id} → {unified_id}")
-                if best_score > 0:
-                    print(f"   - 최고 매칭 점수: {best_score:.3f} (임계값: {self.cross_camera_match_threshold})")
-                print(f"   현재 전체 매핑: {len(self.unified_people)}개 통합 ID")
-                print(f"   전체 매핑 상태:")
-                for uid, data in self.unified_people.items():
-                    print(f"     {uid}: {data['camera_ids']}")
-            
-            return unified_id
+            next_id = 0
+            print(f"⚠️ 모든 ID가 사용 중, 0부터 재시작")
+        
+        # 새로운 통합 ID 생성
+        unified_id = f"Person_{next_id}"
+        
+        self.unified_people[unified_id] = {
+            'camera_ids': {camera_name: detection['id']},
+            'last_seen': {camera_name: elapsed_time},
+            'bbox': {camera_name: detection['bbox']},
+            'created_time': elapsed_time
+        }
+        
+        print(f"🆕 새로운 통합 ID 생성: {detection['id']} → {unified_id}")
+        return unified_id
     
     def _calculate_cross_camera_similarity(self, bbox1, bbox2, camera1, camera2):
-        """두 카메라 간 바운딩 박스 유사도 계산"""
+        """두 카메라 간 바운딩 박스 유사도 계산 (적당한 기준)"""
         x1_1, y1_1, x2_1, y2_1 = bbox1
         x1_2, y1_2, x2_2, y2_2 = bbox2
         
         area1 = (x2_1 - x1_1) * (y2_1 - y1_1)
         area2 = (x2_2 - x1_2) * (y2_2 - y1_2)
         
-        # 면적 비율 유사도 (더 관대하게)
+        # 면적 비율 유사도 (적당하게)
         area_ratio = min(area1, area2) / max(area1, area2) if max(area1, area2) > 0 else 0
+        
+        # 면적 차이가 너무 크면 매칭 거부 (더 관대하게)
+        if area_ratio < 0.1:  # 면적 차이가 90% 이상이면 매칭 거부 (0.3 → 0.1로 더 관대하게)
+            return 0.0
         
         # 위치 유사도 (카메라별 특성 고려)
         if camera1 == 'front' and camera2 == 'back':
@@ -181,24 +224,32 @@ class SharedPersonTracker:
             front_normalized = front_center_y / height_ratio
             back_normalized = (height_ratio - back_center_y) / height_ratio
             position_similarity = 1.0 - abs(front_normalized - back_normalized)
+            
+            # 위치 차이가 너무 크면 매칭 거부 (더 관대하게)
+            if position_similarity < 0.2:  # 위치 차이가 80% 이상이면 매칭 거부 (0.4 → 0.2로 더 관대하게)
+                return 0.0
         else:
             position_similarity = 0.5  # 기본값
         
-        # 종합 점수 (면적 비율에 더 높은 가중치)
-        total_score = (area_ratio * 0.8 + position_similarity * 0.2)
+        # 종합 점수 (면적 비율에 더 높은 가중치, 적당하게)
+        total_score = (area_ratio * 0.6 + position_similarity * 0.4)
         
-        # 디버깅 정보 (30프레임마다)
-        if hasattr(self, 'debug_counter') and self.debug_counter % 30 == 0:
+        # 디버깅 정보 (15프레임마다 - 더 자주 출력)
+        if hasattr(self, 'debug_counter') and self.debug_counter % 15 == 0:
             print(f"🔍 카메라 간 매칭 시도: {camera1} ↔ {camera2}")
             print(f"   - 면적 비율: {area_ratio:.3f}")
             print(f"   - 위치 유사도: {position_similarity:.3f}")
             print(f"   - 종합 점수: {total_score:.3f}")
             print(f"   - 임계값: {self.cross_camera_match_threshold}")
+            if total_score < self.cross_camera_match_threshold:
+                print(f"   ❌ 매칭 거부: 점수 부족")
+            else:
+                print(f"   ✅ 매칭 가능: 점수 충분")
         
         return total_score
     
     def cleanup_old_mappings(self, elapsed_time):
-        """오래된 매핑 정리"""
+        """오래된 매핑 정리 (최대 인원 제한 고려)"""
         with self.lock:
             people_to_remove = []
             for unified_id, data in self.unified_people.items():
@@ -212,8 +263,19 @@ class SharedPersonTracker:
                 if all_old:
                     people_to_remove.append(unified_id)
             
+            # 오래된 사람들 제거
             for unified_id in people_to_remove:
-                del self.unified_people[unified_id]
+                removed_person = self.unified_people.pop(unified_id)
+                # 제거된 ID를 사용 가능한 ID 풀에 추가
+                removed_id_num = int(unified_id.split('_')[1])
+                self.available_ids.add(removed_id_num)
+                print(f"🗑️ 타임아웃으로 오래된 사람 제거: {unified_id}")
+                print(f"   - 제거된 사람 정보: {removed_person['camera_ids']}")
+            
+            # 현재 인원 수 출력 (디버깅용)
+            if len(self.unified_people) > 0:
+                print(f"📊 현재 추적 중인 사람: {len(self.unified_people)}/{self.max_people}명")
+                print(f"   사용 가능한 ID 풀: {sorted(self.available_ids)}")
 
 
 class WebcamStream:
@@ -314,6 +376,7 @@ class SingleCameraProcessor:
 
         # 제스처와 confidence 업데이트
         if keypoints_detected and current_keypoints is not None:
+            # gesture_prediction이 이미 "COME" 또는 "NORMAL" 문자열
             self.current_gesture = gesture_prediction
             self.current_confidence = gesture_confidence
         else:
@@ -346,12 +409,15 @@ class SingleCameraProcessor:
             scale_y = frame.shape[0] / 480
             scaled_keypoints[:, 0] *= scale_x
             scaled_keypoints[:, 1] *= scale_y
-            annotated = self.gesture_recognizer.draw_keypoints(annotated, scaled_keypoints, (0, 255, 255))
+            annotated = self.gesture_recognizer.draw_visualization(annotated, scaled_keypoints, self.current_gesture, self.current_confidence)
 
         # 간단한 정보 표시: 딜레이, 제스처, confidence
         cv2.putText(annotated, f"Delay: {self.current_delay*1000:.0f}ms", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
-        cv2.putText(annotated, f"Gesture: {self.current_gesture}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-        cv2.putText(annotated, f"Conf: {self.current_confidence:.2f}", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+        
+        # 제스처 색상: COME은 빨간색, NORMAL은 초록색
+        gesture_color = (0, 0, 255) if self.current_gesture == "COME" else (0, 255, 0)
+        cv2.putText(annotated, f"Gesture: {self.current_gesture}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, gesture_color, 2)
+        cv2.putText(annotated, f"Conf: {self.current_confidence:.2f}", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.8, gesture_color, 2)
 
         return annotated
 

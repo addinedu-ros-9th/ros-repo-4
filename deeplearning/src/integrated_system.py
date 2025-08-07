@@ -355,7 +355,7 @@ class IntegratedSystem:
                                 largest_person_color = color_palette[person_num % len(color_palette)]
                     
                     # 가장 큰 사람의 관절점만 시각화 (해당 사람 색상으로)
-                    annotated = self.gesture_recognizer.draw_keypoints(annotated, current_keypoints, largest_person_color)
+                    annotated = self.gesture_recognizer.draw_visualization(annotated, current_keypoints, current_gesture, current_confidence)
                     
                     # 제스처 인식용 키포인트 개수 표시 (9개 기준)
                     upper_body_joints = [0, 5, 6, 7, 8, 9, 10, 11, 12]
@@ -396,8 +396,8 @@ class IntegratedSystem:
                 cv2.putText(annotated, f"People: {len(latest_detections)}", (10, 70), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
                 
-                # 제스처 표시 (색상 변경)
-                gesture_color = (0, 255, 0) if current_gesture == "COME" else (255, 0, 255)  # COME은 초록색, NORMAL은 자홍색
+                # 제스처 표시 (색상 변경: COME은 빨간색, NORMAL은 초록색)
+                gesture_color = (0, 0, 255) if current_gesture == "COME" else (0, 255, 0)  # COME은 빨간색, NORMAL은 초록색
                 cv2.putText(annotated, f"Gesture: {current_gesture}", (10, 100), 
                            cv2.FONT_HERSHEY_SIMPLEX, 1.0, gesture_color, 3)
                 cv2.putText(annotated, f"Confidence: {current_confidence:.2f}", (10, 130), 
@@ -415,7 +415,7 @@ class IntegratedSystem:
                 cv2.putText(annotated, f"Frame: {frame_count}", (10, 220), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
                 
-                # 3초 단위 판단 정보 표시
+                # 1초 단위 판단 정보 표시 (SlidingShiftGCN 모델에 맞춤)
                 frames_to_next_decision = self.gesture_recognizer.gesture_decision_interval - (frame_count - self.gesture_recognizer.last_gesture_decision_frame)
                 if frames_to_next_decision > 0:
                     cv2.putText(annotated, f"Next Decision: {frames_to_next_decision}f", 
@@ -453,7 +453,7 @@ class IntegratedSystem:
                 if frame_count % 120 == 0:
                     print(f"📊 FPS: {fps:.1f} | People: {len(latest_detections)} | Gesture: {current_gesture}")
                     print(f"   화면 확인: 밝기 {np.mean(annotated):.1f}, 크기 {annotated.shape}")
-                    print(f"   제스처 상태: 버퍼 {len(self.gesture_recognizer.gesture_frame_buffer)}/90, 다음 판단까지 {frames_to_next_decision}프레임")
+                    print(f"   제스처 상태: 버퍼 {len(self.gesture_recognizer.gesture_frame_buffer)}/30, 다음 판단까지 {frames_to_next_decision}프레임")
                     print(f"   키포인트 상태: 감지={keypoints_detected}, 데이터={current_keypoints is not None}")
                     
                     # 히스토그램 매칭 디버깅

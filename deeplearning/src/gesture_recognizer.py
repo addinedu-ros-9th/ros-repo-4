@@ -9,100 +9,14 @@ import threading
 import queue
 import time
 import os
+import sys
+
+# SlidingShiftGCN 모델 import를 위한 경로 추가
+sys.path.append('/home/ckim/ros-repo-4/deeplearning/gesture_recognition/src')
+from train_sliding_shift_gcn import SlidingShiftGCN
 
 # GPU 설정
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-class SimpleShiftGCN(nn.Module):
-    """Shift-GCN 모델"""
-    
-    def __init__(self, num_classes, num_joints, in_channels=3, dropout=0.5):
-        super(SimpleShiftGCN, self).__init__()
-        
-        self.num_classes = num_classes
-        self.num_joints = num_joints
-        
-        # Adjacency matrix
-        self.register_buffer('A', torch.eye(num_joints))
-        
-        # 입력 정규화
-        self.data_bn = nn.BatchNorm1d(in_channels * num_joints)
-        
-        # 3층 구조
-        self.conv1 = nn.Conv2d(in_channels, 32, 1)
-        self.bn1 = nn.BatchNorm2d(32)
-        
-        self.conv2 = nn.Conv2d(32, 64, 1) 
-        self.bn2 = nn.BatchNorm2d(64)
-        
-        self.conv3 = nn.Conv2d(64, 128, 1)
-        self.bn3 = nn.BatchNorm2d(128)
-        
-        # Temporal convolution
-        self.tcn = nn.Conv2d(128, 128, (3, 1), padding=(1, 0))
-        self.tcn_bn = nn.BatchNorm2d(128)
-        
-        # Classifier
-        self.dropout = nn.Dropout(dropout)
-        self.fc = nn.Linear(128, num_classes)
-        
-    def set_adjacency_matrix(self, A):
-        self.A = torch.FloatTensor(A)
-        if next(self.parameters()).is_cuda:
-            self.A = self.A.cuda()
-    
-    def forward(self, x):
-        N, C, T, V, M = x.size()
-        
-        # Focus on first person
-        x = x[:, :, :, :, 0]  # (N, C, T, V)
-        
-        # Data normalization
-        x = x.permute(0, 1, 3, 2).contiguous()  # (N, C, V, T)
-        x = x.view(N, C * V, T)
-        x = self.data_bn(x)
-        x = x.view(N, C, V, T)
-        x = x.permute(0, 1, 3, 2).contiguous()  # (N, C, T, V)
-        
-        # Graph convolution layers
-        # Layer 1
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = F.relu(x)
-        x = self.dropout(x)
-        
-        # Apply graph adjacency
-        x = torch.einsum('nctv,vw->nctw', x, self.A)
-        
-        # Layer 2
-        x = self.conv2(x)
-        x = self.bn2(x)
-        x = F.relu(x)
-        x = self.dropout(x)
-        
-        # Apply graph adjacency
-        x = torch.einsum('nctv,vw->nctw', x, self.A)
-        
-        # Layer 3
-        x = self.conv3(x)
-        x = self.bn3(x)
-        x = F.relu(x)
-        x = self.dropout(x)
-        
-        # Temporal convolution
-        x = self.tcn(x)
-        x = self.tcn_bn(x)
-        x = F.relu(x)
-        x = self.dropout(x)
-        
-        # Global pooling
-        x = F.avg_pool2d(x, x.size()[2:])  # (N, 128, 1, 1)
-        x = x.view(N, -1)  # (N, 128)
-        
-        # Classification
-        x = self.fc(x)
-        
-        return x
 
 class GestureRecognizer:
     """제스처 인식 시스템"""
@@ -138,13 +52,13 @@ class GestureRecognizer:
         # Shift-GCN 모델 로드
         self.load_gesture_model()
         
-        # 제스처 인식 설정 (학습 시와 완전히 동일)
-        self.gesture_frame_buffer = deque(maxlen=90)  # 90 프레임 (학습 시와 동일)
+        # 제스처 인식 설정 (SlidingShiftGCN 모델에 맞춤)
+        self.gesture_frame_buffer = deque(maxlen=30)  # 90 → 30으로 변경 (SlidingShiftGCN 모델에 맞춤)
         self.actions = ['COME', 'NORMAL']  # 2클래스
-        self.min_gesture_frames = 90  # 30 → 90으로 복원 (학습 시와 동일)
+        self.min_gesture_frames = 30  # 90 → 30으로 변경 (SlidingShiftGCN 모델에 맞춤)
         
-        # 3초 단위 판단 설정 (학습 시와 동일)
-        self.gesture_decision_interval = 90  # 30 → 90으로 복원 (3초마다 판단)
+        # 1초 단위 판단 설정 (SlidingShiftGCN 모델에 맞춤)
+        self.gesture_decision_interval = 30  # 90 → 30으로 변경 (1초마다 판단)
         self.last_gesture_decision_frame = 0
         self.current_gesture_confidence = 0.5
         
@@ -153,10 +67,8 @@ class GestureRecognizer:
         self.normal_detection_threshold = 0.30  # 0.35 → 0.30로 낮춤 (더 관대하게)
         self.min_keypoints_for_gesture = 2  # 3 → 2로 낮춤 (더 관대하게)
         
-        # 실시간 감지 설정 (비활성화 - 학습 시 90프레임으로 학습됨)
-        # 실시간 감지는 30프레임으로 학습되지 않은 모델에 부적절
-        # 3초 단위 판단만 사용하여 정확한 성능 확보
-        self.realtime_detection_enabled = False  # 실시간 감지 비활성화 (90프레임 학습 모델에 맞춤)
+        # 실시간 감지 설정 (SlidingShiftGCN 모델에 맞춰 활성화)
+        self.realtime_detection_enabled = True  # 실시간 감지 활성화 (30프레임 학습 모델에 맞춤)
         self.realtime_confidence_threshold = 0.20  # 0.25 → 0.20로 낮춤 (더 관대하게)
         
         # 상체 관절점 (YOLO Pose 17개 중 상체 9개)
@@ -202,18 +114,18 @@ class GestureRecognizer:
     
     def load_gesture_model(self):
         """Shift-GCN 모델 로드"""
-        model_path = '/home/ckim/ros-repo-4/deeplearning/gesture_recognition/models/simple_shift_gcn_model.pth'
+        model_path = '/home/ckim/ros-repo-4/deeplearning/gesture_recognition/models/sliding_shift_gcn_model.pth'
         
         if os.path.exists(model_path):
-            self.gesture_model = SimpleShiftGCN(num_classes=2, num_joints=9, dropout=0.5)
+            self.gesture_model = SlidingShiftGCN(num_classes=2, num_joints=9, dropout=0.3)
             self.gesture_model.load_state_dict(torch.load(model_path, map_location=device))
             self.gesture_model = self.gesture_model.to(device)
             self.gesture_model.eval()
             self.enable_gesture_recognition = True
-            print(f"✅ Shift-GCN 모델 로드 성공: {model_path}")
+            print(f"✅ SlidingShift-GCN 모델 로드 성공: {model_path}")
             
             # 학습 시 사용된 인접 행렬 로드 시도
-            adj_path = '/home/ckim/ros-repo-4/deeplearning/gesture_recognition/shift_gcn_data/adjacency_matrix.npy'
+            adj_path = '/home/ckim/ros-repo-4/deeplearning/gesture_recognition/shift_gcn_data_sliding/adjacency_matrix.npy'
             if os.path.exists(adj_path):
                 self.adjacency_matrix = np.load(adj_path)
                 print(f"✅ 학습 시 인접 행렬 로드: {self.adjacency_matrix.shape}")
@@ -421,38 +333,39 @@ class GestureRecognizer:
         
         return normalized_keypoints
     
-    def draw_keypoints(self, frame, keypoints, color=(0, 255, 0)):
-        """관절점 시각화 (상체만)"""
-        if keypoints is None or len(keypoints) == 0:
-            return frame
+    def draw_visualization(self, frame, keypoints, prediction, confidence):
+        """관절점 시각화 (predict_webcam_realtime.py와 동일한 방식)"""
+        if keypoints is not None:
+            # 관절점 연결선 정의 (predict_webcam_realtime.py와 동일)
+            connections = [(0, 1), (0, 2), (1, 2), (1, 3), (2, 4), (3, 5), (4, 6), (1, 7), (2, 8), (7, 8)]
+            for i, j in connections:
+                idx1, idx2 = self.upper_body_joints[i], self.upper_body_joints[j]
+                if keypoints[idx1, 2] > 0.3 and keypoints[idx2, 2] > 0.3:
+                    p1 = (int(keypoints[idx1, 0]), int(keypoints[idx1, 1]))
+                    p2 = (int(keypoints[idx2, 0]), int(keypoints[idx2, 1]))
+                    cv2.line(frame, p1, p2, (255, 255, 255), 2)
             
-        # 상체 관절점 인덱스 (YOLO Pose 17개 중)
-        display_joints = [0, 5, 6, 7, 8, 9, 10]  # 얼굴 + 상체
-        
-        # 관절점 연결선 정의
-        connections = [
-            (5, 6),   # 어깨 연결
-            (5, 7),   # 왼쪽 어깨-팔꿈치
-            (7, 9),   # 왼쪽 팔꿈치-손목
-            (6, 8),   # 오른쪽 어깨-팔꿈치
-            (8, 10),  # 오른쪽 팔꿈치-손목
-        ]
-        
-        # 키포인트 그리기
-        for joint_idx in display_joints:
-            if joint_idx < len(keypoints):
-                x, y, conf = keypoints[joint_idx]
-                if conf > 0.3:  # 신뢰도 0.3 이상만
-                    cv2.circle(frame, (int(x), int(y)), 4, color, -1)
-                    cv2.circle(frame, (int(x), int(y)), 6, (255, 255, 255), 1)
-        
-        # 연결선 그리기
-        for joint1, joint2 in connections:
-            if joint1 < len(keypoints) and joint2 < len(keypoints):
-                x1, y1, conf1 = keypoints[joint1]
-                x2, y2, conf2 = keypoints[joint2]
-                if conf1 > 0.3 and conf2 > 0.3:
-                    cv2.line(frame, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
+            # 관절점 그리기 (predict_webcam_realtime.py와 동일)
+            for idx in self.upper_body_joints:
+                if keypoints[idx, 2] > 0.3:
+                    center = (int(keypoints[idx, 0]), int(keypoints[idx, 1]))
+                    cv2.circle(frame, center, 5, (0, 255, 255), -1)
+
+        # 제스처 예측 결과 표시 (COME: 빨간색, NORMAL: 초록색)
+        if prediction is None:
+            text = f"Collecting frames... [{len(self.gesture_frame_buffer)}/{self.min_gesture_frames}]"
+            cv2.putText(frame, text, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        else:
+            label = prediction  # 이미 문자열로 되어 있음
+            # COME: 빨간색, NORMAL: 초록색 (BGR 색상)
+            if label == "COME":
+                color = (0, 0, 255)  # 빨간색
+            else:  # NORMAL
+                color = (0, 255, 0)  # 초록색
+            
+            text = f"{label}: {confidence:.2f}"
+            cv2.rectangle(frame, (10, 10), (350, 60), color, -1)
+            cv2.putText(frame, text, (20, 45), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 3)
         
         return frame
     
@@ -628,25 +541,15 @@ class GestureRecognizer:
                     if frame_id % 60 == 0:
                         print(f"   ❌ 키포인트 없음으로 제스처 분석 중단")
                 
-                # 실시간 감지 (비활성화 - 학습 시 90프레임으로 학습됨)
-                # 실시간 감지는 30프레임으로 학습되지 않은 모델에 부적절
-                # 3초 단위 판단만 사용하여 정확한 성능 확보
-                # if (self.realtime_detection_enabled and 
-                #     len(self.gesture_frame_buffer) >= 30 and
-                #     keypoints_detected and current_keypoints_data is not None):
-                #     # 실시간 감지 로직 제거
-                #     pass
-                
-                # 3초(90프레임) 단위로 정기 판단 (학습 시와 동일)
-                frames_since_last_decision = frame_id - self.last_gesture_decision_frame
-                
-                if (len(self.gesture_frame_buffer) >= self.min_gesture_frames and 
-                    frames_since_last_decision >= self.gesture_decision_interval):
+                # 실시간 감지 (SlidingShiftGCN 모델에 맞춰 활성화)
+                if (self.realtime_detection_enabled and 
+                    len(self.gesture_frame_buffer) >= 30 and
+                    keypoints_detected and current_keypoints_data is not None):
                     
-                    print(f"🎯 [Frame {frame_id}] 3초 단위 제스처 판단 시작!")
+                    print(f"🎯 [Frame {frame_id}] 실시간 제스처 판단 시작!")
                     
                     try:
-                        # 키포인트 시퀀스 전처리 (학습 시와 동일한 로직)
+                        # 키포인트 시퀀스 전처리 (SlidingShiftGCN 모델에 맞춤)
                         keypoints_sequence = list(self.gesture_frame_buffer)
                         keypoints_array = np.array(keypoints_sequence)  # (T, 9, 3)
                         
@@ -658,17 +561,17 @@ class GestureRecognizer:
                             if valid_count >= 4:
                                 valid_frames.append(frame_kpts)
                         
-                        if len(valid_frames) < 90:  # 최소 90프레임 필요 (학습 시와 동일)
-                            print(f"   ⚠️ 유효한 키포인트 프레임 부족: {len(valid_frames)}/90")
+                        if len(valid_frames) < 30:  # 최소 30프레임 필요 (SlidingShiftGCN 모델에 맞춤)
+                            print(f"   ⚠️ 유효한 키포인트 프레임 부족: {len(valid_frames)}/30")
                             self.frame_queue.task_done()
                             continue
                         
                         # 유효한 프레임들만 사용
                         keypoints_array = np.array(valid_frames)
                         
-                        # 학습 시와 동일한 전처리
+                        # SlidingShiftGCN 모델에 맞는 전처리
                         T, V, C = keypoints_array.shape
-                        target_frames = 90
+                        target_frames = 30  # SlidingShiftGCN 모델은 30프레임
                     
                         if T != target_frames:
                             old_indices = np.linspace(0, T-1, T)
@@ -681,10 +584,87 @@ class GestureRecognizer:
                             
                             keypoints_array = resampled_keypoints
                         
-                        # 학습 시와 동일한 정규화 적용 (중심점 기반)
+                        # 정규화 적용 (중심점 기반)
                         normalized_keypoints = self.normalize_keypoints(keypoints_array)
                         
-                        # Shift-GCN 입력 형태로 변환
+                        # SlidingShiftGCN 입력 형태로 변환
+                        shift_gcn_data = np.zeros((C, target_frames, V, 1))
+                        shift_gcn_data[:, :, :, 0] = normalized_keypoints.transpose(2, 0, 1)
+                        
+                        # 모델 예측
+                        input_tensor = torch.FloatTensor(shift_gcn_data).unsqueeze(0).to(device)
+                        
+                        with torch.no_grad():
+                            self.gesture_model.eval()
+                            output = self.gesture_model(input_tensor)
+                            probabilities = F.softmax(output, dim=1)
+                            prediction = torch.argmax(probabilities, dim=1).item()
+                            confidence = probabilities[0, prediction].item()
+                        
+                        # 결과 해석
+                        gesture_name = self.actions[prediction]
+                        
+                        # 실시간 판단 결과 업데이트
+                        with self.lock:
+                            self.latest_gesture = (gesture_name, confidence, keypoints_detected, current_keypoints)
+                            self.current_gesture_confidence = confidence
+                        
+                        print(f"🎯 실시간 제스처 결과: {gesture_name} (신뢰도: {confidence:.3f})")
+                        
+                        # 버퍼 초기화 (새로운 실시간 구간 시작)
+                        self.gesture_frame_buffer.clear()
+                        
+                    except Exception as e:
+                        print(f"❌ 실시간 제스처 인식 오류: {e}")
+                
+                # 1초(30프레임) 단위로 정기 판단 (SlidingShiftGCN 모델에 맞춤)
+                frames_since_last_decision = frame_id - self.last_gesture_decision_frame
+                
+                if (len(self.gesture_frame_buffer) >= self.min_gesture_frames and 
+                    frames_since_last_decision >= self.gesture_decision_interval):
+                    
+                    print(f"🎯 [Frame {frame_id}] 1초 단위 제스처 판단 시작!")
+                    
+                    try:
+                        # 키포인트 시퀀스 전처리 (SlidingShiftGCN 모델에 맞춤)
+                        keypoints_sequence = list(self.gesture_frame_buffer)
+                        keypoints_array = np.array(keypoints_sequence)  # (T, 9, 3)
+                        
+                        # 키포인트 품질 검증
+                        valid_frames = []
+                        for i, frame_kpts in enumerate(keypoints_array):
+                            valid_joints = frame_kpts[:, 2] >= 0.01
+                            valid_count = np.sum(valid_joints)
+                            if valid_count >= 4:
+                                valid_frames.append(frame_kpts)
+                        
+                        if len(valid_frames) < 30:  # 최소 30프레임 필요 (SlidingShiftGCN 모델에 맞춤)
+                            print(f"   ⚠️ 유효한 키포인트 프레임 부족: {len(valid_frames)}/30")
+                            self.frame_queue.task_done()
+                            continue
+                        
+                        # 유효한 프레임들만 사용
+                        keypoints_array = np.array(valid_frames)
+                        
+                        # SlidingShiftGCN 모델에 맞는 전처리
+                        T, V, C = keypoints_array.shape
+                        target_frames = 30  # SlidingShiftGCN 모델은 30프레임
+                    
+                        if T != target_frames:
+                            old_indices = np.linspace(0, T-1, T)
+                            new_indices = np.linspace(0, T-1, target_frames)
+                            
+                            resampled_keypoints = np.zeros((target_frames, V, C))
+                            for v in range(V):
+                                for c in range(C):
+                                    resampled_keypoints[:, v, c] = np.interp(new_indices, old_indices, keypoints_array[:, v, c])
+                            
+                            keypoints_array = resampled_keypoints
+                        
+                        # 정규화 적용 (중심점 기반)
+                        normalized_keypoints = self.normalize_keypoints(keypoints_array)
+                        
+                        # SlidingShiftGCN 입력 형태로 변환
                         shift_gcn_data = np.zeros((C, target_frames, V, 1))
                         shift_gcn_data[:, :, :, 0] = normalized_keypoints.transpose(2, 0, 1)
                         
@@ -708,20 +688,25 @@ class GestureRecognizer:
                         
                         self.last_gesture_decision_frame = frame_id
                         
-                        print(f"🎯 3초 제스처 결과: {gesture_name} (신뢰도: {confidence:.3f})")
+                        print(f"🎯 1초 제스처 결과: {gesture_name} (신뢰도: {confidence:.3f})")
                         
-                        # 버퍼 초기화 (새로운 3초 구간 시작)
+                        # 버퍼 초기화 (새로운 1초 구간 시작)
                         self.gesture_frame_buffer.clear()
                         
                     except Exception as e:
-                        print(f"❌ 3초 제스처 인식 오류: {e}")
+                        print(f"❌ 1초 제스처 인식 오류: {e}")
                 
                 # 결과 저장 (키포인트 정보 포함)
                 # 키포인트가 감지된 경우에만 업데이트
                 if keypoints_detected and current_keypoints is not None:
-                    # 3초 단위 판단 결과만 사용 (실시간 감지 비활성화)
+                    # 실시간 감지와 1초 단위 판단 결과 모두 사용 (SlidingShiftGCN 모델에 맞춤)
+                    # prediction이 이미 문자열인지 확인
+                    if isinstance(prediction, str):
+                        prediction_label = prediction
+                    else:
+                        prediction_label = self.actions[prediction] if prediction is not None else "NORMAL"
                     with self.lock:
-                        self.latest_gesture = (prediction, confidence, True, current_keypoints)
+                        self.latest_gesture = (prediction_label, confidence, True, current_keypoints)
                 # 키포인트가 없으면 이전 값 유지 (업데이트 안 함)
                 elif not keypoints_detected and frame_id % 120 == 0:
                     # 키포인트가 감지되지 않을 때 디버깅
@@ -733,6 +718,8 @@ class GestureRecognizer:
                 continue
             except Exception as e:
                 print(f"❌ 제스처 인식 워커 오류: {e}")
+                import traceback
+                traceback.print_exc()
                 break
     
     def get_latest_gesture(self):

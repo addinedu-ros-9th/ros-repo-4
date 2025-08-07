@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS `HeroDB`.`robot_log` (
   `patient_id` INT NULL DEFAULT NULL,
   `dttm` DATETIME NOT NULL,
   `type` VARCHAR(45) NOT NULL,
-  `admin_id` INT NULL,
+  `admin_id` VARCHAR(20) NULL,
   PRIMARY KEY (`robot_id`, `dttm`),
   INDEX `fk_robot_log_1_idx` (`patient_id` ASC) VISIBLE,
   INDEX `fk_robot_log_5_idx` (`type` ASC) VISIBLE,
@@ -174,7 +174,7 @@ CREATE TABLE IF NOT EXISTS `HeroDB`.`robot_log` (
     ON UPDATE CASCADE,
   CONSTRAINT `fk_robot_log_3`
     FOREIGN KEY (`admin_id`)
-    REFERENCES `HeroDB`.`admin` (`hospital_id`)
+    REFERENCES `HeroDB`.`admin` (`admin_id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
