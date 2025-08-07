@@ -628,17 +628,19 @@ void DashboardWidget::setupCameraWidget()
 {
     // config.yaml에서 UDP 포트 읽기
     int udp_port = 8888;  // 기본값
+    std::string AI_IP = "127.0.0.1";  // 기본값
 
     try {
         std::string config_path = "../../config.yaml";
         YAML::Node config = YAML::LoadFile(config_path);
+        AI_IP = config["ai_server"]["ip"].as<std::string>();
         udp_port = config["ros_gui_client"]["udp_receive_port"].as<int>();
     } catch (const std::exception& e) {
         qDebug() << "config.yaml 로드 실패, 기본 포트 8888 사용:" << e.what();
     }
     
     // UDP 이미지 수신기 생성 (로컬 포트만 사용)
-    udp_receiver_ = new UdpImageReceiver("127.0.0.1", udp_port, this);
+    udp_receiver_ = new UdpImageReceiver(QString::fromStdString(AI_IP), udp_port, this);
     
     // 시그널 연결
     connect(udp_receiver_, &UdpImageReceiver::imageReceived, 
