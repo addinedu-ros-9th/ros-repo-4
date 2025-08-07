@@ -3,15 +3,24 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/string.hpp>
+#include <std_msgs/msg/int32.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
+#include <geometry_msgs/msg/pose.hpp>
+#include <geometry_msgs/msg/point.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <nav_msgs/msg/occupancy_grid.hpp>
+
+// 서비스 헤더들
+#include <control_interfaces/srv/event_handle.hpp>
+#include <control_interfaces/srv/track_handle.hpp>
 
 #include <memory>
 #include <string>
 #include <functional>
 #include <map>
+#include <mutex>
+#include <atomic>
 
 class RobotNavigationManager : public rclcpp::Node {
 public:

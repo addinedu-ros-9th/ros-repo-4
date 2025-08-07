@@ -11,6 +11,9 @@
 #include <json/json.h>
 #include "central_server/database_manager.h"
 #include "central_server/robot_navigation_manager.h"
+#include "central_server/admin_request_handler.h"
+#include "central_server/user_request_handler.h"
+#include "central_server/robot_request_handler.h"
 
 // WebSocket 관련 헤더
 #include <sys/socket.h>
@@ -55,6 +58,11 @@ private:
     // 로봇 네비게이션 관리자
     std::shared_ptr<RobotNavigationManager> nav_manager_;
     
+    // 요청 핸들러들
+    std::unique_ptr<AdminRequestHandler> admin_handler_;
+    std::unique_ptr<UserRequestHandler> user_handler_;
+    std::unique_ptr<RobotRequestHandler> robot_handler_;
+    
     // 로봇 현재 위치 정보
     struct RobotPosition {
         double x;
@@ -71,44 +79,8 @@ private:
     // 요청 처리
     std::string processRequest(const HttpRequest& request);
     
-    // API 엔드포인트 핸들러들
-    std::string handleAuthSSN(const Json::Value& request);
-    std::string handleAuthPatientId(const Json::Value& request);
-    std::string handleAuthRFID(const Json::Value& request);
-    
-    // 공통 인증 로직
-    std::string handleCommonAuth(const PatientInfo& patient);
-    std::string handleAuthDirection(const Json::Value& request);
-    std::string handleRobotReturn(const Json::Value& request);
-    std::string handleWithoutAuthRobotReturn(const Json::Value& request);
-    std::string handleWithoutAuthDirection(const Json::Value& request);
-    std::string handleRobotStatus(const Json::Value& request);
+    // WebSocket 관련 함수들
     std::string handleWebSocketUpgrade(const HttpRequest& request, int client_socket);
-    std::string handleGetLLMConfig(const Json::Value& request);
-    
-    // 공통 direction 처리 함수
-    std::string processDirectionRequest(int robot_id, int department_id, int* patient_id, const std::string& log_type);
-    
-    // 공통 robot return 처리 함수
-    std::string processRobotReturnRequest(int robot_id, int* patient_id, const std::string& log_type);
-    
-    // 테이블 API 핸들러들 (실제 명세)
-    std::string handleAuthLogin(const Json::Value& request);
-    std::string handleAuthDetail(const Json::Value& request);
-    std::string handleGetRobotLocation(const Json::Value& request);
-    std::string handleChangeCamera(const Json::Value& request);
-    std::string handleGetRobotStatus(const Json::Value& request);
-    std::string handleGetPatientInfo(const Json::Value& request);
-    std::string handleStopStatusMoving(const Json::Value& request);
-    std::string handleCancelCommand(const Json::Value& request);
-    std::string handleCommandMoveTeleop(const Json::Value& request);
-    std::string handleCommandMoveDest(const Json::Value& request);
-    std::string handleGetLogData(const Json::Value& request);
-    std::string handleGetHeatmap(const Json::Value& request);
-    
-    // 로봇 네비게이션 관련 핸들러들
-    std::string handleNavigationCommand(const Json::Value& request);
-    std::string handleGetRobotNavigationStatus(const Json::Value& request);
     
     // WebSocket 관련 함수들
     void handleWebSocketClient(int client_socket);
@@ -119,13 +91,6 @@ private:
     
     // 유틸리티 함수들
     Json::Value parseJson(const std::string& jsonStr);
-    std::string createSuccessResponse(const std::string& name, 
-                                    const std::string& datetime, 
-                                    const std::string& department,
-                                    const std::string& status,
-                                    int patient_id);
-    std::string createErrorResponse(const std::string& message);
-    std::string createStatusResponse(int status_code);
     
     // HTTP 요청 파싱
     HttpRequest parseHttpRequest(const std::string& request);
