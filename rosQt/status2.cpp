@@ -285,6 +285,13 @@ void Status2Widget::onClickKey(int clickedNumber)
     }
 }
 
+void Status2Widget::setRobotLocation(double x, double y, double yaw)
+{
+    if (ui->content1) {
+        ui->content1->setText(QString("x: %1 / y: %2 / yaw: %3").arg(x).arg(y).arg(yaw));
+    }
+}
+
 void Status2Widget::show_at(const QPoint& pos)
 {
     move(pos);
@@ -307,6 +314,7 @@ QString Status2Widget::mapDepartmentIdToName(int dept_id) {
         case 5: return "폐암 센터";
         case 6: return "뇌졸중 센터";
         case 7: return "유방암 센터";
+        case 8: return "로비";
         default: return "알 수 없음 (" + QString::number(dept_id) + ")";
     }
 }

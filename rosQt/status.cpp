@@ -16,9 +16,9 @@ StatusWidget::StatusWidget(QWidget *parent)
     , battery_(80)  // 기본값 설정
     , network_("상")  // 기본값 설정
     , patient_id_("00000000")  // 기본값 설정
-    , phone_("010-1234-5678")  // 기본값 설정
-    , rfid_("33F7ADEC")  // 기본값 설정
-    , patient_name_("김환자")  // 기본값 설정
+    , phone_("010-0000-0000")  // 기본값 설정
+    , rfid_("00A0AA00")  // 기본값 설정
+    , patient_name_("김00")  // 기본값 설정
 {
     ui->setupUi(this);  // UI 파일 설정
     setWidgetClasses();
@@ -293,6 +293,7 @@ QString StatusWidget::mapDepartmentIdToName(int dept_id) {
         case 5: return "폐암 센터";
         case 6: return "뇌졸중 센터";
         case 7: return "유방암 센터";
+        case 8: return "로비";  // 로비 추가
         default: return "알 수 없음 (" + QString::number(dept_id) + ")";
     }
 }

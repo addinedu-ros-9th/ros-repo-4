@@ -4,6 +4,7 @@
 #include "status2.h"
 #include "status3.h"
 #include "map.h"
+#include <QTimer>
 #include "udp_image_receiver.h" 
 #include "control_popup1.h" 
 #include "control_popup2.h" 
@@ -22,6 +23,7 @@
 DashboardWidget::DashboardWidget(QWidget *parent) 
     : QWidget(parent)
     , ui(new Ui_DashboardWidget)
+    , ros_timer_(new QTimer(this))
     , status_widget(nullptr) 
     , status_widget2(nullptr) // 추가
     , status_widget3(nullptr) // 추가
@@ -29,7 +31,11 @@ DashboardWidget::DashboardWidget(QWidget *parent)
     , udp_receiver_(nullptr) 
     , control_popup1_(nullptr) 
     , control_popup2_(nullptr) 
-    , status_("idle")
+    , pose_x_(0.0)
+    , pose_y_(0.0)
+    , pose_yaw_(0.0)
+    , pose_qw_(1.0)  // 초기값 설정
+    , status_("환자사용중")
     , camera_toggle_status_("전면")
 {
     ui->setupUi(this);  // UI 파일 설정
@@ -40,6 +46,11 @@ DashboardWidget::DashboardWidget(QWidget *parent)
     setupControlButton();  // 추가
     setCameraToggleStatus();  // 초기 카메라 상태 설정
     getRobotStatus();
+
+    // 5초마다 로봇 위치 가져오기
+    connect(ros_timer_, &QTimer::timeout, this, &DashboardWidget::get_robot_location);
+    ros_timer_->start(5000);  // 5초 간격
+    
 }
 
 DashboardWidget::~DashboardWidget()
@@ -111,7 +122,9 @@ void DashboardWidget::setStatus(const QString& newStatus)
                 ui->controlBtn->setText("제어 중지");
             } else if (status_ == "대기중") {
                 ui->controlBtn->setText("원격 제어");
-            }
+            } else if (status_ == "환자사용중") {
+                ui->controlBtn->setVisible(false);
+            } 
         }
 
         if (ui->status_label) {
@@ -124,6 +137,92 @@ void DashboardWidget::setStatus(const QString& newStatus)
         if (ui->destinationBtn) {
             ui->destinationBtn->setVisible(status_ == "관리자사용중");
         }
+    }
+}
+
+void DashboardWidget::setPose(double x, double y, double yaw)
+{
+    pose_x_ = x;
+    pose_y_ = y;
+    pose_yaw_ = yaw;
+    pose_qw_ = sqrt(1 - pose_yaw_ * pose_yaw_);
+
+    if(map_widget) {
+        map_widget->setPose(pose_x_, pose_y_, pose_yaw_);
+    }
+    if(status_widget2) {
+        status_widget2->setRobotLocation(pose_x_, pose_y_, pose_yaw_);
+
+    }
+}
+
+void DashboardWidget::get_robot_location()
+{
+    std::string config_path = "../../config.yaml";
+    YAML::Node config = YAML::LoadFile(config_path);
+    std::string CENTRAL_IP = config["central_server"]["ip"].as<std::string>();
+    int CENTRAL_HTTP_PORT = config["central_server"]["http_port"].as<int>();
+
+    QString url = QString("http://%1:%2/get/robot_location")
+                    .arg(CENTRAL_IP.c_str())
+                    .arg(CENTRAL_HTTP_PORT);
+
+    QJsonObject data;
+    data["robot_id"] = 3;
+    QJsonDocument doc(data);
+    QByteArray jsonData = doc.toJson();
+
+    qDebug() << "[로봇 위치 요청 URL]:" << url;
+    qDebug() << "[전송 데이터]:" << jsonData;
+    try
+    {
+        QNetworkRequest request{QUrl(url)};
+        request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+        QNetworkAccessManager* manager = new QNetworkAccessManager(this);
+        QNetworkReply* reply = manager->post(request, jsonData);
+
+        connect(reply, &QNetworkReply::finished, this, [this, reply, CENTRAL_IP, CENTRAL_HTTP_PORT]() {
+            int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (statusCode == 200) {
+                QByteArray responseData = reply->readAll();
+                QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
+                QJsonObject result = jsonDoc.object();
+                qDebug() << "[응답 내용]:" << result;
+
+                if (result.contains("x") && result.contains("y") && result.contains("yaw")) {
+                    double location_x = result["x"].toDouble();
+                    double location_y = result["y"].toDouble();
+                    double location_yaw = result["yaw"].toDouble();
+
+                    setPose(location_x, location_y, location_yaw);
+                    // setPose(location_x, location_y, location_yaw);
+                    // amcl_pose_callback();  // 위치 업데이트 후 콜백 호출
+                } else {
+                    qDebug() << "응답에 위치 정보가 없습니다.";
+                }
+            } else if (statusCode == 400) {
+                qDebug() << "잘못된 요청입니다. 400 Bad Request";
+            } else if (statusCode == 401) {
+                qDebug() << "정상 요청, 정보 없음 or 응답 실패. 401";
+            } else if (statusCode == 404) {
+                qDebug() << "잘못된 요청 404 Not Found";
+            } else if (statusCode == 405) {
+                qDebug() << "메소드가 리소스 허용 안됨";
+            } else if (statusCode == 500) {
+                qDebug() << "서버 내부 오류 500 Internal Server Error";
+            } else if (statusCode == 503) {
+                qDebug() << "서비스 불가";
+            } else {
+                qDebug() << "알 수 없는 오류 발생. 상태 코드:" << statusCode;
+            }
+
+            reply->deleteLater();
+        });
+
+    } catch (const YAML::BadFile& e) {
+        qDebug() << "YAML 파일 로드 실패:" << e.what();
+        return;
     }
 }
 
@@ -328,10 +427,14 @@ void DashboardWidget::setupStatusWidget()
         status_widget = new StatusWidget(this);
         status_widget->setGeometry(477, 549, 753, 281);  // 위치와 크기 조정
         status_widget->show();
-    } else {
+    } else if (status_ == "관리자사용중") {
         status_widget2 = new Status2Widget(this);
         status_widget2->setGeometry(477, 549, 753, 281);  // 위치와 크기 조정
         status_widget2->show();
+    } else if (status_ == "대기중") {
+        status_widget3 = new Status3Widget(this);
+        status_widget3->setGeometry(477, 549, 753, 281);  // 위치와 크기 조정
+        status_widget3->show();
     }
 }
 
@@ -667,4 +770,11 @@ void DashboardWidget::refresh()
     if (map_widget) {
         map_widget->refresh();
     }
+
+    if (ros_node_) {
+        rclcpp::spin_some(ros_node_);
+    }
+    
+    // 로봇 위치 주기적 업데이트
+    get_robot_location();
 }

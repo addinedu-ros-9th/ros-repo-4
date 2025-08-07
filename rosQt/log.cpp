@@ -426,6 +426,7 @@ QString LogWidget::mapDepartmentIdToName(int dept_id) {
         case 5: return "폐암 센터";
         case 6: return "뇌졸중 센터";
         case 7: return "유방암 센터";
+        case 8: return "로비";  // 로비 추가
         default: return "알 수 없음 (" + QString::number(dept_id) + ")";
     }
 }

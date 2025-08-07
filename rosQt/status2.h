@@ -21,6 +21,7 @@ public:
 
 public slots:
     void setMoveFirstText(const QString& text);
+    void setRobotLocation(double x, double y, double yaw);
 
 private:
     void setWidgetClasses();  // CSS 클래스 설정 함수

@@ -19,12 +19,12 @@ public:
     
     void show_at(const QPoint& pos);
     void refresh();
+    void setPose(double x, double y, double yaw);
     
 private:
     void setWidgetClasses();  // CSS 클래스 설정 함수
-    void get_robot_location();
+    // void get_robot_location();
     void amcl_pose_callback();
-    void setPose(double x, double y, double yaw);
     
 private:
     Ui_MapWidget *ui;  // UI 포인터

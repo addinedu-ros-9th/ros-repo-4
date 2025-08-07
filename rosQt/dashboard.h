@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QKeyEvent>  // ← 추가
 #include "udp_image_receiver.h" 
+#include <rclcpp/rclcpp.hpp>
 
 class Ui_DashboardWidget;  // UI 클래스 전방 선언
 class StatusWidget;
@@ -46,8 +47,17 @@ private:
     ControlPopup1 *control_popup1_;
     ControlPopup2 *control_popup2_;
 
+    std::shared_ptr<rclcpp::Node> ros_node_;
+    QTimer *ros_timer_;  // ROS2 스핀용 타이머
+
     QString status_;  // 상태 변수
     QString camera_toggle_status_;
+    
+    double pose_x_;
+    double pose_y_;
+    double pose_yaw_; 
+    double pose_qw_;  
+
     int orig_;
     int dest_;
     int battery_;
@@ -63,6 +73,9 @@ private:
     void setupControlButton();
     void setCameraToggleStatus();
     void onCameraToggleClicked();
+    void get_robot_location();
+    // void amcl_pose_callback();
+    void setPose(double x, double y, double yaw);
 };
 
 #endif // DASHBOARDWIDGET_H
