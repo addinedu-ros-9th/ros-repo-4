@@ -26,8 +26,8 @@ AIServer::AIServer()
 void AIServer::loadConfig()
 {
     try {
-        // 설정 파일 경로 (프로젝트 루트 기준)
-        std::string config_path = "../../config.yaml";  // ../config.yaml에서 ../../config.yaml로 수정
+        // 설정 파일 경로 (절대 경로 사용)
+        std::string config_path = "/home/ckim/ros-repo-4/config.yaml";
         YAML::Node config = YAML::LoadFile(config_path);
         
         // AI 서버 설정 읽기
