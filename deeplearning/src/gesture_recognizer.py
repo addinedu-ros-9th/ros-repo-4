@@ -141,21 +141,23 @@ class GestureRecognizer:
         # 제스처 인식 설정 (학습 시와 완전히 동일)
         self.gesture_frame_buffer = deque(maxlen=90)  # 90 프레임 (학습 시와 동일)
         self.actions = ['COME', 'NORMAL']  # 2클래스
-        self.min_gesture_frames = 90  # 60 → 90으로 복원 (학습 시와 동일)
+        self.min_gesture_frames = 90  # 30 → 90으로 복원 (학습 시와 동일)
         
         # 3초 단위 판단 설정 (학습 시와 동일)
-        self.gesture_decision_interval = 90  # 60 → 90으로 복원 (3초마다 판단)
+        self.gesture_decision_interval = 90  # 30 → 90으로 복원 (3초마다 판단)
         self.last_gesture_decision_frame = 0
         self.current_gesture_confidence = 0.5
         
-        # COME 제스처 인식 개선 설정 (임계값은 낮게 유지)
-        self.come_detection_threshold = 0.15  # 0.30 → 0.15로 낮춤 (COME 감지 개선)
-        self.normal_detection_threshold = 0.40  # 0.15 → 0.40으로 높임 (더 엄격하게)
+        # COME 제스처 인식 개선 설정 (임계값 조정)
+        self.come_detection_threshold = 0.08  # 0.10 → 0.08로 더 낮춤 (COME 감지 개선)
+        self.normal_detection_threshold = 0.30  # 0.35 → 0.30로 낮춤 (더 관대하게)
         self.min_keypoints_for_gesture = 2  # 3 → 2로 낮춤 (더 관대하게)
         
-        # 실시간 감지 설정 (학습 시와 동일한 환경에서만)
-        self.realtime_detection_enabled = False  # 실시간 감지 비활성화 (3초 단위만 사용)
-        self.realtime_confidence_threshold = 0.25  # 0.1 → 0.25로 높임 (더 엄격하게)
+        # 실시간 감지 설정 (비활성화 - 학습 시 90프레임으로 학습됨)
+        # 실시간 감지는 30프레임으로 학습되지 않은 모델에 부적절
+        # 3초 단위 판단만 사용하여 정확한 성능 확보
+        self.realtime_detection_enabled = False  # 실시간 감지 비활성화 (90프레임 학습 모델에 맞춤)
+        self.realtime_confidence_threshold = 0.20  # 0.25 → 0.20로 낮춤 (더 관대하게)
         
         # 상체 관절점 (YOLO Pose 17개 중 상체 9개)
         self.upper_body_joints = [0, 5, 6, 7, 8, 9, 10, 11, 12]  # 코+어깨+팔+엉덩이
@@ -505,7 +507,7 @@ class GestureRecognizer:
                     x1, y1, x2, y2 = map(int, target_person['bbox'])
                     
                     # ROI 확장 (더 넓은 영역에서 pose 감지)
-                    margin = 50
+                    margin = 100  # 50 → 100으로 늘림
                     x1 = max(0, x1 - margin)
                     y1 = max(0, y1 - margin)
                     x2 = min(frame.shape[1], x2 + margin)
@@ -522,7 +524,7 @@ class GestureRecognizer:
                             print(f"   - ROI 크기: {roi.shape}")
                         
                         # ROI에서 pose 감지 (설정 개선)
-                        results = self.pose_model(roi, imgsz=256, conf=0.1,  # 0.3 → 0.1로 낮춤
+                        results = self.pose_model(roi, imgsz=256, conf=0.01,  # 0.05 → 0.01로 더 낮춤
                                                 verbose=False, device=0)
                         
                         keypoints_data = []
@@ -539,7 +541,7 @@ class GestureRecognizer:
                                     upper_body_kpts = person_kpts[self.upper_body_joints]  # (9, 3)
                                     
                                     # 신뢰도 체크 (임계값 낮춤)
-                                    valid_joints = upper_body_kpts[:, 2] >= 0.1  # 0.2 → 0.1로 낮춤
+                                    valid_joints = upper_body_kpts[:, 2] >= 0.01  # 0.05 → 0.01로 더 낮춤
                                     valid_count = np.sum(valid_joints)
                                     
                                     if frame_id % 60 == 0:
@@ -610,24 +612,25 @@ class GestureRecognizer:
                 
                 # 제스처 분석 (키포인트가 충분히 감지된 경우에만)
                 if keypoints_detected and current_keypoints_data is not None:
-                    # 최소 6개 이상의 키포인트가 있어야 제스처 판단 (7 → 6으로 낮춤)
-                    valid_joints = current_keypoints_data[:, 2] >= 0.1
+                    # 최소 4개 이상의 키포인트가 있어야 제스처 판단 (6 → 4로 낮춤)
+                    valid_joints = current_keypoints_data[:, 2] >= 0.05  # 0.1 → 0.05로 낮춤
                     valid_count = np.sum(valid_joints)
                     
-                    if valid_count >= 6:  # 최소 6개 키포인트 필요 (7 → 6으로 낮춤)
+                    if valid_count >= 4:  # 최소 4개 키포인트 필요 (6 → 4로 낮춤)
                         self.gesture_frame_buffer.append(current_keypoints_data)
                         
                         if frame_id % 60 == 0:
                             print(f"   ✅ 제스처 분석 진행: {valid_count}/9 키포인트")
                     else:
                         if frame_id % 60 == 0:
-                            print(f"   ⚠️ 키포인트 부족으로 제스처 분석 중단: {valid_count}/6 (최소 필요)")
+                            print(f"   ⚠️ 키포인트 부족으로 제스처 분석 중단: {valid_count}/4 (최소 필요)")
                 else:
                     if frame_id % 60 == 0:
                         print(f"   ❌ 키포인트 없음으로 제스처 분석 중단")
                 
-                # 실시간 감지 (키포인트가 충분하고 버퍼가 준비된 경우에만)
-                # 실시간 감지 비활성화 - 3초 단위 판단만 사용
+                # 실시간 감지 (비활성화 - 학습 시 90프레임으로 학습됨)
+                # 실시간 감지는 30프레임으로 학습되지 않은 모델에 부적절
+                # 3초 단위 판단만 사용하여 정확한 성능 확보
                 # if (self.realtime_detection_enabled and 
                 #     len(self.gesture_frame_buffer) >= 30 and
                 #     keypoints_detected and current_keypoints_data is not None):
@@ -643,34 +646,31 @@ class GestureRecognizer:
                     print(f"🎯 [Frame {frame_id}] 3초 단위 제스처 판단 시작!")
                     
                     try:
-                        # 키포인트 시퀀스 전처리
+                        # 키포인트 시퀀스 전처리 (학습 시와 동일한 로직)
                         keypoints_sequence = list(self.gesture_frame_buffer)
                         keypoints_array = np.array(keypoints_sequence)  # (T, 9, 3)
                         
-                        # 키포인트 품질 검증 (최소 6개 이상의 키포인트가 있는 프레임들만 사용)
+                        # 키포인트 품질 검증
                         valid_frames = []
                         for i, frame_kpts in enumerate(keypoints_array):
-                            valid_joints = frame_kpts[:, 2] >= 0.1
+                            valid_joints = frame_kpts[:, 2] >= 0.01
                             valid_count = np.sum(valid_joints)
-                            if valid_count >= 6:  # 최소 6개 키포인트 필요 (7 → 6으로 낮춤)
+                            if valid_count >= 4:
                                 valid_frames.append(frame_kpts)
                         
-                        if len(valid_frames) < 30:  # 최소 30프레임 이상 있어야 판단
-                            print(f"   ⚠️ 유효한 키포인트 프레임 부족: {len(valid_frames)}/30 (최소 필요)")
+                        if len(valid_frames) < 90:  # 최소 90프레임 필요 (학습 시와 동일)
+                            print(f"   ⚠️ 유효한 키포인트 프레임 부족: {len(valid_frames)}/90")
                             self.frame_queue.task_done()
                             continue
                         
                         # 유효한 프레임들만 사용
-                        keypoints_array = np.array(valid_frames)  # (T', 9, 3)
-                        print(f"   ✅ 유효한 키포인트 프레임: {len(valid_frames)}개 사용")
-                    
-                        # 학습 시와 동일한 전처리 방식 사용
-                        # 1. 키포인트를 학습 시 형태로 변환: (T, V, C) -> (C, T, V, M)
+                        keypoints_array = np.array(valid_frames)
+                        
+                        # 학습 시와 동일한 전처리
                         T, V, C = keypoints_array.shape
                         target_frames = 90
                     
                         if T != target_frames:
-                            # 선형 보간을 사용한 시간 정규화 (학습 시와 동일)
                             old_indices = np.linspace(0, T-1, T)
                             new_indices = np.linspace(0, T-1, target_frames)
                             
@@ -681,126 +681,40 @@ class GestureRecognizer:
                             
                             keypoints_array = resampled_keypoints
                         
-                        # 2. 학습 시와 동일한 형태로 변환: (C, T, V, M)
+                        # 학습 시와 동일한 정규화 적용 (중심점 기반)
+                        normalized_keypoints = self.normalize_keypoints(keypoints_array)
+                        
+                        # Shift-GCN 입력 형태로 변환
                         shift_gcn_data = np.zeros((C, target_frames, V, 1))
-                        shift_gcn_data[:, :, :, 0] = keypoints_array.transpose(2, 0, 1)
+                        shift_gcn_data[:, :, :, 0] = normalized_keypoints.transpose(2, 0, 1)
                         
-                        # 3. 학습 시와 동일한 정규화 적용 (BatchNorm 대신 수동 정규화)
-                        # 각 관절점별로 정규화
-                        for v in range(V):
-                            for c in range(C):
-                                joint_data = shift_gcn_data[c, :, v, 0]
-                                if np.std(joint_data) > 0:
-                                    shift_gcn_data[c, :, v, 0] = (joint_data - np.mean(joint_data)) / np.std(joint_data)
-                                else:
-                                    shift_gcn_data[c, :, v, 0] = 0.0
-                        
-                        # 입력 데이터 통계 출력 (디버깅)
-                        if frame_id % 60 == 0:
-                            print(f"📊 입력 데이터 통계:")
-                            print(f"   - 키포인트 범위: [{shift_gcn_data.min():.3f}, {shift_gcn_data.max():.3f}]")
-                            print(f"   - 키포인트 평균: {shift_gcn_data.mean():.3f}")
-                            print(f"   - 키포인트 표준편차: {shift_gcn_data.std():.3f}")
-                            print(f"   - 0이 아닌 값 비율: {(shift_gcn_data != 0).sum() / shift_gcn_data.size:.3f}")
-                        
-                        # 정확히 90프레임으로 맞추기 (학습 시와 동일)
-                        # 이미 위에서 처리했으므로 제거
-                        # T, V, C = normalized_keypoints.shape
-                        # target_frames = 90
-                    
-                        # if T != target_frames:
-                        #     # 선형 보간을 사용한 시간 정규화 (학습 시와 동일)
-                        #     old_indices = np.linspace(0, T-1, T)
-                        #     new_indices = np.linspace(0, T-1, target_frames)
-                            
-                        #     resampled_keypoints = np.zeros((target_frames, V, C))
-                        #     for v in range(V):
-                        #         for c in range(C):
-                        #             resampled_keypoints[:, v, c] = np.interp(new_indices, old_indices, normalized_keypoints[:, v, c])
-                            
-                        #     normalized_keypoints = resampled_keypoints
-                    
-                        # Shift-GCN 입력 형태로 변환: (C, T, V, M) - 이미 위에서 처리됨
-                        # shift_gcn_data = np.zeros((C, target_frames, V, 1))
-                        # shift_gcn_data[:, :, :, 0] = normalized_keypoints.transpose(2, 0, 1)
-                    
                         # 모델 예측
                         input_tensor = torch.FloatTensor(shift_gcn_data).unsqueeze(0).to(device)
-                    
+                        
                         with torch.no_grad():
-                            outputs = self.gesture_model(input_tensor)
-                            probabilities = torch.softmax(outputs, dim=1)
-                            predicted_class = torch.argmax(outputs, dim=1).item()
-                            confidence = probabilities[0][predicted_class].item()
-                    
-                        prediction = self.actions[predicted_class]
-                        self.current_gesture_confidence = confidence
+                            self.gesture_model.eval()
+                            output = self.gesture_model(input_tensor)
+                            probabilities = F.softmax(output, dim=1)
+                            prediction = torch.argmax(probabilities, dim=1).item()
+                            confidence = probabilities[0, prediction].item()
                         
-                        # COME 제스처 인식 개선 로직
-                        if prediction == "COME" and confidence >= self.come_detection_threshold:
-                            # COME 제스처 확실히 감지됨
-                            final_prediction = "COME"
-                            final_confidence = confidence
-                        elif prediction == "NORMAL" and confidence >= self.normal_detection_threshold:
-                            # NORMAL 제스처 확실히 감지됨
-                            final_prediction = "NORMAL"
-                            final_confidence = confidence
-                        else:
-                            # 낮은 신뢰도일 때는 COME에 더 관대하게 처리
-                            if prediction == "COME":
-                                # COME 예측이면 더 낮은 임계값으로도 수용
-                                final_prediction = "COME"
-                                final_confidence = max(confidence, 0.15)  # 최소 0.15 유지 (0.2 → 0.15로 낮춤)
-                            elif hasattr(self, 'last_prediction') and self.last_prediction == "COME":
-                                # 이전에 COME이었으면 유지
-                                final_prediction = "COME"
-                                final_confidence = max(confidence, 0.15)  # 최소 0.15 유지 (0.2 → 0.15로 낮춤)
-                            else:
-                                final_prediction = "NORMAL"
-                                final_confidence = max(confidence, 0.3)  # 최소 0.3 유지
+                        # 결과 해석
+                        gesture_name = self.actions[prediction]
                         
-                        # 이전 판단 저장
-                        self.last_prediction = final_prediction
+                        # 정기 판단 결과 업데이트
+                        with self.lock:
+                            self.latest_gesture = (gesture_name, confidence, keypoints_detected, current_keypoints)
+                            self.current_gesture_confidence = confidence
                         
-                        # 결정 기록
                         self.last_gesture_decision_frame = frame_id
+                        
+                        print(f"🎯 3초 제스처 결과: {gesture_name} (신뢰도: {confidence:.3f})")
                         
                         # 버퍼 초기화 (새로운 3초 구간 시작)
                         self.gesture_frame_buffer.clear()
                         
-                        print(f"🎯 [3초 판단] {final_prediction} ({final_confidence:.3f}) | Raw: [{outputs[0][0]:.2f}, {outputs[0][1]:.2f}]")
-                        
-                        # COME 제스처 디버깅 정보 추가
-                        if final_prediction == "COME":
-                            print(f"   🔍 COME 감지! 상세 분석:")
-                            print(f"      - Raw outputs: [{outputs[0][0]:.4f}, {outputs[0][1]:.4f}]")
-                            print(f"      - Softmax probs: [{probabilities[0][0]:.4f}, {probabilities[0][1]:.4f}]")
-                            print(f"      - Predicted class: {predicted_class} -> {prediction}")
-                            print(f"      - Final decision: {final_prediction} (임계값: {self.come_detection_threshold})")
-                            print(f"      - 🎉 COME 제스처 감지 성공!")
-                        elif final_prediction == "NORMAL" and confidence < 0.7:  # 낮은 신뢰도일 때
-                            print(f"   🔍 낮은 신뢰도 NORMAL 감지:")
-                            print(f"      - Raw outputs: [{outputs[0][0]:.4f}, {outputs[0][1]:.4f}]")
-                            print(f"      - Softmax probs: [{probabilities[0][0]:.4f}, {probabilities[0][1]:.4f}]")
-                            print(f"      - Predicted class: {predicted_class} -> {prediction}")
-                            print(f"      - Final decision: {final_prediction} (임계값: {self.normal_detection_threshold})")
-                        
-                        # 모든 예측 결과 상세 출력 (디버깅 강화)
-                        print(f"   🔍 모든 예측 상세:")
-                        print(f"      - Raw outputs: [{outputs[0][0]:.4f}, {outputs[0][1]:.4f}]")
-                        print(f"      - Softmax probs: [{probabilities[0][0]:.4f}, {probabilities[0][1]:.4f}]")
-                        print(f"      - Predicted class: {predicted_class} -> {prediction}")
-                        print(f"      - COME 임계값: {self.come_detection_threshold}, NORMAL 임계값: {self.normal_detection_threshold}")
-                        print(f"      - Final decision: {final_prediction} (신뢰도: {final_confidence:.4f})")
-                        
-                        # 결과 업데이트
-                        prediction = final_prediction
-                        confidence = final_confidence
-                
                     except Exception as e:
-                        print(f"❌ 제스처 예측 오류: {e}")
-                        prediction = "NORMAL"
-                        confidence = 0.5
+                        print(f"❌ 3초 제스처 인식 오류: {e}")
                 
                 # 결과 저장 (키포인트 정보 포함)
                 # 키포인트가 감지된 경우에만 업데이트
