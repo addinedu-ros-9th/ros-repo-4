@@ -58,13 +58,10 @@ void DatabaseManager::disconnect() {
 }
 
 bool DatabaseManager::isConnected() {
-    std::lock_guard<std::mutex> lock(pool_mutex_);
     return !connection_pool_.empty() && !available_connections_.empty();
 }
 
 bool DatabaseManager::initializeConnectionPool() {
-    std::lock_guard<std::mutex> lock(pool_mutex_);
-    
     try {
         std::string url = "tcp://" + host_ + ":" + std::to_string(port_);
         
@@ -90,8 +87,6 @@ bool DatabaseManager::initializeConnectionPool() {
 }
 
 sql::Connection* DatabaseManager::getConnection() {
-    std::lock_guard<std::mutex> lock(pool_mutex_);
-    
     if (available_connections_.empty()) {
         std::cerr << "[DB] 사용 가능한 Connection이 없습니다" << std::endl;
         return nullptr;
@@ -127,13 +122,10 @@ sql::Connection* DatabaseManager::getConnection() {
 void DatabaseManager::releaseConnection(sql::Connection* connection) {
     if (connection == nullptr) return;
     
-    std::lock_guard<std::mutex> lock(pool_mutex_);
     available_connections_.push(connection);
 }
 
 void DatabaseManager::cleanupConnectionPool() {
-    std::lock_guard<std::mutex> lock(pool_mutex_);
-    
     while (!available_connections_.empty()) {
         available_connections_.pop();
     }
@@ -459,142 +451,13 @@ std::vector<DepartmentInfo> DatabaseManager::getAllDepartments() {
     return departments;
 }
 
-bool DatabaseManager::getReservationByPatientId(int patient_id, ReservationInfo& reservation) {
-    if (!isConnected()) {
-        return false;
-    }
-    
-    sql::Connection* raw_connection = getConnection();
-    if (!raw_connection) {
-        std::cerr << "[DB] Connection 획득 실패" << std::endl;
-        return false;
-    }
-    
-    ConnectionGuard connection(this, raw_connection);
-    
-    try {
-        std::unique_ptr<sql::PreparedStatement> pstmt(
-            connection->prepareStatement("SELECT patient_id, reservation_date FROM reservations WHERE patient_id = ? ORDER BY reservation_date DESC LIMIT 1")
-        );
-        pstmt->setInt(1, patient_id);
-        
-        std::unique_ptr<sql::ResultSet> res(pstmt->executeQuery());
-        
-        if (res->next()) {
-            reservation.patient_id = res->getInt("patient_id");
-            // reservation_date를 datetime 형식으로 변환
-            std::string date_str = res->getString("reservation_date");
-            reservation.datetime = date_str + " 09:00:00"; // 기본 시간 추가
-            reservation.reservation = "05"; // 기본값
-            
-            std::cout << "[DB] 예약 정보 조회 성공 (Patient ID): " << patient_id << std::endl;
-            return true;
-        }
-        
-        return false;
-        
-    } catch (sql::SQLException& e) {
-        std::cerr << "[DB] 예약 조회 실패 (Patient ID): " << e.what() << std::endl;
-        return false;
-    }
-}
 
-// 새로운 스키마에 맞게 robot_log 삽입 메서드 수정
-bool DatabaseManager::insertRobotLog(int robot_id, int patient_id, const std::string& datetime, float orig, float dest) {
-    if (!isConnected()) {
-        return false;
-    }
-    
-    sql::Connection* raw_connection = getConnection();
-    if (!raw_connection) {
-        std::cerr << "[DB] Connection 획득 실패" << std::endl;
-        return false;
-    }
-    
-    ConnectionGuard connection(this, raw_connection);
-    
-    try {
-        // 새로운 스키마에 맞게 robot_log와 navigating_log에 각각 삽입
-        // 1. robot_log 삽입 (type은 기본값으로 설정)
-        std::unique_ptr<sql::PreparedStatement> pstmt1(
-            connection->prepareStatement("INSERT INTO robot_log (robot_id, patient_id, dttm, type) VALUES (?, ?, ?, 'navigating')")
-        );
-        pstmt1->setInt(1, robot_id);
-        pstmt1->setInt(2, patient_id);
-        pstmt1->setString(3, datetime);
-        
-        int affected1 = pstmt1->executeUpdate();
-        
-        if (affected1 > 0) {
-            // 2. navigating_log 삽입
-            std::unique_ptr<sql::PreparedStatement> pstmt2(
-                connection->prepareStatement("INSERT INTO navigating_log (robot_id, dttm, orig, dest) VALUES (?, ?, ?, ?)")
-            );
-            pstmt2->setInt(1, robot_id);
-            pstmt2->setString(2, datetime);
-            pstmt2->setInt(3, static_cast<int>(orig));
-            pstmt2->setInt(4, static_cast<int>(dest));
-            
-            int affected2 = pstmt2->executeUpdate();
-            
-            if (affected2 > 0) {
-                std::cout << "[DB] 로봇 로그 삽입 성공 (robot_log + navigating_log)" << std::endl;
-                return true;
-            }
-        }
-        
-        return false;
-        
-    } catch (sql::SQLException& e) {
-        std::cerr << "[DB] 로봇 로그 삽입 실패: " << e.what() << std::endl;
-        return false;
-    }
-} 
+
+ 
 
 // Series 테이블 관련 메서드들
 
-bool DatabaseManager::getSeriesByPatientAndDate(int patient_id, const std::string& reservation_date, SeriesInfo& series) {
-    if (!isConnected()) {
-        return false;
-    }
-    
-    sql::Connection* raw_connection = getConnection();
-    if (!raw_connection) {
-        std::cerr << "[DB] Connection 획득 실패" << std::endl;
-        return false;
-    }
-    
-    ConnectionGuard connection(this, raw_connection);
-    
-    try {
-        std::unique_ptr<sql::PreparedStatement> pstmt(
-            connection->prepareStatement("SELECT series_id, department_id, dttm, status, patient_id, reservation_date FROM series WHERE patient_id = ? AND reservation_date = ? AND series_id = 0")
-        );
-        pstmt->setInt(1, patient_id);
-        pstmt->setString(2, reservation_date);
-        
-        std::unique_ptr<sql::ResultSet> res(pstmt->executeQuery());
-        
-        if (res->next()) {
-            series.series_id = res->getInt("series_id");
-            series.department_id = res->getInt("department_id");
-            series.dttm = res->getString("dttm");
-            series.status = res->getString("status");
-            series.patient_id = res->getInt("patient_id");
-            series.reservation_date = res->getString("reservation_date");
-            
-            std::cout << "[DB] Series 정보 조회 성공: Patient " << patient_id << ", Status " << series.status << std::endl;
-            return true;
-        }
-        
-        std::cout << "[DB] Series 정보 없음: Patient " << patient_id << ", Date " << reservation_date << std::endl;
-        return false;
-        
-    } catch (sql::SQLException& e) {
-        std::cerr << "[DB] Series 조회 실패: " << e.what() << std::endl;
-        return false;
-    }
-}
+
 
 bool DatabaseManager::updateSeriesStatus(int patient_id, const std::string& reservation_date, const std::string& new_status) {
     if (!isConnected()) {
@@ -704,10 +567,9 @@ bool DatabaseManager::insertRobotLogWithType(int robot_id, int* patient_id, cons
         int affected1 = pstmt1->executeUpdate();
         
         if (affected1 > 0) {
-            // 2. navigating_log 삽입 (길안내 관련 타입인 경우에만)
-            if (type.find("navigating") != std::string::npos || 
-                type.find("return") != std::string::npos ||
-                type.find("arrived") != std::string::npos) {
+            // 2. navigating_log 삽입 (navigation 이벤트인 경우에만)
+            if (type == "patient_navigating" || 
+                type == "unknown_navigating") {
                 
                 std::unique_ptr<sql::PreparedStatement> pstmt2(
                     connection->prepareStatement("INSERT INTO navigating_log (robot_id, dttm, orig, dest) VALUES (?, ?, ?, ?)")
@@ -746,99 +608,7 @@ bool DatabaseManager::insertRobotLogWithType(int robot_id, int* patient_id, cons
     }
 }
 
-int DatabaseManager::findNearestDepartment(float x, float y) {
-    if (!isConnected()) {
-        return -1;
-    }
-    
-    sql::Connection* raw_connection = getConnection();
-    if (!raw_connection) {
-        std::cerr << "[DB] Connection 획득 실패" << std::endl;
-        return -1;
-    }
-    
-    ConnectionGuard connection(this, raw_connection);
-    
-    try {
-        // 모든 부서 정보를 가져와서 가장 가까운 부서 찾기
-        std::unique_ptr<sql::Statement> stmt(connection->createStatement());
-        std::unique_ptr<sql::ResultSet> res(stmt->executeQuery("SELECT department_id, location_x, location_y FROM department"));
-        
-        int nearest_department_id = -1;
-        float min_distance = std::numeric_limits<float>::max();
-        
-        while (res->next()) {
-            int dept_id = res->getInt("department_id");
-            float dept_x = static_cast<float>(res->getDouble("location_x"));
-            float dept_y = static_cast<float>(res->getDouble("location_y"));
-            
-            // 유클리드 거리 계산
-            float distance = std::sqrt(std::pow(x - dept_x, 2) + std::pow(y - dept_y, 2));
-            
-            if (distance < min_distance) {
-                min_distance = distance;
-                nearest_department_id = dept_id;
-            }
-        }
-        
-        if (nearest_department_id != -1) {
-            std::cout << "[DB] 가장 가까운 부서 찾음: Department " << nearest_department_id 
-                     << " (거리: " << min_distance << ")" << std::endl;
-        }
-        
-        return nearest_department_id;
-        
-    } catch (sql::SQLException& e) {
-        std::cerr << "[DB] 가장 가까운 부서 찾기 실패: " << e.what() << std::endl;
-        return -1;
-    }
-} 
-
-bool DatabaseManager::getTodayReservationWithDepartmentName(int patient_id, SeriesInfo& series, std::string& department_name) {
-    if (!isConnected()) {
-        return false;
-    }
-    
-    sql::Connection* raw_connection = getConnection();
-    if (!raw_connection) {
-        std::cerr << "[DB] Connection 획득 실패" << std::endl;
-        return false;
-    }
-    
-    ConnectionGuard connection(this, raw_connection);
-    
-    try {
-        // 오늘 날짜의 "예약" 상태인 건을 찾는 쿼리
-        std::unique_ptr<sql::PreparedStatement> pstmt(
-            connection->prepareStatement("SELECT s.series_id, s.department_id, s.dttm, s.status, s.patient_id, s.reservation_date, d.department_name FROM series s JOIN department d ON s.department_id = d.department_id WHERE s.patient_id = ? AND s.reservation_date = CURDATE() AND s.series_id = 0")
-        );
-        pstmt->setInt(1, patient_id);
-        
-        std::unique_ptr<sql::ResultSet> res(pstmt->executeQuery());
-        
-        if (res->next()) {
-            series.series_id = res->getInt("series_id");
-            series.department_id = res->getInt("department_id");
-            series.dttm = res->getString("dttm");
-            series.status = res->getString("status");
-            series.patient_id = res->getInt("patient_id");
-            series.reservation_date = res->getString("reservation_date");
-            department_name = res->getString("department_name");
-            
-            std::cout << "[DB] 오늘 예약 정보 조회 성공: Patient " << patient_id << ", Department " << department_name << ", Status " << series.status << ", Date " << series.reservation_date << std::endl;
-            return true;
-        }
-        
-        std::cout << "[DB] 오늘 예약 정보 없음: Patient " << patient_id << std::endl;
-        return false;
-        
-    } catch (sql::SQLException& e) {
-        std::cerr << "[DB] 오늘 예약 조회 실패: " << e.what() << std::endl;
-        return false;
-    }
-}
-
-// 새로운 스키마에 맞게 로봇 로그 데이터 조회 메서드 수정
+// 로봇 로그 데이터 조회 메서드 (admin_request_handler에서 사용)
 std::vector<std::map<std::string, std::string>> DatabaseManager::getRobotLogData(const std::string& period, 
                                                                                  const std::string& start_date, 
                                                                                  const std::string& end_date) {
@@ -942,125 +712,62 @@ std::vector<std::map<std::string, std::string>> DatabaseManager::getRobotLogData
         
         std::cout << "[DB] 로봇 로그 데이터 조회 완료: " << log_data.size() << "개 레코드" << std::endl;
         
-        // 데이터가 없는 경우 테이블 내용 확인
-        if (log_data.empty()) {
-            std::unique_ptr<sql::ResultSet> count_check(stmt->executeQuery("SELECT COUNT(*) as total FROM robot_log"));
-            if (count_check->next()) {
-                int total_records = count_check->getInt("total");
-                std::cout << "[DB] robot_log 테이블 총 레코드 수: " << total_records << std::endl;
-                
-                if (total_records == 0) {
-                    std::cout << "[DB] robot_log 테이블이 비어있습니다" << std::endl;
-                } else {
-                    // 최근 몇 개 레코드 확인 - dttm 컬럼 사용
-                    std::unique_ptr<sql::ResultSet> sample_check(stmt->executeQuery("SELECT * FROM robot_log ORDER BY dttm DESC LIMIT 3"));
-                    std::cout << "[DB] 최근 레코드들:" << std::endl;
-                    while (sample_check->next()) {
-                        std::cout << "[DB] - robot_id: " << sample_check->getInt("robot_id")
-                                 << ", patient_id: " << (sample_check->isNull("patient_id") ? "NULL" : std::to_string(sample_check->getInt("patient_id")))
-                                 << ", dttm: " << sample_check->getString("dttm")
-                                 << ", type: " << sample_check->getString("type") << std::endl;
-                    }
-                }
-            }
-        }
-        
     } catch (sql::SQLException& e) {
         std::cerr << "[DB] 로봇 로그 데이터 조회 실패: " << e.what() << std::endl;
-        std::cerr << "[DB] SQL State: " << e.getSQLState() << std::endl;
-        std::cerr << "[DB] Error Code: " << e.getErrorCode() << std::endl;
-        
-        // 연결 상태 재확인
-        try {
-            std::unique_ptr<sql::Statement> test_stmt(connection->createStatement());
-            std::unique_ptr<sql::ResultSet> test_res(test_stmt->executeQuery("SELECT 1"));
-            std::cout << "[DB] 데이터베이스 연결은 정상입니다" << std::endl;
-        } catch (sql::SQLException& test_e) {
-            std::cerr << "[DB] 데이터베이스 연결에 문제가 있습니다: " << test_e.what() << std::endl;
-        }
     }
     
     return log_data;
 }
 
-// Navigating Log 관련 메서드들 구현
-
-std::vector<std::map<std::string, std::string>> DatabaseManager::getNavigatingLogData(const std::string& period,
-                                                                                     const std::string& start_date,
-                                                                                     const std::string& end_date) {
-    std::vector<std::map<std::string, std::string>> log_data;
-    
+int DatabaseManager::findNearestDepartment(float x, float y) {
     if (!isConnected()) {
-        std::cerr << "[DB] 데이터베이스 연결되지 않음" << std::endl;
-        return log_data;
+        return -1;
     }
     
     sql::Connection* raw_connection = getConnection();
     if (!raw_connection) {
         std::cerr << "[DB] Connection 획득 실패" << std::endl;
-        return log_data;
+        return -1;
     }
     
     ConnectionGuard connection(this, raw_connection);
     
     try {
-        std::string query = "SELECT nl.robot_id, nl.dttm, nl.orig, nl.dest, "
-                           "d1.department_name as orig_name, d2.department_name as dest_name "
-                           "FROM navigating_log nl "
-                           "LEFT JOIN department d1 ON nl.orig = d1.department_id "
-                           "LEFT JOIN department d2 ON nl.dest = d2.department_id ";
-        
-        std::string where_clause = "";
-        
-        // period 파라미터 처리
-        if (!period.empty()) {
-            if (period == "today") {
-                where_clause = "WHERE DATE(nl.dttm) = CURDATE()";
-            } else if (period == "week") {
-                where_clause = "WHERE nl.dttm >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
-            } else if (period == "month") {
-                where_clause = "WHERE nl.dttm >= DATE_SUB(NOW(), INTERVAL 1 MONTH)";
-            }
-        } else if (!start_date.empty() || !end_date.empty()) {
-            where_clause = "WHERE 1=1";
-            if (!start_date.empty()) {
-                where_clause += " AND DATE(nl.dttm) >= '" + start_date + "'";
-            }
-            if (!end_date.empty()) {
-                where_clause += " AND DATE(nl.dttm) <= '" + end_date + "'";
-            }
-        }
-        
-        query += where_clause + " ORDER BY nl.dttm DESC LIMIT 100";
-        
-        std::cout << "[DB] Navigating Log 쿼리: " << query << std::endl;
-        
+        // 모든 부서 정보를 가져와서 가장 가까운 부서 찾기
         std::unique_ptr<sql::Statement> stmt(connection->createStatement());
-        std::unique_ptr<sql::ResultSet> res(stmt->executeQuery(query));
+        std::unique_ptr<sql::ResultSet> res(stmt->executeQuery("SELECT department_id, location_x, location_y FROM department"));
+        
+        int nearest_department_id = -1;
+        float min_distance = std::numeric_limits<float>::max();
         
         while (res->next()) {
-            std::map<std::string, std::string> log_entry;
+            int dept_id = res->getInt("department_id");
+            float dept_x = static_cast<float>(res->getDouble("location_x"));
+            float dept_y = static_cast<float>(res->getDouble("location_y"));
             
-            log_entry["robot_id"] = std::to_string(res->getInt("robot_id"));
-            log_entry["dttm"] = res->getString("dttm");
-            log_entry["orig"] = std::to_string(res->getInt("orig"));
-            log_entry["dest"] = std::to_string(res->getInt("dest"));
-            log_entry["orig_name"] = res->getString("orig_name");
-            log_entry["dest_name"] = res->getString("dest_name");
+            // 유클리드 거리 계산
+            float distance = std::sqrt(std::pow(x - dept_x, 2) + std::pow(y - dept_y, 2));
             
-            log_data.push_back(log_entry);
+            if (distance < min_distance) {
+                min_distance = distance;
+                nearest_department_id = dept_id;
+            }
         }
         
-        std::cout << "[DB] Navigating Log 데이터 조회 완료: " << log_data.size() << "개 레코드" << std::endl;
+        if (nearest_department_id != -1) {
+            std::cout << "[DB] 가장 가까운 부서 찾음: Department " << nearest_department_id 
+                     << " (거리: " << min_distance << ")" << std::endl;
+        }
+        
+        return nearest_department_id;
         
     } catch (sql::SQLException& e) {
-        std::cerr << "[DB] Navigating Log 데이터 조회 실패: " << e.what() << std::endl;
+        std::cerr << "[DB] 가장 가까운 부서 찾기 실패: " << e.what() << std::endl;
+        return -1;
     }
-    
-    return log_data;
-}
+} 
 
-bool DatabaseManager::insertNavigatingLog(int robot_id, const std::string& dttm, int orig, int dest) {
+bool DatabaseManager::getTodayReservationWithDepartmentName(int patient_id, SeriesInfo& series, std::string& department_name) {
     if (!isConnected()) {
         return false;
     }
@@ -1074,99 +781,37 @@ bool DatabaseManager::insertNavigatingLog(int robot_id, const std::string& dttm,
     ConnectionGuard connection(this, raw_connection);
     
     try {
+        // 오늘 날짜의 "예약" 상태인 건을 찾는 쿼리
         std::unique_ptr<sql::PreparedStatement> pstmt(
-            connection->prepareStatement("INSERT INTO navigating_log (robot_id, dttm, orig, dest) VALUES (?, ?, ?, ?)")
+            connection->prepareStatement("SELECT s.series_id, s.department_id, s.dttm, s.status, s.patient_id, s.reservation_date, d.department_name FROM series s JOIN department d ON s.department_id = d.department_id WHERE s.patient_id = ? AND s.reservation_date = CURDATE() AND s.series_id = 0")
         );
-        pstmt->setInt(1, robot_id);
-        pstmt->setString(2, dttm);
-        pstmt->setInt(3, orig);
-        pstmt->setInt(4, dest);
-        
-        int affected = pstmt->executeUpdate();
-        
-        if (affected > 0) {
-            std::cout << "[DB] Navigating Log 삽입 성공: Robot " << robot_id 
-                     << ", Orig " << orig << ", Dest " << dest << std::endl;
-            return true;
-        }
-        
-        return false;
-        
-    } catch (sql::SQLException& e) {
-        std::cerr << "[DB] Navigating Log 삽입 실패: " << e.what() << std::endl;
-        return false;
-    }
-}
-
-// Hospital 관련 메서드들 구현
-
-bool DatabaseManager::getHospitalById(int hospital_id, std::string& hospital_name) {
-    if (!isConnected()) {
-        return false;
-    }
-    
-    sql::Connection* raw_connection = getConnection();
-    if (!raw_connection) {
-        std::cerr << "[DB] Connection 획득 실패" << std::endl;
-        return false;
-    }
-    
-    ConnectionGuard connection(this, raw_connection);
-    
-    try {
-        std::unique_ptr<sql::PreparedStatement> pstmt(
-            connection->prepareStatement("SELECT hospital_name FROM hospital WHERE hospital_id = ?")
-        );
-        pstmt->setInt(1, hospital_id);
+        pstmt->setInt(1, patient_id);
         
         std::unique_ptr<sql::ResultSet> res(pstmt->executeQuery());
         
         if (res->next()) {
-            hospital_name = res->getString("hospital_name");
-            std::cout << "[DB] 병원 정보 조회 성공: " << hospital_name << std::endl;
+            series.series_id = res->getInt("series_id");
+            series.department_id = res->getInt("department_id");
+            series.dttm = res->getString("dttm");
+            series.status = res->getString("status");
+            series.patient_id = res->getInt("patient_id");
+            series.reservation_date = res->getString("reservation_date");
+            department_name = res->getString("department_name");
+            
+            std::cout << "[DB] 오늘 예약 정보 조회 성공: Patient " << patient_id << ", Department " << department_name << ", Status " << series.status << ", Date " << series.reservation_date << std::endl;
             return true;
         }
         
+        std::cout << "[DB] 오늘 예약 정보 없음: Patient " << patient_id << std::endl;
         return false;
         
     } catch (sql::SQLException& e) {
-        std::cerr << "[DB] 병원 정보 조회 실패: " << e.what() << std::endl;
+        std::cerr << "[DB] 오늘 예약 조회 실패: " << e.what() << std::endl;
         return false;
     }
 }
 
-std::vector<std::pair<int, std::string>> DatabaseManager::getAllHospitals() {
-    std::vector<std::pair<int, std::string>> hospitals;
-    
-    if (!isConnected()) {
-        return hospitals;
-    }
-    
-    sql::Connection* raw_connection = getConnection();
-    if (!raw_connection) {
-        std::cerr << "[DB] Connection 획득 실패" << std::endl;
-        return hospitals;
-    }
-    
-    ConnectionGuard connection(this, raw_connection);
-    
-    try {
-        std::unique_ptr<sql::Statement> stmt(connection->createStatement());
-        std::unique_ptr<sql::ResultSet> res(
-            stmt->executeQuery("SELECT hospital_id, hospital_name FROM hospital ORDER BY hospital_id")
-        );
-        
-        while (res->next()) {
-            int hospital_id = res->getInt("hospital_id");
-            std::string hospital_name = res->getString("hospital_name");
-            hospitals.push_back(std::make_pair(hospital_id, hospital_name));
-        }
-        
-        std::cout << "[DB] 병원 목록 조회 완료: " << hospitals.size() << "개 병원" << std::endl;
-        
-    } catch (sql::SQLException& e) {
-        std::cerr << "[DB] 병원 목록 조회 실패: " << e.what() << std::endl;
-    }
-    
-    return hospitals;
-}
+
+
+
+

@@ -7,8 +7,9 @@
 
 
 UserRequestHandler::UserRequestHandler(std::shared_ptr<DatabaseManager> db_manager, 
-                                     std::shared_ptr<RobotNavigationManager> nav_manager)
-    : db_manager_(db_manager), nav_manager_(nav_manager) {
+                                     std::shared_ptr<RobotNavigationManager> nav_manager,
+                                     std::shared_ptr<WebSocketServer> websocket_server)
+    : db_manager_(db_manager), nav_manager_(nav_manager), websocket_server_(websocket_server) {
 }
 
 // User GUI API 핸들러들
@@ -67,7 +68,7 @@ std::string UserRequestHandler::handleAuthDirection(const Json::Value& request) 
     int department_id = request["department_id"].asInt();
     int patient_id = request["patient_id"].asInt();
     
-    return processDirectionRequest(robot_id, department_id, &patient_id, "moving_by_patient");
+    return processDirectionRequest(robot_id, department_id, &patient_id, "patient_navigating");
 }
 
 std::string UserRequestHandler::handleRobotReturn(const Json::Value& request) {
@@ -82,7 +83,7 @@ std::string UserRequestHandler::handleRobotReturn(const Json::Value& request) {
     std::string patient_id_str = request["patient_id"].asString();
     int patient_id = std::stoi(patient_id_str);
     
-    return processRobotReturnRequest(robot_id, &patient_id, "return_by_patient");
+    return sendReturnCommand(robot_id, &patient_id, "patient_return");
 }
 
 std::string UserRequestHandler::handleWithoutAuthDirection(const Json::Value& request) {
@@ -93,7 +94,7 @@ std::string UserRequestHandler::handleWithoutAuthDirection(const Json::Value& re
     int robot_id = request["robot_id"].asInt();
     int department_id = request["department_id"].asInt();
     
-    return processDirectionRequest(robot_id, department_id, nullptr, "moving_by_unknown");
+    return processDirectionRequest(robot_id, department_id, nullptr, "unknown_navigating");
 }
 
 std::string UserRequestHandler::handleWithoutAuthRobotReturn(const Json::Value& request) {
@@ -106,7 +107,7 @@ std::string UserRequestHandler::handleWithoutAuthRobotReturn(const Json::Value& 
     
     int robot_id = request["robot_id"].asInt();
     
-    return processRobotReturnRequest(robot_id, nullptr, "return_by_unknown");
+    return sendReturnCommand(robot_id, nullptr, "unknown_return");
 }
 
 std::string UserRequestHandler::handleRobotStatus(const Json::Value& request) {
@@ -145,9 +146,39 @@ std::string UserRequestHandler::handleCallWithVoice(const Json::Value& request) 
     }
     
     int robot_id = request["robot_id"].asInt();
+
     
-    // TODO: 실제 로봇 시스템에서 음성 호출 명령 전송
-    std::cout << "[USER] 음성 호출 명령 전송 완료: Robot " << robot_id << std::endl;
+    
+    // 음성 호출 요청 시 call_with_voice 메시지를 서비스를 통해 전송
+    if (nav_manager_) {
+        bool success = nav_manager_->sendControlEvent("call_with_voice");
+        if (success) {
+            std::cout << "[USER] 음성 호출 처리 완료: Robot " << robot_id << " - call_with_voice 전송 성공" << std::endl;
+        } else {
+            std::cout << "[USER] 음성 호출 처리 실패: Robot " << robot_id << " - call_with_voice 전송 실패" << std::endl;
+            return "500"; // Internal Server Error
+        }
+    } else {
+        std::cout << "[USER] 음성 호출 처리 실패: Robot " << robot_id << " - nav_manager가 설정되지 않음" << std::endl;
+        return "500"; // Internal Server Error
+    }
+
+    // 웹소켓으로 관리자에게 alert_occupied 메시지 전송
+    if (websocket_server_) {
+        websocket_server_->sendAlertOccupied(robot_id, "admin");
+        std::cout << "[USER] 관리자에게 alert_occupied 메시지 전송: Robot " << robot_id << std::endl;
+    }
+
+    // robot_log에 이벤트 저장
+    std::string current_datetime = db_manager_->getCurrentDateTime();
+    if (!current_datetime.empty()) {
+        bool log_success = db_manager_->insertRobotLogWithType(robot_id, nullptr, current_datetime, 
+                                                             0, 0, "call_with_voice", "");
+        if (!log_success) {
+            std::cout << "[WARNING] Failed to insert robot log for call_with_voice event" << std::endl;
+        }
+    }
+
     
     return "200"; // 성공
 }
@@ -161,8 +192,35 @@ std::string UserRequestHandler::handleCallWithScreen(const Json::Value& request)
     
     int robot_id = request["robot_id"].asInt();
     
-    // TODO: 실제 로봇 시스템에서 화면 호출 명령 전송
-    std::cout << "[USER] 화면 호출 명령 전송 완료: Robot " << robot_id << std::endl;
+    // 화면 호출 요청 시 call_with_screen 메시지를 서비스를 통해 전송
+    if (nav_manager_) {
+        bool success = nav_manager_->sendControlEvent("call_with_screen");
+        if (success) {
+            std::cout << "[USER] 화면 호출 처리 완료: Robot " << robot_id << " - call_with_screen 전송 성공" << std::endl;
+        } else {
+            std::cout << "[USER] 화면 호출 처리 실패: Robot " << robot_id << " - call_with_screen 전송 실패" << std::endl;
+            return "500"; // Internal Server Error
+        }
+    } else {
+        std::cout << "[USER] 화면 호출 처리 실패: Robot " << robot_id << " - nav_manager가 설정되지 않음" << std::endl;
+        return "500"; // Internal Server Error
+    }
+
+    // 웹소켓으로 관리자에게 alert_occupied 메시지 전송
+    if (websocket_server_) {
+        websocket_server_->sendAlertOccupied(robot_id, "admin");
+        std::cout << "[USER] 관리자에게 alert_occupied 메시지 전송: Robot " << robot_id << std::endl;
+    }
+
+    // robot_log에 이벤트 저장
+    std::string current_datetime = db_manager_->getCurrentDateTime();
+    if (!current_datetime.empty()) {
+        bool log_success = db_manager_->insertRobotLogWithType(robot_id, nullptr, current_datetime, 
+                                                             0, 0, "call_with_screen", "");
+        if (!log_success) {
+            std::cout << "[WARNING] Failed to insert robot log for call_with_screen event" << std::endl;
+        }
+    }
     
     return "200"; // 성공
 }
@@ -170,61 +228,56 @@ std::string UserRequestHandler::handleCallWithScreen(const Json::Value& request)
 std::string UserRequestHandler::handleAlertTimeout(const Json::Value& request) {
     std::cout << "[USER] 30초 타임아웃 알림 처리" << std::endl;
     
-    if (!request.isMember("robot_id")) {
+    if (!request.isMember("robot_id") || !request.isMember("patient_id")) {
         return "400"; // Bad Request
     }
     
     int robot_id = request["robot_id"].asInt();
     
-    // TODO: 실제 로봇 시스템에서 타임아웃 처리
-    std::cout << "[USER] 타임아웃 처리 완료: Robot " << robot_id << std::endl;
-    
-    return "200"; // 성공
+    // 30초 타임아웃 발생 시 return_command 메시지를 서비스를 통해 전송
+    return sendReturnCommand(robot_id, &patient_id, "return_command");
 }
 
 std::string UserRequestHandler::handlePauseRequest(const Json::Value& request) {
     std::cout << "[USER] 일시정지 요청 처리" << std::endl;
     
-    if (!request.isMember("robot_id")) {
+    if (!request.isMember("robot_id") || !request.isMember("patient_id")) {
         return "400"; // Bad Request
     }
     
     int robot_id = request["robot_id"].asInt();
+    std::string patient_id_str = request["patient_id"].asString();
+    int patient_id = std::stoi(patient_id_str);
     
-    // TODO: 실제 로봇 시스템에서 일시정지 명령 전송
-    std::cout << "[USER] 일시정지 명령 전송 완료: Robot " << robot_id << std::endl;
-    
-    return "200"; // 성공
+    return sendReturnCommand(robot_id, &patient_id, "pause_request");
 }
 
 std::string UserRequestHandler::handleRestartNavigation(const Json::Value& request) {
     std::cout << "[USER] 길안내 재개 요청 처리" << std::endl;
     
-    if (!request.isMember("robot_id")) {
+    if (!request.isMember("robot_id") || !request.isMember("patient_id")) {
         return "400"; // Bad Request
     }
     
     int robot_id = request["robot_id"].asInt();
+    std::string patient_id_str = request["patient_id"].asString();
+    int patient_id = std::stoi(patient_id_str);
     
-    // TODO: 실제 로봇 시스템에서 길안내 재개 명령 전송
-    std::cout << "[USER] 길안내 재개 명령 전송 완료: Robot " << robot_id << std::endl;
-    
-    return "200"; // 성공
+    return sendReturnCommand(robot_id, &patient_id, "restart_navigation");
 }
 
 std::string UserRequestHandler::handleStopNavigating(const Json::Value& request) {
     std::cout << "[USER] 길안내 중지 요청 처리" << std::endl;
     
-    if (!request.isMember("robot_id")) {
+    if (!request.isMember("robot_id") || !request.isMember("patient_id")) {
         return "400"; // Bad Request
     }
     
     int robot_id = request["robot_id"].asInt();
+    std::string patient_id_str = request["patient_id"].asString();
+    int patient_id = std::stoi(patient_id_str);
     
-    // TODO: 실제 로봇 시스템에서 길안내 중지 명령 전송
-    std::cout << "[USER] 길안내 중지 명령 전송 완료: Robot " << robot_id << std::endl;
-    
-    return "200"; // 성공
+    return sendReturnCommand(robot_id, &patient_id, "stop_navigating");
 }
 
 // 공통 인증 로직
@@ -263,19 +316,21 @@ std::string UserRequestHandler::processDirectionRequest(int robot_id, int depart
     
     // 2. 로봇에게 navigation 명령 전송
     if (nav_manager_) {
-        if (!nav_manager_->sendWaypointCommand(department.department_name)) {
+        bool success = nav_manager_->sendNavigateEvent(log_type, department.department_name);
+        if (success) {
+            std::cout << "[USER] 로봇 네비게이션 명령 전송 완료: " << department.department_name << "로 이동" << std::endl;
+        } else {
+            std::cout << "[USER] 로봇 네비게이션 명령 전송 실패: " << department.department_name << std::endl;
             return createErrorResponse("Failed to send navigation command");
         }
-        std::cout << "[USER] 로봇 네비게이션 명령 전송 완료: " << department.department_name << "로 이동" << std::endl;
     } else {
         return createErrorResponse("Navigation manager not available");
     }
     
-    // 3. 현재 로봇 위치 확인 (읽기만 하므로 mutex 불필요)
-    double current_x, current_y;
-    // TODO: nav_manager_에서 현재 로봇 위치 정보를 가져와야 함
-    current_x = 0.0;  // 더미 데이터
-    current_y = 0.0;  // 더미 데이터
+    // 3. 현재 로봇 위치 확인
+    double current_x = nav_manager_->getCurrentRobotX();
+    double current_y = nav_manager_->getCurrentRobotY();
+    double current_yaw = nav_manager_->getCurrentRobotYaw();
     
     // 4. 가장 가까운 부서 찾기 (출발지)
     int orig_department_id = db_manager_->findNearestDepartment(current_x, current_y);
@@ -298,6 +353,13 @@ std::string UserRequestHandler::processDirectionRequest(int robot_id, int depart
         return createErrorResponse("Failed to insert robot log");
     }
     
+    // 6. navigating_log에 insert (navigation 이벤트의 시작지/목적지 저장)
+    bool nav_success = db_manager_->insertNavigatingLog(robot_id, current_datetime, orig_department_id, department_id);
+    if (!nav_success) {
+        std::cout << "[WARNING] Failed to insert navigating log for Robot " << robot_id << std::endl;
+        // navigating_log 실패는 경고만 하고 계속 진행
+    }
+    
     std::cout << "[USER] 네비게이션 명령 처리 완료: Robot " << robot_id 
               << " -> Department " << department.department_name << " (ID: " << department_id 
               << "), Patient: " << (patient_id ? std::to_string(*patient_id) : "NULL") 
@@ -306,51 +368,39 @@ std::string UserRequestHandler::processDirectionRequest(int robot_id, int depart
     return createStatusResponse(200);
 }
 
-std::string UserRequestHandler::processRobotReturnRequest(int robot_id, int* patient_id, const std::string& log_type) {
-    // 1. 현재 로봇 위치 확인 (amcl_pose)
-    double current_x, current_y;
-    // TODO: nav_manager_에서 현재 로봇 위치 정보를 가져와야 함
-    current_x = 0.0;  // 더미 데이터
-    current_y = 0.0;  // 더미 데이터
-    
-    // 2. 현재 위치에서 가장 가까운 부서 찾기 (orig)
-    int orig_department_id = db_manager_->findNearestDepartment(current_x, current_y);
-    if (orig_department_id == -1) {
-        return createErrorResponse("가장 가까운 부서를 찾을 수 없습니다");
-    }
-    
-    // 3. 복귀 명령 전송 (destination_id = 8, 병원 로비)
-    DepartmentInfo lobby_department;
-    if (!db_manager_->getDepartmentById(8, lobby_department)) {
-        return createErrorResponse("병원 로비 정보를 찾을 수 없습니다");
-    }
-    
+std::string UserRequestHandler::sendReturnCommand(int robot_id, int* patient_id, const std::string& log_type, bool save_log = true) {
+    // 1. 복귀 명령 전송
     if (nav_manager_) {
-        if (!nav_manager_->sendWaypointCommand(lobby_department.department_name)) {
+        bool success = nav_manager_->sendControlEvent(log_type);
+        if (success) {
+            std::cout << "[USER] 로봇 복귀 명령 전송 완료: return_command 전송 성공" << std::endl;
+        } else {
+            std::cout << "[USER] 로봇 복귀 명령 전송 실패: return_command 전송 실패" << std::endl;
             return createErrorResponse("복귀 명령 전송 실패");
         }
-        std::cout << "[USER] 로봇 복귀 명령 전송 완료: " << lobby_department.department_name << "로 이동" << std::endl;
     } else {
         return createErrorResponse("네비게이션 관리자를 사용할 수 없습니다");
     }
     
-    // 4. robot_log에 데이터 저장
-    std::string current_datetime = db_manager_->getCurrentDateTime();
-    if (current_datetime.empty()) {
-        return createErrorResponse("현재 날짜/시간을 가져올 수 없습니다");
+    // 2. robot_log에 데이터 저장 (save_log가 true일 때만)
+    if (save_log) {
+        std::string current_datetime = db_manager_->getCurrentDateTime();
+        if (current_datetime.empty()) {
+            return createErrorResponse("현재 날짜/시간을 가져올 수 없습니다");
+        }
+        
+        bool log_success = db_manager_->insertRobotLogWithType(robot_id, patient_id, current_datetime, 
+                                                             0, 8, log_type, "");  // orig_department_id = 0 (알 수 없음)
+        if (!log_success) {
+            return createErrorResponse("로봇 로그 저장 실패");
+        }
+        
+        std::cout << "[USER] 로봇 복귀 명령 처리 완료: Robot " << robot_id 
+                  << ", Patient: " << (patient_id ? std::to_string(*patient_id) : "NULL") 
+                  << ", Type: " << log_type << std::endl;
     }
     
-    bool log_success = db_manager_->insertRobotLogWithType(robot_id, patient_id, current_datetime, 
-                                                         orig_department_id, 8, log_type, "");
-    if (!log_success) {
-        return createErrorResponse("로봇 로그 저장 실패");
-    }
-    
-    std::cout << "[USER] 로봇 복귀 명령 처리 완료: Robot " << robot_id 
-              << " -> 대기장소 (ID: 8), Patient: " << (patient_id ? std::to_string(*patient_id) : "NULL") 
-              << ", Type: " << log_type << std::endl;
-    
-    // 5. 응답 반환
+    // 3. 응답 반환
     Json::Value response;
     response["status_code"] = 200;
     response["dest"] = 8;  // 대기장소의 목적지 ID

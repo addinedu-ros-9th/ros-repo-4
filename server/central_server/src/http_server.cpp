@@ -124,7 +124,7 @@ void HttpServer::serverLoop() {
     close(server_fd);
 }
 
-std::string HttpServer::processRequest(const HttpRequest& request) {
+std::string HttpServer::processReuqest(const HttpRequest& request) {
     std::cout << "[HTTP] 요청 처리: " << request.method << " " << request.path << std::endl;
     
     // CORS 헤더 추가

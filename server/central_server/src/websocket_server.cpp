@@ -63,14 +63,11 @@ void WebSocketServer::stop() {
     running_ = false;
     
     // 모든 클라이언트 연결 종료
-    {
-        std::lock_guard<std::mutex> lock(clients_mutex_);
-        for (auto& pair : clients_by_ip_) {
-            close(pair.second.socket_fd);
-        }
-        clients_by_ip_.clear();
-        clients_by_socket_.clear();
+    for (auto& pair : clients_by_ip_) {
+        close(pair.second.socket_fd);
     }
+    clients_by_ip_.clear();
+    clients_by_socket_.clear();
     
     // 서버 소켓 종료
     if (server_socket_ >= 0) {
@@ -87,8 +84,6 @@ void WebSocketServer::stop() {
 }
 
 void WebSocketServer::broadcastMessage(const std::string& message) {
-    std::lock_guard<std::mutex> lock(clients_mutex_);
-    
     auto it = clients_by_ip_.begin();
     while (it != clients_by_ip_.end()) {
         const std::string& ip = it->first;
@@ -107,8 +102,6 @@ void WebSocketServer::broadcastMessage(const std::string& message) {
 }
 
 bool WebSocketServer::sendMessageToIP(const std::string& ip_address, const std::string& message) {
-    std::lock_guard<std::mutex> lock(clients_mutex_);
-    
     auto it = clients_by_ip_.find(ip_address);
     if (it == clients_by_ip_.end()) {
         std::cerr << "[WebSocket] IP " << ip_address << "에 연결된 클라이언트가 없습니다" << std::endl;
@@ -130,8 +123,6 @@ bool WebSocketServer::sendMessageToIP(const std::string& ip_address, const std::
 }
 
 bool WebSocketServer::sendMessageToClient(int client_socket, const std::string& message) {
-    std::lock_guard<std::mutex> lock(clients_mutex_);
-    
     auto it = clients_by_socket_.find(client_socket);
     if (it == clients_by_socket_.end()) {
         std::cerr << "[WebSocket] 소켓 " << client_socket << "에 해당하는 클라이언트가 없습니다" << std::endl;
@@ -142,12 +133,10 @@ bool WebSocketServer::sendMessageToClient(int client_socket, const std::string& 
 }
 
 size_t WebSocketServer::getClientCount() const {
-    std::lock_guard<std::mutex> lock(clients_mutex_);
     return clients_by_ip_.size();
 }
 
 std::vector<std::string> WebSocketServer::getConnectedIPs() const {
-    std::lock_guard<std::mutex> lock(clients_mutex_);
     std::vector<std::string> ips;
     for (const auto& pair : clients_by_ip_) {
         ips.push_back(pair.first);
@@ -156,13 +145,10 @@ std::vector<std::string> WebSocketServer::getConnectedIPs() const {
 }
 
 bool WebSocketServer::isClientConnected(const std::string& ip_address) const {
-    std::lock_guard<std::mutex> lock(clients_mutex_);
     return clients_by_ip_.find(ip_address) != clients_by_ip_.end();
 }
 
 void WebSocketServer::broadcastMessageToType(const std::string& client_type, const std::string& message) {
-    std::lock_guard<std::mutex> lock(clients_mutex_);
-    
     auto it = clients_by_ip_.begin();
     while (it != clients_by_ip_.end()) {
         const std::string& ip = it->first;
@@ -186,7 +172,6 @@ void WebSocketServer::broadcastMessageToType(const std::string& client_type, con
 }
 
 std::vector<std::string> WebSocketServer::getClientsByType(const std::string& client_type) const {
-    std::lock_guard<std::mutex> lock(clients_mutex_);
     std::vector<std::string> ips;
     
     for (const auto& pair : clients_by_ip_) {
@@ -199,8 +184,6 @@ std::vector<std::string> WebSocketServer::getClientsByType(const std::string& cl
 }
 
 bool WebSocketServer::setClientType(const std::string& ip_address, const std::string& client_type) {
-    std::lock_guard<std::mutex> lock(clients_mutex_);
-    
     auto it = clients_by_ip_.find(ip_address);
     if (it == clients_by_ip_.end()) {
         std::cerr << "[WebSocket] IP " << ip_address << "에 연결된 클라이언트가 없습니다" << std::endl;
@@ -214,8 +197,8 @@ bool WebSocketServer::setClientType(const std::string& ip_address, const std::st
 
 // 로봇 알림 메시지 전송 함수들
 
-void WebSocketServer::sendAlertOccupied(int robot_id) {
-    std::cout << "[WebSocket] 모든 클라이언트에게 관리자 사용중 블락 알림 전송 중..." << std::endl;
+void WebSocketServer::sendAlertOccupied(int robot_id, std::string type) {
+    std::cout << "[WebSocket] 관리자 클라이언트들에게 화면 호출 알림 전송 중..." << std::endl;
     
     // JSON 메시지 생성
     Json::Value message;
@@ -226,10 +209,10 @@ void WebSocketServer::sendAlertOccupied(int robot_id) {
     Json::StreamWriterBuilder builder;
     std::string json_message = Json::writeString(builder, message);
     
-    // 모든 클라이언트에게 브로드캐스트
-    broadcastMessage(json_message);
+    // 관리자 클라이언트들에게만 브로드캐스트
+    broadcastMessageToType(type, json_message);
     
-    std::cout << "[WebSocket] 모든 클라이언트에게 관리자 사용중 블락 알림 전송 완료: Robot " << robot_id << std::endl;
+    std::cout << "[WebSocket] " << type << "에게 알림 전송 완료: Robot " << robot_id << std::endl;
 }
 
 void WebSocketServer::sendAlertIdle(int robot_id) {
@@ -310,12 +293,9 @@ void WebSocketServer::handleClient(int client_socket, const std::string& client_
             
             if (send(client_socket, response.c_str(), response.length(), 0) > 0) {
                 // 클라이언트 목록에 추가
-                {
-                    std::lock_guard<std::mutex> lock(clients_mutex_);
-                    ClientInfo client_info(client_socket, client_ip);
-                    clients_by_ip_[client_ip] = client_info;
-                    clients_by_socket_[client_socket] = client_ip;
-                }
+                ClientInfo client_info(client_socket, client_ip);
+                clients_by_ip_[client_ip] = client_info;
+                clients_by_socket_[client_socket] = client_ip;
                 
                 std::cout << "[WebSocket] 클라이언트 " << client_ip << " (소켓: " << client_socket << ") WebSocket 연결 완료" << std::endl;
                 
@@ -430,7 +410,6 @@ bool WebSocketServer::sendWebSocketFrame(int client_socket, const std::string& m
 }
 
 void WebSocketServer::removeClient(int client_socket) {
-    std::lock_guard<std::mutex> lock(clients_mutex_);
     auto it = clients_by_socket_.find(client_socket);
     if (it != clients_by_socket_.end()) {
         const std::string& ip = it->second;

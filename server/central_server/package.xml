@@ -12,7 +12,6 @@
   <depend>rclcpp</depend>
   <depend>control_interfaces</depend>
   <depend>nav_msgs</depend>
-  <depend>domain_bridge</depend>
 
   <export>
     <build_type>ament_cmake</build_type>

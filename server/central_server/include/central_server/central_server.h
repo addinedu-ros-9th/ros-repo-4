@@ -4,6 +4,8 @@
 #include <rclcpp/rclcpp.hpp>
 #include <control_interfaces/srv/event_handle.h>
 #include <control_interfaces/srv/track_handle.h>
+#include <control_interfaces/srv/navigate_handle.h>
+#include <std_msgs/msg/string.h>
 
 #include "database_manager.h"
 #include "http_server.h"
@@ -32,9 +34,7 @@ private:
     void eventHandleCallback(
         const std::shared_ptr<control_interfaces::srv::EventHandle::Request> request,
         std::shared_ptr<control_interfaces::srv::EventHandle::Response> response);
-    void trackHandleCallback(
-        const std::shared_ptr<control_interfaces::srv::TrackHandle::Request> request,
-        std::shared_ptr<control_interfaces::srv::TrackHandle::Response> response);
+
     
     // HTTP 서버 설정
     void setupHttpServer();
@@ -47,7 +47,10 @@ private:
     std::unique_ptr<RobotNavigationManager> nav_manager_;
     
     rclcpp::Service<control_interfaces::srv::EventHandle>::SharedPtr event_service_;
-    rclcpp::Service<control_interfaces::srv::TrackHandle>::SharedPtr track_service_;
+    rclcpp::Client<control_interfaces::srv::EventHandle>::SharedPtr control_event_client_;
+    rclcpp::Client<control_interfaces::srv::NavigateHandle>::SharedPtr navigate_client_;
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr teleop_publisher_;
+    rclcpp::Client<control_interfaces::srv::TrackHandle>::SharedPtr tracking_event_client_;
     
     std::thread db_thread_;
     std::thread http_thread_;

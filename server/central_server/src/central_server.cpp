@@ -19,6 +19,16 @@ CentralServer::CentralServer() : Node("central_server") {
     // RobotNavigationManager 생성
     nav_manager_ = std::make_unique<RobotNavigationManager>();
     
+    // 서비스 클라이언트들 초기화 (Central → Robot)
+    control_event_client_ = this->create_client<control_interfaces::srv::EventHandle>("/control_event");
+    navigate_client_ = this->create_client<control_interfaces::srv::NavigateHandle>("/navigate_event");
+    tracking_event_client_ = this->create_client<control_interfaces::srv::TrackHandle>("/tracking_event");
+    
+    // RobotNavigationManager에 서비스 클라이언트 설정
+    nav_manager_->setControlEventClient(control_event_client_);
+    nav_manager_->setNavigateClient(navigate_client_);
+    nav_manager_->setTrackingEventClient(tracking_event_client_);
+    
     // HttpServer 생성 (DatabaseManager를 shared_ptr로 전달)
     auto shared_db_manager = std::shared_ptr<DatabaseManager>(db_manager_.get(), [](DatabaseManager*){});
     http_server_ = std::make_unique<HttpServer>(shared_db_manager, http_port_);
@@ -215,20 +225,7 @@ void CentralServer::eventHandleCallback(
     RCLCPP_INFO(this->get_logger(), "이벤트 핸들 서비스 응답 완료");
 }
 
-void CentralServer::trackHandleCallback(
-    const std::shared_ptr<control_interfaces::srv::TrackHandle::Request> request,
-    std::shared_ptr<control_interfaces::srv::TrackHandle::Response> response)
-{
-    RCLCPP_INFO(this->get_logger(), 
-               "트랙 핸들 요청 - Event Type: %s, Left Angle: %.2f, Right Angle: %.2f", 
-               request->event_type.c_str(), request->left_angle, request->right_angle);
-    
-    // 트랙 핸들 처리
-    response->status = "success";
-    response->distance = 0.0; // 실제 거리 계산 로직 필요
-    
-    RCLCPP_INFO(this->get_logger(), "트랙 핸들 서비스 응답 완료");
-}
+
 
 
 
@@ -239,9 +236,9 @@ void CentralServer::init() {
         "event_handle",
         std::bind(&CentralServer::eventHandleCallback, this, 
                  std::placeholders::_1, std::placeholders::_2));
-    track_service_ = this->create_service<control_interfaces::srv::TrackHandle>(
-        "track_handle",
-        std::bind(&CentralServer::trackHandleCallback, this, 
-                 std::placeholders::_1, std::placeholders::_2));
+    control_event_client_ = this->create_client<control_interfaces::srv::EventHandle>("/control_event");
+    navigate_client_ = this->create_client<control_interfaces::srv::NavigateHandle>("/navigate_event");
+    teleop_publisher_ = this->create_publisher<std_msgs::msg::String>("/teleop_event", 10);
+    tracking_event_client_ = this->create_client<control_interfaces::srv::TrackHandle>("/tracking_event");
     RCLCPP_INFO(this->get_logger(), "ROS2 서비스 설정 완료");
 }

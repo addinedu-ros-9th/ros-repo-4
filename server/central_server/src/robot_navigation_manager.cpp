@@ -14,34 +14,86 @@ RobotNavigationManager::RobotNavigationManager()
     
     RCLCPP_INFO(this->get_logger(), "현재 Domain ID: %d", current_domain_id);
     
-    // 퍼블리셔 초기화
+    // IF-01: 로봇 목적지 전송 퍼블리셔
     navigation_command_pub_ = this->create_publisher<std_msgs::msg::String>(
         "/navigation_command", 10);
     
-    teleop_command_pub_ = this->create_publisher<geometry_msgs::msg::Twist>(
-        "/cmd_vel", 10);
+    // IF-08: 실시간 추적 목표 전송 퍼블리셔
+    tracking_goal_pub_ = this->create_publisher<geometry_msgs::msg::Point>(
+        "/trackingGoal", 10);
     
-    // 서브스크라이버 초기화
+    // Teleop 명령 퍼블리셔 (새로운 인터페이스)
+    teleop_publisher_ = this->create_publisher<std_msgs::msg::String>(
+        "/teleop_event", 10);
+    
+    // IF-02: 로봇의 현재 위치 서브스크라이버
+    pose_sub_ = this->create_subscription<geometry_msgs::msg::Pose>(
+        "/pose", 10,
+        std::bind(&RobotNavigationManager::poseCallback, this, std::placeholders::_1));
+    
+    // IF-03: 로봇의 주행 시작점 서브스크라이버
+    start_point_sub_ = this->create_subscription<std_msgs::msg::String>(
+        "/start_point", 10,
+        std::bind(&RobotNavigationManager::startPointCallback, this, std::placeholders::_1));
+    
+    // IF-04: 로봇의 주행 목적지 서브스크라이버
+    target_sub_ = this->create_subscription<std_msgs::msg::String>(
+        "/target", 10,
+        std::bind(&RobotNavigationManager::targetCallback, this, std::placeholders::_1));
+    
+    // IF-05: 로봇의 네트워크 상태 서브스크라이버
+    net_level_sub_ = this->create_subscription<std_msgs::msg::Int32>(
+        "/net_level", 10,
+        std::bind(&RobotNavigationManager::networkLevelCallback, this, std::placeholders::_1));
+    
+    // IF-06: 로봇의 배터리 잔량 서브스크라이버
+    battery_sub_ = this->create_subscription<std_msgs::msg::Int32>(
+        "/battery", 10,
+        std::bind(&RobotNavigationManager::batteryCallback, this, std::placeholders::_1));
+    
+    // IF-07: 로봇 주행 상태 서브스크라이버
     nav_status_sub_ = this->create_subscription<std_msgs::msg::String>(
-        "/fleet/robot1/nav_status", 10,
+        "/nav_status", 10,
         std::bind(&RobotNavigationManager::navStatusCallback, this, std::placeholders::_1));
     
-    amcl_pose_sub_ = this->create_subscription<geometry_msgs::msg::Pose>(
-        "/fleet/robot1/pose", 10,
-        std::bind(&RobotNavigationManager::amclPoseCallback, this, std::placeholders::_1));
+    // IF-09: 장애물 정보 서브스크라이버
+    obstacle_sub_ = this->create_subscription<geometry_msgs::msg::Point>(
+        "/detected_obstacle", 10,
+        std::bind(&RobotNavigationManager::obstacleCallback, this, std::placeholders::_1));
+    
+    // 서비스 서버 (Robot → Central)
+    robot_event_service_ = this->create_service<control_interfaces::srv::EventHandle>(
+        "/robot_event",
+        std::bind(&RobotNavigationManager::robotEventCallback, this, 
+                 std::placeholders::_1, std::placeholders::_2));
+    
+    // 초기값 설정
+    current_network_level_ = 0;
+    current_battery_ = 0;
+    current_robot_x_ = 0.0;
+    current_robot_y_ = 0.0;
+    current_robot_yaw_ = 0.0;
     
     RCLCPP_INFO(this->get_logger(), "RobotNavigationManager 초기화 완료");
     RCLCPP_INFO(this->get_logger(), "토픽 설정:");
     RCLCPP_INFO(this->get_logger(), "  - 발행: /navigation_command");
+    RCLCPP_INFO(this->get_logger(), "  - 발행: /trackingGoal");
     RCLCPP_INFO(this->get_logger(), "  - 발행: /cmd_vel");
-    RCLCPP_INFO(this->get_logger(), "  - 구독: /fleet/robot1/nav_status");
-    RCLCPP_INFO(this->get_logger(), "  - 구독: /fleet/robot1/pose");
+    RCLCPP_INFO(this->get_logger(), "  - 구독: /pose");
+    RCLCPP_INFO(this->get_logger(), "  - 구독: /start_point");
+    RCLCPP_INFO(this->get_logger(), "  - 구독: /target");
+    RCLCPP_INFO(this->get_logger(), "  - 구독: /net_level");
+    RCLCPP_INFO(this->get_logger(), "  - 구독: /battery");
+    RCLCPP_INFO(this->get_logger(), "  - 구독: /nav_status");
+    RCLCPP_INFO(this->get_logger(), "  - 구독: /detected_obstacle");
+    RCLCPP_INFO(this->get_logger(), "  - 서비스 서버: /robot_event");
 }
 
 RobotNavigationManager::~RobotNavigationManager() {
     RCLCPP_INFO(this->get_logger(), "RobotNavigationManager 소멸자 호출");
 }
 
+// IF-01: 로봇 목적지 전송 (Central → Robot)
 bool RobotNavigationManager::sendNavigationCommand(const std::string& command) {
     try {
         auto message = std_msgs::msg::String();
@@ -70,64 +122,32 @@ bool RobotNavigationManager::sendStopCommand() {
     return sendNavigationCommand("stop/cancel");
 }
 
+// IF-08: 실시간 추적 목표 전송 (Central → Robot)
+bool RobotNavigationManager::sendTrackingGoal(double x, double y, double z) {
+    try {
+        auto message = geometry_msgs::msg::Point();
+        message.x = x;
+        message.y = y;
+        message.z = z;
+        
+        tracking_goal_pub_->publish(message);
+        logNavigationCommand("tracking_goal: (" + std::to_string(x) + ", " + std::to_string(y) + ", " + std::to_string(z) + ")");
+        
+        RCLCPP_INFO(this->get_logger(), "추적 목표 전송: (%.2f, %.2f, %.2f)", x, y, z);
+        return true;
+    } catch (const std::exception& e) {
+        RCLCPP_ERROR(this->get_logger(), "추적 목표 전송 실패: %s", e.what());
+        return false;
+    }
+}
+
+// Teleop 명령 (새로운 인터페이스)
 bool RobotNavigationManager::sendTeleopCommand(const std::string& teleop_key) {
     try {
-        auto message = geometry_msgs::msg::Twist();
+        auto message = std_msgs::msg::String();
+        message.data = teleop_key;
         
-        // teleop_twist_keyboard의 moveBindings에 따라 Twist 메시지 설정
-        if (teleop_key == "1") {
-            // u: 앞으로 가면서 좌회전 (1,0,0,1)
-            message.linear.x = 1.0;
-            message.linear.y = 0.0;
-            message.angular.z = 1.0;
-        } else if (teleop_key == "2") {
-            // i: 전진 (1,0,0,0)
-            message.linear.x = 1.0;
-            message.linear.y = 0.0;
-            message.angular.z = 0.0;
-        } else if (teleop_key == "3") {
-            // o: 앞으로 가면서 우회전 (1,0,0,-1)
-            message.linear.x = 1.0;
-            message.linear.y = 0.0;
-            message.angular.z = -1.0;
-        } else if (teleop_key == "4") {
-            // j: 제자리에서 왼쪽으로 회전 (0,0,0,1)
-            message.linear.x = 0.0;
-            message.linear.y = 0.0;
-            message.angular.z = 1.0;
-        } else if (teleop_key == "5") {
-            // k: 정지 (기본값)
-            message.linear.x = 0.0;
-            message.linear.y = 0.0;
-            message.angular.z = 0.0;
-        } else if (teleop_key == "6") {
-            // l: 제자리에서 오른쪽으로 회전 (0,0,0,-1)
-            message.linear.x = 0.0;
-            message.linear.y = 0.0;
-            message.angular.z = -1.0;
-        } else if (teleop_key == "7") {
-            // m: 뒤로 가면서 좌회전 (-1,0,0,-1)
-            message.linear.x = -1.0;
-            message.linear.y = 0.0;
-            message.angular.z = -1.0;
-        } else if (teleop_key == "8") {
-            // ,: 후진 (-1,0,0,0)
-            message.linear.x = -1.0;
-            message.linear.y = 0.0;
-            message.angular.z = 0.0;
-        } else if (teleop_key == "9") {
-            // .: 뒤로 가면서 우회전 (-1,0,0,1)
-            message.linear.x = -1.0;
-            message.linear.y = 0.0;
-            message.angular.z = 1.0;
-        } else {
-            // 정지
-            message.linear.x = 0.0;
-            message.linear.y = 0.0;
-            message.angular.z = 0.0;
-        }
-        
-        teleop_command_pub_->publish(message);
+        teleop_publisher_->publish(message);
         logNavigationCommand("teleop: " + teleop_key);
         
         RCLCPP_INFO(this->get_logger(), "원격 제어 명령 전송: %s", teleop_key.c_str());
@@ -138,45 +158,272 @@ bool RobotNavigationManager::sendTeleopCommand(const std::string& teleop_key) {
     }
 }
 
-void RobotNavigationManager::setNavStatusCallback(
-    std::function<void(const std::string&)> callback) {
+// 콜백 설정 함수들
+void RobotNavigationManager::setNavStatusCallback(std::function<void(const std::string&)> callback) {
     nav_status_callback_ = callback;
 }
 
-void RobotNavigationManager::setRobotPoseCallback(
-    std::function<void(double x, double y, double yaw)> callback) {
+void RobotNavigationManager::setRobotPoseCallback(std::function<void(double x, double y, double yaw)> callback) {
     robot_pose_callback_ = callback;
 }
 
+void RobotNavigationManager::setStartPointCallback(std::function<void(const std::string&)> callback) {
+    start_point_callback_ = callback;
+}
 
+void RobotNavigationManager::setTargetCallback(std::function<void(const std::string&)> callback) {
+    target_callback_ = callback;
+}
 
-void RobotNavigationManager::navStatusCallback(const std_msgs::msg::String::SharedPtr msg) {
-    // 현재 상태 저장
-    {
-        std::lock_guard<std::mutex> lock(nav_status_mutex_);
-        current_nav_status_ = msg->data;
+void RobotNavigationManager::setNetworkLevelCallback(std::function<void(int)> callback) {
+    network_level_callback_ = callback;
+}
+
+void RobotNavigationManager::setBatteryCallback(std::function<void(int)> callback) {
+    battery_callback_ = callback;
+}
+
+void RobotNavigationManager::setObstacleCallback(std::function<void(double x, double y, double yaw)> callback) {
+    obstacle_callback_ = callback;
+}
+
+void RobotNavigationManager::setRobotEventCallback(std::function<void(const std::string&)> callback) {
+    robot_event_callback_ = callback;
+}
+
+// 서비스 클라이언트 설정
+
+void RobotNavigationManager::setControlEventClient(std::shared_ptr<rclcpp::Client<control_interfaces::srv::EventHandle>> client) {
+    control_event_client_ = client;
+}
+
+void RobotNavigationManager::setNavigateClient(std::shared_ptr<rclcpp::Client<control_interfaces::srv::NavigateHandle>> client) {
+    navigate_client_ = client;
+}
+
+void RobotNavigationManager::setTrackingEventClient(std::shared_ptr<rclcpp::Client<control_interfaces::srv::TrackHandle>> client) {
+    tracking_event_client_ = client;
+}
+
+// 서비스 통신 함수들
+
+bool RobotNavigationManager::sendControlEvent(const std::string& event_type) {
+    if (!control_event_client_) {
+        RCLCPP_ERROR(this->get_logger(), "Control Event 클라이언트가 설정되지 않았습니다");
+        return false;
     }
     
-    if (nav_status_callback_) {
-        nav_status_callback_(msg->data);
+    try {
+        auto request = std::make_shared<control_interfaces::srv::EventHandle::Request>();
+        request->event_type = event_type;
+        
+        auto future = control_event_client_->async_send_request(request);
+        
+        // 비동기 응답 대기 (5초 타임아웃)
+        if (future.wait_for(std::chrono::seconds(5)) == std::future_status::ready) {
+            auto response = future.get();
+            RCLCPP_INFO(this->get_logger(), "Control Event 전송 성공: %s, 응답: %s", 
+                       event_type.c_str(), response->status.c_str());
+            return true;
+        } else {
+            RCLCPP_ERROR(this->get_logger(), "Control Event 전송 타임아웃: %s", event_type.c_str());
+            return false;
+        }
+    } catch (const std::exception& e) {
+        RCLCPP_ERROR(this->get_logger(), "Control Event 전송 실패: %s, 오류: %s", 
+                    event_type.c_str(), e.what());
+        return false;
     }
 }
 
+bool RobotNavigationManager::sendNavigateEvent(const std::string& event_type, const std::string& command) {
+    if (!navigate_client_) {
+        RCLCPP_ERROR(this->get_logger(), "Navigate 클라이언트가 설정되지 않았습니다");
+        return false;
+    }
+    
+    try {
+        auto request = std::make_shared<control_interfaces::srv::NavigateHandle::Request>();
+        request->event_type = event_type;
+        request->command = command;
+        
+        auto future = navigate_client_->async_send_request(request);
+        
+        // 비동기 응답 대기 (5초 타임아웃)
+        if (future.wait_for(std::chrono::seconds(5)) == std::future_status::ready) {
+            auto response = future.get();
+            RCLCPP_INFO(this->get_logger(), "Navigate Event 전송 성공: %s, 명령: %s, 응답: %s", 
+                       event_type.c_str(), command.c_str(), response->status.c_str());
+            return true;
+        } else {
+            RCLCPP_ERROR(this->get_logger(), "Navigate Event 전송 타임아웃: %s", event_type.c_str());
+            return false;
+        }
+    } catch (const std::exception& e) {
+        RCLCPP_ERROR(this->get_logger(), "Navigate Event 전송 실패: %s, 오류: %s", 
+                    event_type.c_str(), e.what());
+        return false;
+    }
+}
+
+bool RobotNavigationManager::sendTrackingEvent(const std::string& event_type, double left_angle, double right_angle) {
+    if (!tracking_event_client_) {
+        RCLCPP_ERROR(this->get_logger(), "Tracking Event 클라이언트가 설정되지 않았습니다");
+        return false;
+    }
+    
+    try {
+        auto request = std::make_shared<control_interfaces::srv::TrackHandle::Request>();
+        request->event_type = event_type;
+        request->left_angle = left_angle;
+        request->right_angle = right_angle;
+        
+        auto future = tracking_event_client_->async_send_request(request);
+        
+        // 비동기 응답 대기 (5초 타임아웃)
+        if (future.wait_for(std::chrono::seconds(5)) == std::future_status::ready) {
+            auto response = future.get();
+            RCLCPP_INFO(this->get_logger(), "Tracking Event 전송 성공: %s, 응답: %s, 거리: %.2f", 
+                       event_type.c_str(), response->status.c_str(), response->distance);
+            return true;
+        } else {
+            RCLCPP_ERROR(this->get_logger(), "Tracking Event 전송 타임아웃: %s", event_type.c_str());
+            return false;
+        }
+    } catch (const std::exception& e) {
+        RCLCPP_ERROR(this->get_logger(), "Tracking Event 전송 실패: %s, 오류: %s", 
+                    event_type.c_str(), e.what());
+        return false;
+    }
+}
+
+// 현재 상태 조회 함수들
 std::string RobotNavigationManager::getCurrentNavStatus() {
-    std::lock_guard<std::mutex> lock(nav_status_mutex_);
     return current_nav_status_;
 }
 
-void RobotNavigationManager::amclPoseCallback(const geometry_msgs::msg::Pose::SharedPtr msg) {
+std::string RobotNavigationManager::getCurrentStartPoint() {
+    return current_start_point_;
+}
+
+std::string RobotNavigationManager::getCurrentTarget() {
+    return current_target_;
+}
+
+int RobotNavigationManager::getCurrentNetworkLevel() {
+    return current_network_level_;
+}
+
+int RobotNavigationManager::getCurrentBattery() {
+    return current_battery_;
+}
+
+
+
+// 콜백 함수들
+void RobotNavigationManager::poseCallback(const geometry_msgs::msg::Pose::SharedPtr msg) {
     double x = msg->position.x;
     double y = msg->position.y;
     double yaw = quaternionToYaw(msg->orientation);
+    
+    // 현재 로봇 위치 저장
+    current_robot_x_ = x;
+    current_robot_y_ = y;
+    current_robot_yaw_ = yaw;
     
     if (robot_pose_callback_) {
         robot_pose_callback_(x, y, yaw);
     }
 }
 
+void RobotNavigationManager::startPointCallback(const std_msgs::msg::String::SharedPtr msg) {
+    current_start_point_ = msg->data;
+    
+    if (start_point_callback_) {
+        start_point_callback_(msg->data);
+    }
+}
+
+void RobotNavigationManager::targetCallback(const std_msgs::msg::String::SharedPtr msg) {
+    current_target_ = msg->data;
+    
+    if (target_callback_) {
+        target_callback_(msg->data);
+    }
+}
+
+void RobotNavigationManager::networkLevelCallback(const std_msgs::msg::Int32::SharedPtr msg) {
+    current_network_level_ = msg->data;
+    
+    if (network_level_callback_) {
+        network_level_callback_(msg->data);
+    }
+}
+
+void RobotNavigationManager::batteryCallback(const std_msgs::msg::Int32::SharedPtr msg) {
+    current_battery_ = msg->data;
+    
+    if (battery_callback_) {
+        battery_callback_(msg->data);
+    }
+}
+
+void RobotNavigationManager::navStatusCallback(const std_msgs::msg::String::SharedPtr msg) {
+    current_nav_status_ = msg->data;
+    
+    if (nav_status_callback_) {
+        nav_status_callback_(msg->data);
+    }
+}
+
+void RobotNavigationManager::obstacleCallback(const geometry_msgs::msg::Point::SharedPtr msg) {
+    double x = msg->x;
+    double y = msg->y;
+    double yaw = msg->z; // z 필드를 yaw로 사용
+    
+    if (obstacle_callback_) {
+        obstacle_callback_(x, y, yaw);
+    }
+}
+
+// 서비스 콜백 함수들
+void RobotNavigationManager::robotEventCallback(
+    const std::shared_ptr<control_interfaces::srv::EventHandle::Request> request,
+    std::shared_ptr<control_interfaces::srv::EventHandle::Response> response) {
+    
+    RCLCPP_INFO(this->get_logger(), "로봇 이벤트 수신: %s", request->event_type.c_str());
+    
+    // 이벤트 타입에 따른 처리
+    if (request->event_type == "arrived_to_call") {
+        response->status = "success";
+        RCLCPP_INFO(this->get_logger(), "호출 위치 도착 이벤트 처리");
+    } else if (request->event_type == "navigating_complete") {
+        response->status = "success";
+        RCLCPP_INFO(this->get_logger(), "목적지 도착 이벤트 처리");
+    } else if (request->event_type == "arrived_to_station") {
+        response->status = "success";
+        RCLCPP_INFO(this->get_logger(), "대기장소 도착 이벤트 처리");
+    } else if (request->event_type == "charging_request") {
+        response->status = "success";
+        RCLCPP_INFO(this->get_logger(), "충전 요청 이벤트 처리");
+    } else if (request->event_type == "charging_complete") {
+        response->status = "success";
+        RCLCPP_INFO(this->get_logger(), "충전 완료 이벤트 처리");
+    } else if (request->event_type == "return_command") {
+        response->status = "success";
+        RCLCPP_INFO(this->get_logger(), "반환 요청 이벤트 처리");
+    } else {
+        response->status = "unknown_event";
+        RCLCPP_WARN(this->get_logger(), "알 수 없는 이벤트 타입: %s", request->event_type.c_str());
+    }
+    
+    // 콜백 함수 호출
+    if (robot_event_callback_) {
+        robot_event_callback_(request->event_type);
+    }
+}
+
+// 유틸리티 함수들
 double RobotNavigationManager::quaternionToYaw(const geometry_msgs::msg::Quaternion& quat) {
     // Quaternion을 Euler angles로 변환 (yaw만 추출)
     double siny_cosp = 2 * (quat.w * quat.z + quat.x * quat.y);
