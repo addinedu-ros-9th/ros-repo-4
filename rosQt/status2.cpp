@@ -14,6 +14,7 @@
 Status2Widget::Status2Widget(QWidget *parent) 
     : QWidget(parent)
     , ui(new Ui_Status2Widget)
+    , teleop_status_(false)  // 초기 텔레오퍼레이션 상태 설정
 {
     ui->setupUi(this);  // UI 파일 설정
     arrowBtns[0] = ui->arrowBtn1;
@@ -28,6 +29,7 @@ Status2Widget::Status2Widget(QWidget *parent)
     setWidgetClasses();
     setupKeyButton();
     onClickKey(5);  // 초기 상태 설정
+    setupButtons();
 }
 
 Status2Widget::~Status2Widget()
@@ -47,32 +49,47 @@ void Status2Widget::setWidgetClasses()
     }
     if (ui->arrowBtn_key1) {
         ui->arrowBtn_key1->setProperty("class", "arrowBtn-key1");
+        ui->arrowBtn_key1->setVisible(teleop_status_);
     }
     if (ui->arrowBtn_key2) {
         ui->arrowBtn_key2->setProperty("class", "arrowBtn-key2");
+        ui->arrowBtn_key2->setVisible(teleop_status_);
     }
     if (ui->arrowBtn_key3) {
         ui->arrowBtn_key3->setProperty("class", "arrowBtn-key3");
+        ui->arrowBtn_key3->setVisible(teleop_status_);
     }
     if (ui->arrowBtn_key4) {
         ui->arrowBtn_key4->setProperty("class", "arrowBtn-key4");
+        ui->arrowBtn_key4->setVisible(teleop_status_);
     }
     if (ui->arrowBtn_key5) {
         ui->arrowBtn_key5->setProperty("class", "arrowBtn-key5");
+        ui->arrowBtn_key5->setVisible(teleop_status_);
     }
     if (ui->arrowBtn_key6) {
         ui->arrowBtn_key6->setProperty("class", "arrowBtn-key6");
+        ui->arrowBtn_key6->setVisible(teleop_status_);
     }
     if (ui->arrowBtn_key7) {
         ui->arrowBtn_key7->setProperty("class", "arrowBtn-key7");
+        ui->arrowBtn_key7->setVisible(teleop_status_);
     }
     if (ui->arrowBtn_key8) {
         ui->arrowBtn_key8->setProperty("class", "arrowBtn-key8");
+        ui->arrowBtn_key8->setVisible(teleop_status_);
     }
     if (ui->arrowBtn_key9) {
         ui->arrowBtn_key9->setProperty("class", "arrowBtn-key9");
+        ui->arrowBtn_key9->setVisible(teleop_status_);
     }
-    
+    if (ui->teleop_status) {
+        ui->teleop_status->setVisible(!teleop_status_);
+    }
+    if (ui->teleopBtn) {
+        ui->teleopBtn->setProperty("class", "btn contained prQNetworkRequestimary");
+        ui->teleopBtn->setText(teleop_status_ ? "수동제어 중지" : "수동제어 시작");
+    }
     if (ui->move_bg) {
         ui->move_bg->setProperty("class", "bg green_gray1");
     }
@@ -163,6 +180,7 @@ void Status2Widget::setWidgetClasses()
     }
 }
 
+
 void Status2Widget::setMoveFirstText(const QString& text)
 {
     if (ui->move_first) {
@@ -174,6 +192,82 @@ void Status2Widget::setMoveFirstText(const QString& text)
     }
 }
 
+void Status2Widget::setupButtons()
+{
+    if (ui->teleopBtn) {
+        connect(ui->teleopBtn, &QPushButton::clicked, this, &Status2Widget::onTeleopBtnClicked);
+    }
+}
+
+void Status2Widget::onTeleopBtnClicked()
+{
+
+    qDebug() << "Key teleopBtn clicked";
+
+    std::string config_path = "../../config.yaml";
+    YAML::Node config = YAML::LoadFile(config_path);
+    std::string CENTRAL_IP = config["central_server"]["ip"].as<std::string>();
+    int CENTRAL_HTTP_PORT = config["central_server"]["http_port"].as<int>();
+
+    QString url;
+    if (teleop_status_) {
+        url = QString("http://%1:%2/command/teleop_complete")
+                .arg(CENTRAL_IP.c_str())
+                .arg(CENTRAL_HTTP_PORT);
+    } else {
+        url = QString("http://%1:%2/command/teleop_request")
+                .arg(CENTRAL_IP.c_str())
+                .arg(CENTRAL_HTTP_PORT);
+    }
+
+    QJsonObject data;
+    data["robot_id"] = 3;
+    QJsonDocument doc(data);
+    QByteArray jsonData = doc.toJson();
+
+    qDebug() << "[로봇 위치 요청 URL]:" << url;
+    qDebug() << "[전송 데이터]:" << jsonData;
+    try
+    {
+        QNetworkRequest request{QUrl(url)};
+        request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+        QNetworkAccessManager* manager = new QNetworkAccessManager(this);
+        QNetworkReply* reply = manager->post(request, jsonData);
+
+        connect(reply, &QNetworkReply::finished, this, [this, reply, CENTRAL_IP, CENTRAL_HTTP_PORT, data]() {
+            int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (statusCode == 200) {
+                qDebug() << "teleop 수동제어 명령 전송 성공. 200";
+
+                teleop_status_ = !teleop_status_;
+                setWidgetClasses();  // 위젯 클래스 업데이트
+
+            } else if (statusCode == 400) {
+                qDebug() << "잘못된 요청입니다. 400 Bad Request";
+            } else if (statusCode == 401) {
+                qDebug() << "정상 요청, 정보 없음 or 응답 실패. 401";
+            } else if (statusCode == 404) {
+                qDebug() << "잘못된 요청 404 Not Found";
+            } else if (statusCode == 405) {
+                qDebug() << "메소드가 리소스 허용 안됨";
+            } else if (statusCode == 500) {
+                qDebug() << "서버 내부 오류 500 Internal Server Error";
+            } else if (statusCode == 503) {
+                qDebug() << "서비스 불가";
+            } else {
+                qDebug() << "알 수 없는 오류 발생. 상태 코드:" << statusCode;
+            }
+
+            reply->deleteLater();
+        });
+
+    } catch (const YAML::BadFile& e) {
+        qDebug() << "YAML 파일 로드 실패:" << e.what();
+        return;
+    }
+
+}
 void Status2Widget::setupKeyButton()
 {
     if (ui->arrowBtn1) {

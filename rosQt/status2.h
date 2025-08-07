@@ -28,6 +28,8 @@ private:
     QPushButton* arrowBtns[9];  // 화살표 버튼 배열
     void setupKeyButton();  // 키 버튼 설정 함수
     void onClickKey(int clickedNumber);  // 키 클릭 핸들러
+    void setupButtons();
+    void onTeleopBtnClicked();  // 텔레오퍼레이션 버튼 클릭 핸들러
     
     QString mapDepartmentIdToName(int dept_id);  // 출발지 도착지 매핑 함수
     QString mapNetworkStatusToString(int network);  // 네트워크 상태 매핑 함수
@@ -35,10 +37,13 @@ private:
 private:
     Ui_Status2Widget *ui;  // UI 포인터
 
+    bool teleop_status_ = false;  // 텔레오퍼레이션 상태
+
     QString orig_;
     QString dest_;
     int battery_;
     QString network_;
+    
 };
 
 #endif // STATUS2WIDGET_H
