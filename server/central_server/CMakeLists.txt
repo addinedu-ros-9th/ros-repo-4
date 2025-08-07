@@ -29,6 +29,7 @@ add_executable(central_server_node
   src/admin_request_handler.cpp
   src/user_request_handler.cpp
   src/robot_navigation_manager.cpp
+  src/websocket_server.cpp
 )
 
 # 의존성 연결

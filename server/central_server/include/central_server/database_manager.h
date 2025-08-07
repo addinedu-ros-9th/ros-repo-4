@@ -89,6 +89,7 @@ public:
     bool getPatientBySSN(const std::string& ssn, PatientInfo& patient);
     bool getPatientById(int patient_id, PatientInfo& patient);
     bool getPatientByRFID(const std::string& rfid, PatientInfo& patient);
+    bool getPatientByRobotId(int robot_id, PatientInfo& patient);
     
     // 관리자 인증
     bool authenticateAdmin(const std::string& admin_id, const std::string& password, AdminInfo& admin);
@@ -103,12 +104,18 @@ public:
     bool insertRobotLogWithType(int robot_id, int* patient_id, const std::string& datetime, 
                                int orig_department_id, int dest_department_id, const std::string& type, 
                                const std::string& admin_id = "");
+    bool insertNavigatingLog(int robot_id, const std::string& datetime, int orig_department_id, int dest_department_id);
     int findNearestDepartment(float x, float y);
     
     // Series 테이블 관련 메서드들
     bool getTodayReservationWithDepartmentName(int patient_id, SeriesInfo& series, std::string& department_name);
     bool updateSeriesStatus(int patient_id, const std::string& reservation_date, const std::string& new_status);
     std::string getCurrentDateTime();
+    
+    // 로그 데이터 조회
+    std::vector<std::map<std::string, std::string>> getRobotLogData(const std::string& period, 
+                                                                    const std::string& start_date, 
+                                                                    const std::string& end_date);
     
     // Connection Pool 관리 함수들
     bool initializeConnectionPool();

@@ -23,7 +23,7 @@ HttpServer::HttpServer(std::shared_ptr<DatabaseManager> db_manager, int port)
     
     // 요청 핸들러들 초기화 (nav_manager_는 나중에 setRobotNavigationManager에서 설정)
     admin_handler_ = std::make_unique<AdminRequestHandler>(db_manager_, nullptr);
-    user_handler_ = std::make_unique<UserRequestHandler>(db_manager_, nullptr);
+    user_handler_ = std::make_unique<UserRequestHandler>(db_manager_, nullptr, nullptr);
 }
 
 HttpServer::~HttpServer() {
@@ -124,7 +124,7 @@ void HttpServer::serverLoop() {
     close(server_fd);
 }
 
-std::string HttpServer::processReuqest(const HttpRequest& request) {
+std::string HttpServer::processRequest(const HttpRequest& request) {
     std::cout << "[HTTP] 요청 처리: " << request.method << " " << request.path << std::endl;
     
     // CORS 헤더 추가
@@ -461,7 +461,7 @@ void HttpServer::setRobotNavigationManager(std::shared_ptr<RobotNavigationManage
         
         // 모든 핸들러에 nav_manager 설정
         admin_handler_ = std::make_unique<AdminRequestHandler>(db_manager_, nav_manager);
-        user_handler_ = std::make_unique<UserRequestHandler>(db_manager_, nav_manager);
+        user_handler_ = std::make_unique<UserRequestHandler>(db_manager_, nav_manager, nullptr);
         
         std::cout << "[HTTP] 로봇 네비게이션 관리자 설정 완료" << std::endl;
     }

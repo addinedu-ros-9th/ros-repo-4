@@ -31,6 +31,7 @@ public:
         std::string client_id;
         std::string client_type;  // "gui", "admin", "unknown"
         
+        ClientInfo() : socket_fd(-1), ip_address(""), client_id(""), client_type("unknown") {}
         ClientInfo(int fd, const std::string& ip) 
             : socket_fd(fd), ip_address(ip), client_id(""), client_type("unknown") {}
     };
@@ -90,10 +91,6 @@ private:
     void removeClient(int client_socket);
     std::string extractWebSocketKey(const std::string& request);
     std::string extractClientTypeFromRequest(const std::string& request);
-    
-    // 메시지 파싱 및 처리 함수들
-    std::string parseWebSocketMessage(const char* buffer, ssize_t bytes_received);
-    bool handleClientTypeMessage(int client_socket, const std::string& client_ip, const std::string& message);
 };
 
 #endif // WEBSOCKET_SERVER_H 

@@ -28,8 +28,8 @@ DatabaseManager::~DatabaseManager() {
 void DatabaseManager::loadConnectionConfig() {
     host_ = "localhost";
     username_ = "root";
-    // password_ = "heR@491!"; 
-    password_ = "0000"; 
+    password_ = "heR@491!"; 
+    // password_ = "0000"; 
     database_ = "HeroDB";
     port_ = 3306;
 }
@@ -253,6 +253,56 @@ bool DatabaseManager::getPatientByRFID(const std::string& rfid, PatientInfo& pat
         
     } catch (sql::SQLException& e) {
         std::cerr << "[DB] 환자 조회 실패 (RFID): " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool DatabaseManager::getPatientByRobotId(int robot_id, PatientInfo& patient) {
+    if (!isConnected()) {
+        return false;
+    }
+    
+    sql::Connection* raw_connection = getConnection();
+    if (!raw_connection) {
+        std::cerr << "[DB] Connection 획득 실패" << std::endl;
+        return false;
+    }
+    
+    ConnectionGuard connection(this, raw_connection);
+    
+    try {
+        // robot_log 테이블에서 해당 로봇의 가장 최근 로그 중 patient_id가 null이 아닌 경우 조회
+        // patient 테이블과 JOIN하여 환자 정보 가져오기
+        std::unique_ptr<sql::PreparedStatement> pstmt(
+            connection->prepareStatement(
+                "SELECT p.patient_id, p.name, p.ssn, p.phone, p.rfid "
+                "FROM robot_log rl "
+                "JOIN patient p ON rl.patient_id = p.patient_id "
+                "WHERE rl.robot_id = ? AND rl.patient_id IS NOT NULL "
+                "ORDER BY rl.dttm DESC "
+                "LIMIT 1"
+            )
+        );
+        pstmt->setInt(1, robot_id);
+        
+        std::unique_ptr<sql::ResultSet> res(pstmt->executeQuery());
+        
+        if (res->next()) {
+            patient.patient_id = res->getInt("patient_id");
+            patient.name = res->getString("name");
+            patient.ssn = res->getString("ssn");
+            patient.phone = res->getString("phone");
+            patient.rfid = res->getString("rfid");
+            
+            std::cout << "[DB] 로봇 " << robot_id << "의 최근 환자 정보 조회 성공: " << patient.name << std::endl;
+            return true;
+        }
+        
+        std::cout << "[DB] 로봇 " << robot_id << "의 최근 환자 정보 없음 (patient_id가 null이거나 로그가 없음)" << std::endl;
+        return false;
+        
+    } catch (sql::SQLException& e) {
+        std::cerr << "[DB] 로봇 환자 조회 실패: " << e.what() << std::endl;
         return false;
     }
 }
@@ -604,6 +654,47 @@ bool DatabaseManager::insertRobotLogWithType(int robot_id, int* patient_id, cons
         
     } catch (sql::SQLException& e) {
         std::cerr << "[DB] 로봇 로그 삽입 실패: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+// navigating_log 삽입 메서드
+bool DatabaseManager::insertNavigatingLog(int robot_id, const std::string& datetime, int orig_department_id, int dest_department_id) {
+    if (!isConnected()) {
+        std::cerr << "[DB] 데이터베이스 연결되지 않음" << std::endl;
+        return false;
+    }
+    
+    sql::Connection* raw_connection = getConnection();
+    if (!raw_connection) {
+        std::cerr << "[DB] Connection 획득 실패" << std::endl;
+        return false;
+    }
+    
+    ConnectionGuard connection(this, raw_connection);
+    
+    try {
+        std::string query = "INSERT INTO navigating_log (robot_id, dttm, orig, dest) VALUES (?, ?, ?, ?)";
+        
+        std::unique_ptr<sql::PreparedStatement> pstmt(connection->prepareStatement(query));
+        pstmt->setInt(1, robot_id);
+        pstmt->setString(2, datetime);
+        pstmt->setInt(3, orig_department_id);
+        pstmt->setInt(4, dest_department_id);
+        
+        int result = pstmt->executeUpdate();
+        
+        if (result > 0) {
+            std::cout << "[DB] navigating_log 삽입 성공: Robot " << robot_id 
+                      << ", Orig: " << orig_department_id << ", Dest: " << dest_department_id << std::endl;
+            return true;
+        }
+        
+        std::cout << "[DB] navigating_log 삽입 실패: Robot " << robot_id << std::endl;
+        return false;
+        
+    } catch (sql::SQLException& e) {
+        std::cerr << "[DB] navigating_log 삽입 실패: " << e.what() << std::endl;
         return false;
     }
 }
