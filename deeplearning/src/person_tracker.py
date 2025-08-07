@@ -206,7 +206,7 @@ class PersonTracker:
                             time_since_last_seen = elapsed_time - last_seen
                             
                             # 일정 시간 이상 사라진 사람 제거
-                            if time_since_last_seen > 5.0:  # 5초 이상 사라지면 제거
+                            if time_since_last_seen > 10.0:  # 10초 이상 사라지면 제거
                                 people_to_remove.append(person_id)
                                 if frame_id % 30 == 0:
                                     print(f"🗑️ 사라진 사람 제거: {person_id} (마지막 감지: {time_since_last_seen:.1f}초 전)")
