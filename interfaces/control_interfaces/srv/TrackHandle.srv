@@ -1,0 +1,6 @@
+string event_type
+float32 left_angle
+float32 right_angle
+---
+string status
+float32 distance

@@ -1,8 +1,0 @@
-int32 robot_id
-string status
-geometry_msgs/PoseWithCovarianceStamped amcl_pose
-string current_station
-string destination_station
-int32 battery_percent
-string network_status
-string source 

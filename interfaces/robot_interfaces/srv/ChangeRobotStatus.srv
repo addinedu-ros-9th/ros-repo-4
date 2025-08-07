@@ -1,5 +1,0 @@
-int32 robot_id
-string new_status  # "idle", "assigned", "occupied" (User GUI에서 받은 상태만)
----
-bool success
-string message 
