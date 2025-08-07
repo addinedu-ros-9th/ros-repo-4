@@ -47,6 +47,8 @@ central_server:
   target_ros_gui:
     ip: "192.168.0.74"
     port: 8888
+  
+  websocket_port : 3000
 
 ros_gui_client:
   ip: "192.168.0.74"
@@ -58,5 +60,3 @@ database:
   username: "root"
   password: "0000"
   database: "HeroDB"
-
-websocket_port : 3000

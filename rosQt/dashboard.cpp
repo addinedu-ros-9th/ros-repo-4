@@ -90,9 +90,9 @@ void DashboardWidget::setupWebSocket()
         std::string config_path = "../../config.yaml";
         YAML::Node config = YAML::LoadFile(config_path);
         std::string CENTRAL_IP = config["central_server"]["ip"].as<std::string>();
-        int WEBSOCKET_PORT = config["websocket_port"].as<int>();
+        int WEBSOCKET_PORT = config["central_server"]["websocket_port"].as<int>();
         
-        QString websocket_url = QString("ws://%1:%2")
+        QString websocket_url = QString("ws://%1:%2/?client_type=admin")
                                 .arg(QString::fromStdString(CENTRAL_IP))
                                 .arg(WEBSOCKET_PORT);
         
@@ -118,13 +118,13 @@ void DashboardWidget::onWebSocketConnected()
     qDebug() << "✅ Central Server WebSocket 연결 성공!";
     
     // 클라이언트 타입을 GUI로 설정하는 메시지 전송 (선택사항)
-    QJsonObject register_msg;
-    register_msg["type"] = "register";
-    register_msg["client_type"] = "gui";
-    register_msg["admin_id"] = QString::fromStdString(UserInfoManager::get_user_id());
+    // QJsonObject register_msg;
+    // register_msg["type"] = "register";
+    // register_msg["client_type"] = "gui";
+    // register_msg["admin_id"] = QString::fromStdString(UserInfoManager::get_user_id());
     
-    QJsonDocument doc(register_msg);
-    websocket_->sendTextMessage(doc.toJson());
+    // QJsonDocument doc(register_msg);
+    // websocket_->sendTextMessage(doc.toJson());
 }
 
 // WebSocket 연결 해제
