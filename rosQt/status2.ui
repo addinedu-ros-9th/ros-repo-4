@@ -483,7 +483,7 @@
      <x>0</x>
      <y>0</y>
      <width>91</width>
-     <height>85</height>
+     <height>70</height>
     </rect>
    </property>
    <property name="text">
@@ -496,7 +496,7 @@
      <x>104</x>
      <y>0</y>
      <width>91</width>
-     <height>85</height>
+     <height>70</height>
     </rect>
    </property>
    <property name="text">
@@ -509,7 +509,7 @@
      <x>208</x>
      <y>0</y>
      <width>91</width>
-     <height>85</height>
+     <height>70</height>
     </rect>
    </property>
    <property name="text">
@@ -520,9 +520,9 @@
    <property name="geometry">
     <rect>
      <x>0</x>
-     <y>97</y>
+     <y>82</y>
      <width>91</width>
-     <height>85</height>
+     <height>70</height>
     </rect>
    </property>
    <property name="text">
@@ -533,9 +533,9 @@
    <property name="geometry">
     <rect>
      <x>104</x>
-     <y>97</y>
+     <y>82</y>
      <width>91</width>
-     <height>85</height>
+     <height>70</height>
     </rect>
    </property>
    <property name="text">
@@ -546,9 +546,9 @@
    <property name="geometry">
     <rect>
      <x>208</x>
-     <y>97</y>
+     <y>82</y>
      <width>91</width>
-     <height>85</height>
+     <height>70</height>
     </rect>
    </property>
    <property name="text">
@@ -559,9 +559,9 @@
    <property name="geometry">
     <rect>
      <x>0</x>
-     <y>195</y>
+     <y>165</y>
      <width>91</width>
-     <height>85</height>
+     <height>70</height>
     </rect>
    </property>
    <property name="text">
@@ -572,9 +572,9 @@
    <property name="geometry">
     <rect>
      <x>104</x>
-     <y>195</y>
+     <y>165</y>
      <width>91</width>
-     <height>85</height>
+     <height>70</height>
     </rect>
    </property>
    <property name="text">
@@ -585,9 +585,9 @@
    <property name="geometry">
     <rect>
      <x>208</x>
-     <y>195</y>
+     <y>165</y>
      <width>91</width>
-     <height>85</height>
+     <height>70</height>
     </rect>
    </property>
    <property name="text">
@@ -711,6 +711,42 @@
     <string/>
    </property>
   </widget>
+  <widget class="QPushButton" name="teleopBtn">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>250</y>
+     <width>301</width>
+     <height>31</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>수동제어</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="teleop_status">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>301</width>
+     <height>241</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 18pt</family>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string>수동제어중이 아닙니다.</string>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignCenter</set>
+   </property>
+  </widget>
   <zorder>move_bg</zorder>
   <zorder>move_first</zorder>
   <zorder>point1</zorder>
@@ -757,6 +793,8 @@
   <zorder>arrowBtn7</zorder>
   <zorder>arrowBtn8</zorder>
   <zorder>arrowBtn9</zorder>
+  <zorder>teleopBtn</zorder>
+  <zorder>teleop_status</zorder>
  </widget>
  <resources/>
  <connections/>

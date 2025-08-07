@@ -35,8 +35,8 @@ private slots:
     void onConnectionEstablished();
     void onControlButtonClicked();
     void onDestinationButtonClicked();
-    void setStatusToAssigned();
-    
+    void setControlStatusToAssigned();
+    void setControlStatus(const QString& newStatus);
 private:
     Ui_DashboardWidget *ui;
     StatusWidget *status_widget;
@@ -50,7 +50,8 @@ private:
     std::shared_ptr<rclcpp::Node> ros_node_;
     QTimer *ros_timer_;  // ROS2 스핀용 타이머
 
-    QString status_;  // 상태 변수
+    QString status_;    
+    QString control_status_;  // 제어 주체 변수
     QString camera_toggle_status_;
     
     double pose_x_;
