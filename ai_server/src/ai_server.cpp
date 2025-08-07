@@ -38,9 +38,9 @@ void AIServer::loadConfig()
             }
             
             // UDP 타겟 설정
-            if (config["ai_server"]) {
-                gui_client_ip_ = config["ai_server"]["ip"].as<std::string>();
-                gui_client_port_ = config["ai_server"]["port"].as<int>();
+            if (config["ai_server"]["udp_target"]) {
+                gui_client_ip_ = config["ai_server"]["udp_target"]["ip"].as<std::string>();
+                gui_client_port_ = config["ai_server"]["udp_target"]["port"].as<int>();
             }
             
             // 최대 패킷 크기
