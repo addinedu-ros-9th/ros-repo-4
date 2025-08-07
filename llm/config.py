@@ -9,7 +9,7 @@ class RobotConfig:
     
     # DB 설정
     DB_CONFIG = {
-        'host': os.getenv('DB_HOST', '211.197.28.92'),
+        'host': os.getenv('DB_HOST', 'localhost'),
         'user': os.getenv('DB_USER', 'root'),
         'password': os.getenv('DB_PASSWORD', 'heR@491!'),
         'database': os.getenv('DB_NAME', 'HeroDB'),
@@ -62,4 +62,4 @@ class RobotConfig:
     }
     
     # 센트럴 서버 설정
-    CENTRAL_SERVER_URL = os.getenv('CENTRAL_SERVER_URL', 'http://211.197.28.92:8080') 
+    CENTRAL_SERVER_URL = os.getenv('CENTRAL_SERVER_URL', 'http://localhost:8080') 

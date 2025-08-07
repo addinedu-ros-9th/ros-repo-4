@@ -24,7 +24,6 @@ HttpServer::HttpServer(std::shared_ptr<DatabaseManager> db_manager, int port)
     // 요청 핸들러들 초기화 (nav_manager_는 나중에 setRobotNavigationManager에서 설정)
     admin_handler_ = std::make_unique<AdminRequestHandler>(db_manager_, nullptr);
     user_handler_ = std::make_unique<UserRequestHandler>(db_manager_, nullptr);
-    robot_handler_ = std::make_unique<RobotRequestHandler>(db_manager_, nullptr);
 }
 
 HttpServer::~HttpServer() {
@@ -346,25 +345,7 @@ std::string HttpServer::processRequest(const HttpRequest& request) {
         std::string response = admin_handler_->handleGetHeatmap(json_request);
         return createHttpResponse(200, "application/json", response, cors_headers);
     }
-    // Robot API 엔드포인트 라우팅 (central → GUI)
-    else if (request.path == "/alert_occupied" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = robot_handler_->handleAlertOccupied(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
-    }
-    else if (request.path == "/alert_idle" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = robot_handler_->handleAlertIdle(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
-    }
-    else if (request.path == "/navigating_complete" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = robot_handler_->handleNavigatingComplete(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
-    }
+
     else if (request.path == "/ws" && request.method == "GET") {
         // WebSocket 연결 요청은 이미 위에서 처리됨
         return createHttpResponse(400, "text/plain", "WebSocket upgrade failed");
@@ -634,7 +615,6 @@ void HttpServer::setRobotNavigationManager(std::shared_ptr<RobotNavigationManage
         // 모든 핸들러에 nav_manager 설정
         admin_handler_ = std::make_unique<AdminRequestHandler>(db_manager_, nav_manager);
         user_handler_ = std::make_unique<UserRequestHandler>(db_manager_, nav_manager);
-        robot_handler_ = std::make_unique<RobotRequestHandler>(db_manager_, nav_manager);
         
         std::cout << "[HTTP] 로봇 네비게이션 관리자 설정 완료" << std::endl;
     }

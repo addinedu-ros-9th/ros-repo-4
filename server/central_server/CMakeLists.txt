@@ -29,7 +29,6 @@ add_executable(central_server_node
   src/http_server.cpp
   src/admin_request_handler.cpp
   src/user_request_handler.cpp
-  src/robot_request_handler.cpp
   src/robot_navigation_manager.cpp
 )
 

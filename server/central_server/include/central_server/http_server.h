@@ -13,7 +13,6 @@
 #include "central_server/robot_navigation_manager.h"
 #include "central_server/admin_request_handler.h"
 #include "central_server/user_request_handler.h"
-#include "central_server/robot_request_handler.h"
 
 // WebSocket 관련 헤더
 #include <sys/socket.h>
@@ -61,7 +60,6 @@ private:
     // 요청 핸들러들
     std::unique_ptr<AdminRequestHandler> admin_handler_;
     std::unique_ptr<UserRequestHandler> user_handler_;
-    std::unique_ptr<RobotRequestHandler> robot_handler_;
     
     // 로봇 현재 위치 정보
     struct RobotPosition {
