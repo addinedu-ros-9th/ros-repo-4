@@ -19,6 +19,7 @@
 #include <QNetworkReply>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include "user_info.h"
 
 DashboardWidget::DashboardWidget(QWidget *parent) 
     : QWidget(parent)
@@ -31,12 +32,16 @@ DashboardWidget::DashboardWidget(QWidget *parent)
     , udp_receiver_(nullptr) 
     , control_popup1_(nullptr) 
     , control_popup2_(nullptr) 
+    , orig_(0)
+    , dest_(0)
+    , battery_(0)
+    , network_(0)
     , pose_x_(0.0)
     , pose_y_(0.0)
     , pose_yaw_(0.0)
     , pose_qw_(1.0)  // 초기값 설정
     , status_("idle")
-    , control_status_("환자사용중")
+    , control_status_("대기중")
     , camera_toggle_status_("전면")
 {
     ui->setupUi(this);  // UI 파일 설정
@@ -72,6 +77,19 @@ DashboardWidget::~DashboardWidget()
 void DashboardWidget::setStatus(const QString& newStatus)
 {
     status_ = newStatus;
+    if (ui->controlBtn) {
+        if(control_status_ == "관리자사용중") {
+            if(status_ == "navigating") {
+                ui->controlBtn->setText("안내 취소");
+            } else {
+                ui->controlBtn->setText("제어 중지");
+            }
+        } else if (control_status_ == "대기중") {
+            ui->controlBtn->setText("원격 제어");
+        } else if (control_status_ == "환자사용중") {
+            ui->controlBtn->setVisible(false);
+        } 
+    }
 }
 void DashboardWidget::setControlStatus(const QString& newStatus)
 {
@@ -101,10 +119,12 @@ void DashboardWidget::setControlStatus(const QString& newStatus)
             status_widget = new StatusWidget(this);
             status_widget->setGeometry(477, 549, 753, 281);
             status_widget->show();
+            status_widget->setRobotInfo(orig_, dest_, battery_, network_);  // 로봇 정보 설정
         } else if (control_status_ == "관리자사용중") {
             status_widget2 = new Status2Widget(this);
             status_widget2->setGeometry(477, 549, 753, 281);
             status_widget2->show();
+            status_widget2->setRobotInfo(orig_, dest_, battery_, network_);  // 로봇 정보 설정
         } else if (control_status_ == "대기중") {
             status_widget3 = new Status3Widget(this);
             status_widget3->setGeometry(477, 549, 753, 281);  // 16:9 비율로 설정
@@ -124,7 +144,11 @@ void DashboardWidget::setControlStatus(const QString& newStatus)
 
         if (ui->controlBtn) {
             if(control_status_ == "관리자사용중") {
-                ui->controlBtn->setText("제어 중지");
+                if(status_ == "navigating") {
+                    ui->controlBtn->setText("안내 취소");
+                } else {
+                    ui->controlBtn->setText("제어 중지");
+                }
             } else if (control_status_ == "대기중") {
                 ui->controlBtn->setText("원격 제어");
             } else if (control_status_ == "환자사용중") {
@@ -174,6 +198,7 @@ void DashboardWidget::get_robot_location()
 
     QJsonObject data;
     data["robot_id"] = 3;
+    data["admin_id"] = QString::fromStdString(UserInfoManager::get_user_id());
     QJsonDocument doc(data);
     QByteArray jsonData = doc.toJson();
 
@@ -259,6 +284,7 @@ void DashboardWidget::getRobotStatus()
 
     QJsonObject data;
     data["robot_id"] = 3;
+    data["admin_id"] = QString::fromStdString(UserInfoManager::get_user_id());
     QJsonDocument doc(data);
     QByteArray jsonData = doc.toJson();
 
@@ -282,6 +308,7 @@ void DashboardWidget::getRobotStatus()
 
                 if (result.contains("status") && result.contains("orig") && result.contains("dest") &&
                     result.contains("battery") && result.contains("network")) {
+
                     setStatus(result["status"].toString());
                     // if (result["status"].toString() == "unknown") {
                     //     QString robot_status = "대기중";
@@ -299,21 +326,25 @@ void DashboardWidget::getRobotStatus()
                     //     QString robot_status = result["status"].toString();
                     //     setStatus(robot_status);
                     // }
-                    int robot_orig = result["orig"].toInt();
-                    int robot_dest = result["dest"].toInt();
-                    int robot_battery = result["battery"].toInt();
-                    int robot_network = result["network"].toInt();
-                    
+                    orig_ = result["orig"].toInt();
+                    dest_ = result["dest"].toInt();
+                    battery_ = result["battery"].toInt();
+                    network_ = result["network"].toInt();
+
                     // 현재 활성화된 status widget에 따라 적절한 메소드 호출
                     if (status_widget) {
-                        status_widget->setRobotInfo(robot_orig, robot_dest, robot_battery, robot_network);
+                        status_widget->setRobotInfo(orig_, dest_, battery_, network_);
+                        qDebug() << "StatusWidget에 로봇 정보 설정됨";
                     } else if (status_widget2) {
-                        status_widget2->setRobotInfo(robot_orig, robot_dest, robot_battery, robot_network);
+                        status_widget2->setRobotInfo(orig_, dest_, battery_, network_);
+                        qDebug() << "Status2Widget에 로봇 정보 설정됨";
                         // status_widget2에도 setRobotInfo 메소드가 있다면 호출
                         // status_widget2->setRobotInfo(robot_orig, robot_dest, robot_battery, robot_network);
                     } else if (status_widget3) {
                         // status_widget3에도 setRobotInfo 메소드가 있다면 호출
                         // status_widget3->setRobotInfo(robot_orig, robot_dest, robot_battery, robot_network);
+                    } else {
+                        qDebug() << "활성화된 StatusWidget이 없습니다.";
                     }
                 } else {
                     qDebug() << "응답에 위치 정보가 없습니다.";
@@ -492,6 +523,7 @@ void DashboardWidget::onControlButtonClicked()
 
         QJsonObject data;
         data["robot_id"] = 3;
+        data["admin_id"] = QString::fromStdString(UserInfoManager::get_user_id());  // 관리자 ID 추가
         QJsonDocument doc(data);
         QByteArray jsonData = doc.toJson();
 
@@ -545,6 +577,7 @@ void DashboardWidget::onControlButtonClicked()
 
         QJsonObject data;
         data["robot_id"] = 3;
+        data["admin_id"] = QString::fromStdString(UserInfoManager::get_user_id());
         QJsonDocument doc(data);
         QByteArray jsonData = doc.toJson();
 
@@ -657,7 +690,7 @@ void DashboardWidget::setupCameraWidget()
     
     // camera_img에 기본 텍스트 설정
     if (ui->camera_img) {
-        ui->camera_img->setText(QString("AI Server 연결 중...\n127.0.0.1:%1").arg(udp_port));
+        ui->camera_img->setText(QString("AI Server 연결 중...\n%1:%2").arg(AI_IP.c_str()).arg(udp_port));
         ui->camera_img->setAlignment(Qt::AlignCenter);
         ui->camera_img->setScaledContents(true);
         

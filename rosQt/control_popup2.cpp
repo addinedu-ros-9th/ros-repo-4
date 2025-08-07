@@ -14,6 +14,7 @@
 #include <QNetworkReply>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include "user_info.h"
 
 ControlPopup2::ControlPopup2(Status2Widget* status2Widget, QWidget *parent)
     : QWidget(parent)
@@ -227,6 +228,7 @@ void ControlPopup2::onStartButtonClicked()
     QJsonObject data;
     data["robot_id"] = 3;
     data["dest"] = intToMapDepartmentId(selected_destination_);
+    data["admin_id"] = QString::fromStdString(UserInfoManager::get_user_id());  // 관리자 ID 추가
     QJsonDocument doc(data);
     QByteArray jsonData = doc.toJson();
 

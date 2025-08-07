@@ -1,4 +1,3 @@
-#include "./matplotlib-cpp/matplotlibcpp.h"
 #include "log.h"
 #include "ui_log.h"
 #include <QVBoxLayout>
@@ -24,8 +23,7 @@
 #include <QFont>
 #include <QTimer>
 #include <QMessageBox>  // 추가
-
-namespace plt = matplotlibcpp;
+#include "user_info.h"  // 사용자 정보 관리 클래스
 
 LogWidget::LogWidget(QWidget *parent) 
     : QWidget(parent)
@@ -746,7 +744,7 @@ void LogWidget::get_robot_log_data()
     data["period"] = "month";  // 한 달치 데이터 요청
     data["start_date"] = QJsonValue::Null;
     data["end_date"] = QJsonValue::Null;
-
+    data["admin_id"] = QString::fromStdString(UserInfoManager::get_user_id());  // 관리자 ID 추가
     QJsonDocument doc(data);
     QByteArray jsonData = doc.toJson();
 
@@ -884,12 +882,14 @@ void LogWidget::get_robot_log_data_with_period(const QString& period)
         data["period"] = QJsonValue::Null;
         data["start_date"] = start_date;
         data["end_date"] = end_date;
+        data["admin_id"] = QString::fromStdString(UserInfoManager::get_user_id());  // 관리자 ID 추가
         
         qDebug() << "[날짜 범위] 시작:" << start_date << ", 종료:" << end_date;
     } else {
         data["period"] = period;
         data["start_date"] = QJsonValue::Null;
         data["end_date"] = QJsonValue::Null;
+        data["admin_id"] = QString::fromStdString(UserInfoManager::get_user_id());  // 관리자 ID 추가
     }
 
     QJsonDocument doc(data);

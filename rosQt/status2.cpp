@@ -9,12 +9,14 @@
 #include <QNetworkReply>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include "user_info.h"
 
 
 Status2Widget::Status2Widget(QWidget *parent) 
     : QWidget(parent)
     , ui(new Ui_Status2Widget)
     , teleop_status_(false)  // 초기 텔레오퍼레이션 상태 설정
+    , battery_(30)  // 초기 배터리 상태 설정
 {
     ui->setupUi(this);  // UI 파일 설정
     arrowBtns[0] = ui->arrowBtn1;
@@ -30,6 +32,7 @@ Status2Widget::Status2Widget(QWidget *parent)
     setupKeyButton();
     onClickKey(5);  // 초기 상태 설정
     setupButtons();
+    refresh();
 }
 
 Status2Widget::~Status2Widget()
@@ -42,6 +45,7 @@ void Status2Widget::setWidgetClasses()
     for (int i = 0; i < 9; ++i) {
         if (arrowBtns[i]) {
             arrowBtns[i]->setProperty("class", "arrowBtn");
+            arrowBtns[i]->setVisible(teleop_status_);
             arrowBtns[i]->style()->unpolish(arrowBtns[i]);
             arrowBtns[i]->style()->polish(arrowBtns[i]);
             arrowBtns[i]->update();
@@ -84,10 +88,11 @@ void Status2Widget::setWidgetClasses()
         ui->arrowBtn_key9->setVisible(teleop_status_);
     }
     if (ui->teleop_status) {
+        ui->teleop_status->setProperty("class", "radius bg graye");
         ui->teleop_status->setVisible(!teleop_status_);
     }
     if (ui->teleopBtn) {
-        ui->teleopBtn->setProperty("class", "btn contained prQNetworkRequestimary");
+        ui->teleopBtn->setProperty("class", "btn contained primary");
         ui->teleopBtn->setText(teleop_status_ ? "수동제어 중지" : "수동제어 시작");
     }
     if (ui->move_bg) {
@@ -115,33 +120,43 @@ void Status2Widget::setWidgetClasses()
 
     if (ui->title5_box_cell1) {
         ui->title5_box_cell1->setProperty("class", "radius bg primary");
+        ui->title5_box_cell1->setVisible(battery_ >= 10);
     }
     if (ui->title5_box_cell2) {
         ui->title5_box_cell2->setProperty("class", "radius bg primary");
+        ui->title5_box_cell2->setVisible(battery_ >= 20);
     }
     if (ui->title5_box_cell3) {
         ui->title5_box_cell3->setProperty("class", "radius bg primary");
+        ui->title5_box_cell3->setVisible(battery_ >= 30);
     }
     if (ui->title5_box_cell4) {
         ui->title5_box_cell4->setProperty("class", "radius bg primary");
+        ui->title5_box_cell4->setVisible(battery_ >= 40);
     }
     if (ui->title5_box_cell5) {
         ui->title5_box_cell5->setProperty("class", "radius bg primary");
+        ui->title5_box_cell5->setVisible(battery_ >= 50);
     }
     if (ui->title5_box_cell6) {
         ui->title5_box_cell6->setProperty("class", "radius bg primary");
+        ui->title5_box_cell6->setVisible(battery_ >= 60);
     }
     if (ui->title5_box_cell7) {
         ui->title5_box_cell7->setProperty("class", "radius bg primary");
+        ui->title5_box_cell7->setVisible(battery_ >= 70);
     }
     if (ui->title5_box_cell8) {
         ui->title5_box_cell8->setProperty("class", "radius bg primary");
+        ui->title5_box_cell8->setVisible(battery_ >= 80);
     }
     if (ui->title5_box_cell9) {
         ui->title5_box_cell9->setProperty("class", "radius bg primary");
+        ui->title5_box_cell9->setVisible(battery_ >= 90);
     }
     if (ui->title5_box_cell10) {
         ui->title5_box_cell10->setProperty("class", "radius bg primary");
+        ui->title5_box_cell10->setVisible(battery_ >= 100);
     }
 
     if (ui->title5_status) {
@@ -179,7 +194,6 @@ void Status2Widget::setWidgetClasses()
         ui->network_img->setProperty("class", "network_img");
     }
 }
-
 
 void Status2Widget::setMoveFirstText(const QString& text)
 {
@@ -222,6 +236,7 @@ void Status2Widget::onTeleopBtnClicked()
 
     QJsonObject data;
     data["robot_id"] = 3;
+    data["admin_id"] = QString::fromStdString(UserInfoManager::get_user_id());  // 관리자 ID 추가
     QJsonDocument doc(data);
     QByteArray jsonData = doc.toJson();
 
@@ -324,6 +339,7 @@ void Status2Widget::onClickKey(int clickedNumber)
     QJsonObject data;
     data["robot_id"] = 3;
     data["teleop_key"] = clickedNumber;
+    data["admin_id"] = QString::fromStdString(UserInfoManager::get_user_id());  // 관리자 ID 추가
     QJsonDocument doc(data);
     QByteArray jsonData = doc.toJson();
 
@@ -395,7 +411,12 @@ void Status2Widget::show_at(const QPoint& pos)
 void Status2Widget::refresh()
 {
     qDebug() << "Status2 widget refresh";
-
+    if (ui->move_first) {
+        ui->move_first->setText("정지중");
+    }
+    if (ui->content1) {
+        ui->content1->setText("위치 연동중");
+    }
 }
 
 QString Status2Widget::mapDepartmentIdToName(int dept_id) {
@@ -431,17 +452,48 @@ QString Status2Widget::mapNetworkStatusToString(int network) {
 
 void Status2Widget::setRobotInfo(int orig, int dest, int battery, int network)
 {
-    orig_ = mapDepartmentIdToName(orig);
-    dest_ = mapDepartmentIdToName(dest);
+    // orig_ = mapDepartmentIdToName(orig);
+    // dest_ = mapDepartmentIdToName(dest);
     battery_ = battery;
     network_ = mapNetworkStatusToString(network);
 
-    if (ui->move_first) {
-        ui->move_first->setText(dest_);
-    }
+    // if (ui->move_first) {
+    //     ui->move_first->setText(dest_);
+    // }
     if (ui->title5_status) {
         ui->title5_status->setText(QString::number(battery_) + "%");
     }
+    if (ui -> title5_box_cell1) {
+        ui->title5_box_cell1->setVisible(battery_ >= 10);
+    }
+    if (ui->title5_box_cell2) {
+        ui->title5_box_cell2->setVisible(battery_ >= 20);
+    }
+    if (ui->title5_box_cell3) {
+        ui->title5_box_cell3->setVisible(battery_ >= 30);
+    }
+    if (ui->title5_box_cell4) {
+        ui->title5_box_cell4->setVisible(battery_ >= 40);
+    }
+    if (ui->title5_box_cell5) {
+        ui->title5_box_cell5->setVisible(battery_ >= 50);
+    }
+    if (ui->title5_box_cell6) {
+        ui->title5_box_cell6->setVisible(battery_ >= 60);
+    }
+    if (ui->title5_box_cell7) {
+        ui->title5_box_cell7->setVisible(battery_ >= 70);
+    }
+    if (ui->title5_box_cell8) {
+        ui->title5_box_cell8->setVisible(battery_ >= 80);
+    }
+    if (ui->title5_box_cell9) {
+        ui->title5_box_cell9->setVisible(battery_ >= 90);
+    }
+    if (ui->title5_box_cell10) {
+        ui->title5_box_cell10->setVisible(battery_ >= 100);
+    }
+
     if (ui->title6_status) {
         ui->title6_status->setText(network_);
     }
