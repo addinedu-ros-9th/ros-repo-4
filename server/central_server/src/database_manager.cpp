@@ -688,7 +688,7 @@ bool DatabaseManager::insertRobotLogWithType(int robot_id, int* patient_id, cons
         if (patient_id != nullptr) {
             pstmt1->setInt(2, *patient_id);
         } else {
-            pstmt1->setNull(2, sql::Types::INTEGER);
+            pstmt1->setNull(2, 4);  // 4 = INTEGER
         }
         
         pstmt1->setString(3, datetime);
@@ -698,7 +698,7 @@ bool DatabaseManager::insertRobotLogWithType(int robot_id, int* patient_id, cons
         if (!admin_id.empty()) {
             pstmt1->setString(5, admin_id);
         } else {
-            pstmt1->setNull(5, sql::Types::VARCHAR);
+            pstmt1->setNull(5, 12);  // 12 = VARCHAR
         }
         
         int affected1 = pstmt1->executeUpdate();

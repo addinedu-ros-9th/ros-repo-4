@@ -120,9 +120,9 @@ class SharedPersonTracker:
             other_camera = 'back' if camera_name == 'front' else 'front'
             other_detections = self.camera_raw_detections.get(other_camera, [])
             
-            for detection in other_detections:
-                other_person_id = detection['id']
-                other_bbox = detection['bbox']
+            for other_detection in other_detections:
+                other_person_id = other_detection['id']
+                other_bbox = other_detection['bbox']
                 
                 # 이미 현재 카메라에서 사용된 통합 ID는 제외
                 for unified_id, data in self.unified_people.items():
@@ -135,22 +135,25 @@ class SharedPersonTracker:
                         time_diff = elapsed_time - other_last_seen
                         
                         if time_diff <= self.match_timeout:
-                            # 공간적 매칭 시도
-                            score = self._calculate_cross_camera_similarity(other_bbox, bbox, other_camera, camera_name)
-                            if score > self.cross_camera_match_threshold:
-                                # 매칭 성공 - 기존 통합 ID 사용
-                                unified_detection = detection.copy()
-                                unified_detection['id'] = unified_id
-                                unified_detections.append(unified_detection)
-                                used_unified_ids.add(unified_id)
-                                
-                                # 매칭 정보 업데이트
-                                data['camera_ids'][camera_name] = detection['id']
-                                data['last_seen'][camera_name] = elapsed_time
-                                data['bbox'][camera_name] = detection['bbox']
-                                
-                                print(f"✅ 카메라 간 이동 감지: {other_camera} → {camera_name} ({unified_id})")
-                                break
+                            # 현재 카메라의 원본 감지 결과에서 매칭할 대상 찾기
+                            for current_detection in raw_detections:
+                                current_bbox = current_detection['bbox']
+                                # 공간적 매칭 시도
+                                score = self._calculate_cross_camera_similarity(other_bbox, current_bbox, other_camera, camera_name)
+                                if score > self.cross_camera_match_threshold:
+                                    # 매칭 성공 - 기존 통합 ID 사용
+                                    unified_detection = current_detection.copy()
+                                    unified_detection['id'] = unified_id
+                                    unified_detections.append(unified_detection)
+                                    used_unified_ids.add(unified_id)
+                                    
+                                    # 매칭 정보 업데이트
+                                    data['camera_ids'][camera_name] = current_detection['id']
+                                    data['last_seen'][camera_name] = elapsed_time
+                                    data['bbox'][camera_name] = current_detection['bbox']
+                                    
+                                    print(f"✅ 카메라 간 이동 감지: {other_camera} → {camera_name} ({unified_id})")
+                                    break
             
             return unified_detections
     
