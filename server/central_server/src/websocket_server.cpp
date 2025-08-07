@@ -1,5 +1,6 @@
 #include "central_server/websocket_server.h"
 #include <sstream>
+#include <json/json.h>
 
 WebSocketServer::WebSocketServer(int port)
     : port_(port), server_socket_(-1), running_(false) {
@@ -294,6 +295,14 @@ void WebSocketServer::handleClient(int client_socket, const std::string& client_
             if (send(client_socket, response.c_str(), response.length(), 0) > 0) {
                 // 클라이언트 목록에 추가
                 ClientInfo client_info(client_socket, client_ip);
+                
+                // 쿼리 파라미터에서 클라이언트 타입 추출
+                std::string client_type = extractClientTypeFromRequest(request);
+                if (!client_type.empty()) {
+                    client_info.client_type = client_type;
+                    std::cout << "[WebSocket] 클라이언트 " << client_ip << " 타입을 " << client_type << "로 설정" << std::endl;
+                }
+                
                 clients_by_ip_[client_ip] = client_info;
                 clients_by_socket_[client_socket] = client_ip;
                 
@@ -342,6 +351,36 @@ std::string WebSocketServer::extractWebSocketKey(const std::string& request) {
     }
     
     return request.substr(start, end - start);
+}
+
+std::string WebSocketServer::extractClientTypeFromRequest(const std::string& request) {
+    // GET 요청의 첫 번째 줄에서 URL 추출
+    size_t get_pos = request.find("GET ");
+    if (get_pos == std::string::npos) {
+        return "";
+    }
+    
+    size_t url_start = get_pos + 4; // "GET " 길이
+    size_t url_end = request.find(" HTTP/", url_start);
+    if (url_end == std::string::npos) {
+        return "";
+    }
+    
+    std::string url = request.substr(url_start, url_end - url_start);
+    
+    // 쿼리 파라미터에서 client_type 추출
+    size_t query_pos = url.find("?client_type=");
+    if (query_pos == std::string::npos) {
+        return "";
+    }
+    
+    size_t type_start = query_pos + 13; // "?client_type=" 길이
+    size_t type_end = url.find("&", type_start);
+    if (type_end == std::string::npos) {
+        type_end = url.length();
+    }
+    
+    return url.substr(type_start, type_end - type_start);
 }
 
 std::string WebSocketServer::generateWebSocketAcceptKey(const std::string& client_key) {
