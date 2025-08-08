@@ -132,11 +132,11 @@ void RobotNavigator::setupNavigationCommandSubscriber()
 void RobotNavigator::setupServices()
 {
     control_event_server_ = this->create_service<control_interfaces::srv::EventHandle>(
-        "control_service", &controlEventHandle);
+        "control_event", &controlEventHandle);
     tracking_event_server_ = this->create_service<control_interfaces::srv::TrackHandle>(
-        "control_service", &trackEventHandle);
+        "tracking_event", &trackEventHandle);
     navigate_event_server_ = this->create_service<control_interfaces::srv::NavigateHandle>(
-        "control_service", &navigateEventHandle);
+        "navigate_event", &navigateEventHandle);
     //robot_event_client_ = this->create_client<control_interfaces::srv::EventHandle>(
     //    "robot_service");
 
@@ -363,80 +363,107 @@ void trackEventHandle(
     //call_with_gesture
 }
 
-void navigateEventHandle(
-    const std::shared_ptr<control_interfaces::srv::navigateHandle::Request> nav_req,
-    std::shared_ptr<control_interfaces::srv::navigateHandle::Response> nav_res
+void RobotNavigator::navigateEventHandle(
+    const std::shared_ptr<control_interfaces::srv::NavigateHandle::Request> nav_req,
+    std::shared_ptr<control_interfaces::srv::NavigateHandle::Response> nav_res
 )
 {
-    if (event_type != "patient_navigating" && 
-        event_type != "unknown_navigating" &&
-        event_type != "unknown_navigating")
-    {
-        
-    }
     std::string event_type = nav_req->event_type;
     std::string command = nav_req->command;
-    RCLCPP_INFO(this->get_logger(), "Received navigation command: '%s'", command.c_str());
-    
+
+    RCLCPP_INFO(this->get_logger(), "Received event_type: '%s', command: '%s'", 
+                event_type.c_str(), command.c_str());
+
+    // 허용된 event_type만 처리
+    if (event_type != "patient_navigating" &&
+        event_type != "unknown_navigating" &&
+        event_type != "admin_navigating")
+    {
+        RCLCPP_WARN(this->get_logger(), "Unhandled event_type: '%s'", event_type.c_str());
+        nav_res->success = false;
+        nav_res->message = "Unhandled event_type";
+        return;
+    }
+
+    // 명령 처리 시작
     if (command == "go_start" || command == "return_start") {
         if (sendRobotToStartPoint()) {
             publishCommandLog("GO_START: returning to start point");
             RCLCPP_INFO(this->get_logger(), "Sending robot to start point");
+            nav_res->success = true;
+            nav_res->message = "Sent robot to start point";
         } else {
             publishCommandLog("ERROR: Failed to send robot to start point");
             RCLCPP_ERROR(this->get_logger(), "Failed to send robot to start point");
+            nav_res->success = false;
+            nav_res->message = "Failed to send robot to start point";
         }
         return;
     }
 
-    if (command == "return_lobby")
-    {
+    if (command == "return_lobby") {
         if (sendRobotToLobby()) {
             publishCommandLog("RETURN_LOBBY: returning to lobby station");
             RCLCPP_INFO(this->get_logger(), "Sending robot to lobby station");
+            nav_res->success = true;
+            nav_res->message = "Sent robot to lobby";
         } else {
             publishCommandLog("ERROR: Failed to send robot to lobby station");
             RCLCPP_ERROR(this->get_logger(), "Failed to send robot to lobby station");
+            nav_res->success = false;
+            nav_res->message = "Failed to send robot to lobby";
         }
         return;
     }
-    
-    // 기존 특수 명령들
+
     if (command == "stop" || command == "cancel") {
         std::lock_guard<std::mutex> lock(robot_mutex_);
         robot_info_->navigation_status = "idle";
         robot_info_->current_target = "canceled";
         publishCommandLog("CANCEL: Navigation canceled");
+        nav_res->success = true;
+        nav_res->message = "Navigation canceled";
         return;
     }
-    
+
     if (command == "status") {
         std::lock_guard<std::mutex> lock(robot_mutex_);
-        publishCommandLog("STATUS: " + robot_info_->navigation_status + 
-                        " (target: " + robot_info_->current_target + 
-                        ", start_point: " + robot_info_->start_point_name + 
-                        ", auto_start: enabled)");
+        publishCommandLog("STATUS: " + robot_info_->navigation_status +
+                          " (target: " + robot_info_->current_target +
+                          ", start_point: " + robot_info_->start_point_name +
+                          ", auto_start: enabled)");
+        nav_res->success = true;
+        nav_res->message = "Status reported";
         return;
     }
-    
+
     if (command == "list") {
         publishAvailableWaypoints();
+        nav_res->success = true;
+        nav_res->message = "Waypoint list sent";
         return;
     }
-    
+
     // 실제 네비게이션 명령 처리
     if (waypoints_.find(command) != waypoints_.end()) {
         if (sendNavigationGoal(command)) {
             publishCommandLog("COMMAND: -> " + command);
             RCLCPP_INFO(this->get_logger(), "Manual navigation command executed: -> %s", command.c_str());
+            nav_res->success = true;
+            nav_res->message = "Navigation command executed";
         } else {
             publishCommandLog("ERROR: Failed to send command -> " + command);
+            nav_res->success = false;
+            nav_res->message = "Failed to execute navigation";
         }
     } else {
         publishCommandLog("ERROR: Unknown waypoint '" + command + "'");
         publishAvailableWaypoints();
+        nav_res->success = false;
+        nav_res->message = "Unknown waypoint";
     }
 }
+
 
 void RobotNavigator::navigationCommandCallback(const std_msgs::msg::String::SharedPtr msg)
 {
