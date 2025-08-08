@@ -139,6 +139,8 @@ private:
     void publishRobotData();
     void publishCommandLog(const std::string& message);
     void publishAvailableWaypoints();
+
+    void callEventService(const std::string& event_type, const std::string& status);
 };
 
 #endif

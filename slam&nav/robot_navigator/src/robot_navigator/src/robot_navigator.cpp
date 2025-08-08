@@ -441,8 +441,24 @@ void navigateEventHandle(
 void RobotNavigator::navigationCommandCallback(const std_msgs::msg::String::SharedPtr msg)
 {
     std::string command = msg->data;
-    RCLCPP_INFO(this->get_logger(), "Received navigation command: '%s'", command.c_str());
-    
+    RCLCPP_INFO(this->get_logger(), "📥 Received navigation command: '%s'", command.c_str());
+
+    // ✅ 1. call_with_* 계열 명령은 idle 상태에서만 수락
+    if (command == "call_with_screen" || command == "call_with_voice" || command == "control_by_admin") {
+        std::lock_guard<std::mutex> lock(robot_mutex_);
+        if (robot_info_->navigation_status != "idle") {
+            RCLCPP_WARN(this->get_logger(), "⚠️ 명령 [%s] 무시됨 - 현재 상태: %s", command.c_str(), robot_info_->navigation_status.c_str());
+            return;
+        }
+
+        robot_info_->navigation_status = "waiting_for_navigating";
+        robot_info_->current_target = "waiting_for_user";
+        publishCommandLog("CALL: " + command + " → 상태 전이 [waiting_for_navigating]");
+        callEventService(command, "호출 위치 도착");
+        return;
+    }
+
+    // ✅ 2. go_start / return_start
     if (command == "go_start" || command == "return_start") {
         if (sendRobotToStartPoint()) {
             publishCommandLog("GO_START: returning to start point");
@@ -454,8 +470,8 @@ void RobotNavigator::navigationCommandCallback(const std_msgs::msg::String::Shar
         return;
     }
 
-    if (command == "return_lobby")
-    {
+    // ✅ 3. return_lobby
+    if (command == "return_lobby") {
         if (sendRobotToLobby()) {
             publishCommandLog("RETURN_LOBBY: returning to lobby station");
             RCLCPP_INFO(this->get_logger(), "Sending robot to lobby station");
@@ -465,31 +481,33 @@ void RobotNavigator::navigationCommandCallback(const std_msgs::msg::String::Shar
         }
         return;
     }
-    
-    // 기존 특수 명령들
+
+    // ✅ 4. stop / cancel
     if (command == "stop" || command == "cancel") {
         std::lock_guard<std::mutex> lock(robot_mutex_);
         robot_info_->navigation_status = "idle";
         robot_info_->current_target = "canceled";
-        publishCommandLog("CANCEL: Navigation canceled");
+        publishCommandLog("CANCEL: Navigation canceled, status set to idle");
         return;
     }
-    
+
+    // ✅ 5. 상태 출력
     if (command == "status") {
         std::lock_guard<std::mutex> lock(robot_mutex_);
-        publishCommandLog("STATUS: " + robot_info_->navigation_status + 
-                        " (target: " + robot_info_->current_target + 
-                        ", start_point: " + robot_info_->start_point_name + 
-                        ", auto_start: enabled)");
+        publishCommandLog("STATUS: " + robot_info_->navigation_status +
+                          " (target: " + robot_info_->current_target +
+                          ", start_point: " + robot_info_->start_point_name +
+                          ", auto_start: enabled)");
         return;
     }
-    
+
+    // ✅ 6. 웨이포인트 목록 요청
     if (command == "list") {
         publishAvailableWaypoints();
         return;
     }
-    
-    // 실제 네비게이션 명령 처리
+
+    // ✅ 7. 수동 네비게이션 명령 (waypoint 이름)
     if (waypoints_.find(command) != waypoints_.end()) {
         if (sendNavigationGoal(command)) {
             publishCommandLog("COMMAND: -> " + command);
@@ -502,6 +520,7 @@ void RobotNavigator::navigationCommandCallback(const std_msgs::msg::String::Shar
         publishAvailableWaypoints();
     }
 }
+
 
 bool RobotNavigator::sendNavigationGoal(const std::string& waypoint_name)
 {
@@ -615,6 +634,8 @@ void RobotNavigator::resultCallback(const GoalHandleNavigate::WrappedResult& res
         case rclcpp_action::ResultCode::SUCCEEDED:
             robot_event_client_ = this->create_client
             robot_info_->navigation_status = "waiting_for_return";
+
+            callEventService("navigating_complete", robot_info_->current_target); //추가
             
             // 도착 시 자동으로 현재 목표를 새로운 시작점으로 설정
             if (robot_info_->current_target != "start_point") {  // 시작점 복귀가 아닌 경우만
@@ -656,6 +677,22 @@ void RobotNavigator::resultCallback(const GoalHandleNavigate::WrappedResult& res
             break;
     }
 }
+
+void RobotNavigator::callEventService(const std::string& event_type, const std::string& status)
+{
+    if (!robot_event_client_ || !robot_event_client_->wait_for_service(1s)) {
+        RCLCPP_WARN(this->get_logger(), "❗ /robot_event 서비스 연결 실패");
+        return;
+    }
+
+    auto request = std::make_shared<control_interfaces::srv::EventHandle::Request>();
+    request->event_type = event_type;
+    request->status = status;
+
+    auto future = robot_event_client_->async_send_request(request);
+    RCLCPP_INFO(this->get_logger(), "📡 /robot_event 전송: [%s] %s", event_type.c_str(), status.c_str());
+}
+
 
 void RobotNavigator::statusTimerCallback()
 {
