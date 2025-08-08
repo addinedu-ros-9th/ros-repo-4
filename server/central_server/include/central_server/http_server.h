@@ -13,6 +13,8 @@
 #include "central_server/robot_navigation_manager.h"
 #include "central_server/admin_request_handler.h"
 #include "central_server/user_request_handler.h"
+#include "central_server/ai_request_handler.h"
+#include "central_server/websocket_server.h"
 
 class HttpServer {
 public:
@@ -34,6 +36,7 @@ public:
     
     // 로봇 네비게이션 관리자 설정
     void setRobotNavigationManager(std::shared_ptr<RobotNavigationManager> nav_manager);
+    void setWebSocketServer(std::shared_ptr<WebSocketServer> websocket_server);
     
 private:
     std::shared_ptr<DatabaseManager> db_manager_;
@@ -47,6 +50,8 @@ private:
     // 요청 핸들러들
     std::unique_ptr<AdminRequestHandler> admin_handler_;
     std::unique_ptr<UserRequestHandler> user_handler_;
+    std::unique_ptr<AiRequestHandler> ai_handler_;
+    std::shared_ptr<WebSocketServer> websocket_server_;
     
     // 로봇 현재 위치 정보
     struct RobotPosition {

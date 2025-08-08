@@ -2,6 +2,9 @@
 #include <iostream>
 #include <cmath>
 #include <cstdlib>
+#include <curl/curl.h>
+#include <json/json.h>
+#include <ctime>
 
 RobotNavigationManager::RobotNavigationManager() 
     : Node("robot_navigation_manager") {
@@ -67,6 +70,12 @@ RobotNavigationManager::RobotNavigationManager()
         std::bind(&RobotNavigationManager::robotEventCallback, this, 
                  std::placeholders::_1, std::placeholders::_2));
     
+    // 장애물 감지 서비스 서버 (Robot → Central)
+    detect_obstacle_service_ = this->create_service<control_interfaces::srv::DetectHandle>(
+        "/detect_obstacle",
+        std::bind(&RobotNavigationManager::detectObstacleCallback, this, 
+                 std::placeholders::_1, std::placeholders::_2));
+    
     // 초기값 설정
     current_network_level_ = 0;
     current_battery_ = 0;
@@ -87,6 +96,7 @@ RobotNavigationManager::RobotNavigationManager()
     RCLCPP_INFO(this->get_logger(), "  - 구독: /nav_status");
     RCLCPP_INFO(this->get_logger(), "  - 구독: /detected_obstacle");
     RCLCPP_INFO(this->get_logger(), "  - 서비스 서버: /robot_event");
+    RCLCPP_INFO(this->get_logger(), "  - 서비스 서버: /detect_obstacle");
 }
 
 RobotNavigationManager::~RobotNavigationManager() {
@@ -427,4 +437,89 @@ double RobotNavigationManager::quaternionToYaw(const geometry_msgs::msg::Quatern
 
 void RobotNavigationManager::logNavigationCommand(const std::string& command) {
     std::cout << "[RobotNavigation] 명령 전송: " << command << std::endl;
+}
+
+// 장애물 감지 서비스 콜백
+void RobotNavigationManager::detectObstacleCallback(
+    const std::shared_ptr<control_interfaces::srv::DetectHandle::Request> request,
+    std::shared_ptr<control_interfaces::srv::DetectHandle::Response> response) {
+    
+    RCLCPP_INFO(this->get_logger(), "장애물 감지 서비스 수신: left_angle=%.2f, right_angle=%.2f", 
+               request->left_angle, request->right_angle);
+    
+    // AI 서버에 장애물 감지 정보 전송
+    int robot_id = 3; // TODO: config에서 가져오기
+    bool sent = sendObstacleDetectedToAI(robot_id, request->left_angle, request->right_angle);
+    
+    if (sent) {
+        response->flag = "success";
+        RCLCPP_INFO(this->get_logger(), "AI 서버에 장애물 감지 정보 전송 성공");
+    } else {
+        response->flag = "failed";
+        RCLCPP_ERROR(this->get_logger(), "AI 서버에 장애물 감지 정보 전송 실패");
+    }
+}
+
+// AI 서버 HTTP 통신
+bool RobotNavigationManager::sendObstacleDetectedToAI(int robot_id, float left_angle, float right_angle) {
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        RCLCPP_ERROR(this->get_logger(), "CURL 초기화 실패");
+        return false;
+    }
+    
+    // AI 서버 URL
+    std::string ai_server_url = "http://192.168.0.27:8000/obstacle/detected";
+    
+    // JSON 요청 데이터
+    Json::Value request_data;
+    request_data["robot_id"] = robot_id;
+    request_data["left_angle"] = std::to_string(left_angle);
+    request_data["rignt_angle"] = std::to_string(right_angle);
+    request_data["timestamp"] = std::to_string(time(nullptr));
+    
+    Json::StreamWriterBuilder builder;
+    std::string json_data = Json::writeString(builder, request_data);
+    
+    // HTTP 헤더 설정
+    struct curl_slist* headers = nullptr;
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+    
+    // CURL 옵션 설정
+    curl_easy_setopt(curl, CURLOPT_URL, ai_server_url.c_str());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_data.c_str());
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);  // 5초 타임아웃
+    
+    // 응답 처리
+    std::string response;
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, +[](void* contents, size_t size, size_t nmemb, std::string* userp) -> size_t {
+        userp->append((char*)contents, size * nmemb);
+        return size * nmemb;
+    });
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+    
+    // 요청 실행
+    CURLcode res = curl_easy_perform(curl);
+    
+    // 정리
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+    
+    if (res != CURLE_OK) {
+        RCLCPP_ERROR(this->get_logger(), "AI 서버 obstacle/detected 요청 실패: %s", curl_easy_strerror(res));
+        return false;
+    }
+    
+    // 응답 확인
+    long http_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    
+    if (http_code == 200) {
+        RCLCPP_INFO(this->get_logger(), "AI 서버 obstacle/detected 요청 성공: Robot %d", robot_id);
+        return true;
+    } else {
+        RCLCPP_ERROR(this->get_logger(), "AI 서버 obstacle/detected 요청 실패: HTTP %ld", http_code);
+        return false;
+    }
 } 

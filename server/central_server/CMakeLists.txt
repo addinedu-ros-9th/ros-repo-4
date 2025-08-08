@@ -28,6 +28,7 @@ add_executable(central_server_node
   src/http_server.cpp
   src/admin_request_handler.cpp
   src/user_request_handler.cpp
+  src/ai_request_handler.cpp
   src/robot_navigation_manager.cpp
   src/websocket_server.cpp
 )
@@ -48,6 +49,7 @@ target_link_libraries(central_server_node
   yaml-cpp
   OpenSSL::SSL
   OpenSSL::Crypto
+  curl
 )
 
 # 헤더 파일 포함

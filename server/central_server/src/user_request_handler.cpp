@@ -4,6 +4,7 @@
 #include <iostream>
 #include <sstream>
 #include <json/json.h>
+#include <curl/curl.h>
 
 
 UserRequestHandler::UserRequestHandler(std::shared_ptr<DatabaseManager> db_manager, 
@@ -68,6 +69,9 @@ std::string UserRequestHandler::handleAuthDirection(const Json::Value& request) 
     int department_id = request["department_id"].asInt();
     int patient_id = request["patient_id"].asInt();
     
+    // AI 서버에 start_tracking 명령 전송
+    sendStartTrackingToAI(robot_id);
+    
     return processDirectionRequest(robot_id, department_id, &patient_id, "patient_navigating");
 }
 
@@ -93,6 +97,9 @@ std::string UserRequestHandler::handleWithoutAuthDirection(const Json::Value& re
     
     int robot_id = request["robot_id"].asInt();
     int department_id = request["department_id"].asInt();
+    
+    // AI 서버에 start_tracking 명령 전송
+    sendStartTrackingToAI(robot_id);
     
     return processDirectionRequest(robot_id, department_id, nullptr, "unknown_navigating");
 }
@@ -442,6 +449,67 @@ std::string UserRequestHandler::createStatusResponse(int status_code) {
     
     Json::StreamWriterBuilder builder;
     return Json::writeString(builder, response);
+}
+
+// AI 서버 HTTP 통신
+bool UserRequestHandler::sendStartTrackingToAI(int robot_id) {
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        std::cout << "[USER] CURL 초기화 실패" << std::endl;
+        return false;
+    }
+    
+    // AI 서버 URL (config에서 가져오거나 기본값 사용)
+    std::string ai_server_url = "http://192.168.0.27:8000/start_tracking";  // AI 서버 주소로 변경 필요
+    
+    // JSON 요청 데이터
+    Json::Value request_data;
+    request_data["robot_id"] = robot_id;
+    
+    Json::StreamWriterBuilder builder;
+    std::string json_data = Json::writeString(builder, request_data);
+    
+    // HTTP 헤더 설정
+    struct curl_slist* headers = nullptr;
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+    
+    // CURL 옵션 설정
+    curl_easy_setopt(curl, CURLOPT_URL, ai_server_url.c_str());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_data.c_str());
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);  // 5초 타임아웃
+    
+    // 응답 처리
+    std::string response;
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, +[](void* contents, size_t size, size_t nmemb, std::string* userp) -> size_t {
+        userp->append((char*)contents, size * nmemb);
+        return size * nmemb;
+    });
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+    
+    // 요청 실행
+    CURLcode res = curl_easy_perform(curl);
+    
+    // 정리
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+    
+    if (res != CURLE_OK) {
+        std::cout << "[USER] AI 서버 start_tracking 요청 실패: " << curl_easy_strerror(res) << std::endl;
+        return false;
+    }
+    
+    // 응답 확인 (간단히 HTTP 상태 코드만 확인)
+    long http_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    
+    if (http_code == 200) {
+        std::cout << "[USER] AI 서버 start_tracking 요청 성공: Robot " << robot_id << std::endl;
+        return true;
+    } else {
+        std::cout << "[USER] AI 서버 start_tracking 요청 실패: HTTP " << http_code << std::endl;
+        return false;
+    }
 }
 
 // GUI로 보내는 통신 핸들러들

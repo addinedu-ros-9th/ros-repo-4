@@ -10,6 +10,7 @@
 #include <control_interfaces/srv/event_handle.hpp>
 #include <control_interfaces/srv/track_handle.hpp>
 #include <control_interfaces/srv/navigate_handle.hpp>
+#include <control_interfaces/srv/detect_handle.hpp>
 #include <std_msgs/msg/string.hpp>
 
 #include <functional>
@@ -69,6 +70,9 @@ public:
     
     // 로봇 이벤트 콜백 설정
     void setRobotEventCallback(std::function<void(const std::string&)> callback);
+    
+    // AI 서버 HTTP 통신
+    bool sendObstacleDetectedToAI(int robot_id, float left_angle, float right_angle);
 
 private:
     // IF-01: 로봇 목적지 전송 퍼블리셔
@@ -109,6 +113,9 @@ private:
     std::shared_ptr<rclcpp::Client<control_interfaces::srv::NavigateHandle>> navigate_client_;
     std::shared_ptr<rclcpp::Client<control_interfaces::srv::TrackHandle>> tracking_event_client_;
     
+    // 서비스 서버들 (Robot → Central)
+    rclcpp::Service<control_interfaces::srv::DetectHandle>::SharedPtr detect_obstacle_service_;
+    
     // 콜백 함수들
     std::function<void(const std::string&)> nav_status_callback_;
     std::function<void(double x, double y, double yaw)> robot_pose_callback_;
@@ -146,6 +153,10 @@ private:
     void robotEventCallback(
         const std::shared_ptr<control_interfaces::srv::EventHandle::Request> request,
         std::shared_ptr<control_interfaces::srv::EventHandle::Response> response);
+    
+    void detectObstacleCallback(
+        const std::shared_ptr<control_interfaces::srv::DetectHandle::Request> request,
+        std::shared_ptr<control_interfaces::srv::DetectHandle::Response> response);
     
     // 유틸리티 함수들
     double quaternionToYaw(const geometry_msgs::msg::Quaternion& quat);

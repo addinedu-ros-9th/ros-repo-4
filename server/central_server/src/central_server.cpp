@@ -53,8 +53,10 @@ CentralServer::CentralServer() : Node("central_server") {
     auto shared_nav_manager = std::shared_ptr<RobotNavigationManager>(nav_manager_.get(), [](RobotNavigationManager*){});
     http_server_->setRobotNavigationManager(shared_nav_manager);
     
-    // WebSocket 서버 생성
+    // WebSocket 서버 생성 (GUI 알림용) 및 HttpServer에 직접 주입
     websocket_server_ = std::make_unique<WebSocketServer>(websocket_port_);
+    auto shared_ws = std::shared_ptr<WebSocketServer>(websocket_server_.get(), [](WebSocketServer*){});
+    http_server_->setWebSocketServer(shared_ws);
 
     // 로봇 이벤트 → WebSocket(GUI) 전달 + DB 로그 저장 콜백 설정
     nav_manager_->setRobotEventCallback([this](const std::string& event_type) {

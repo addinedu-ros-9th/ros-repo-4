@@ -4,6 +4,7 @@
 #include <json/json.h>
 #include <memory>
 #include <string>
+#include <curl/curl.h>
 #include "central_server/database_manager.h"
 #include "central_server/robot_navigation_manager.h"
 #include "central_server/websocket_server.h"
@@ -58,6 +59,9 @@ private:
                                     const std::string& status,
                                     int patient_id);
     std::string createStatusResponse(int status_code);
+    
+    // AI 서버 HTTP 통신
+    bool sendStartTrackingToAI(int robot_id);
 };
 
 #endif // USER_REQUEST_HANDLER_H 
