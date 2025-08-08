@@ -15,6 +15,7 @@ find_package(std_msgs REQUIRED)
 find_package(nav2_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
+find_package(control_interfaces REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
@@ -40,6 +41,7 @@ ament_target_dependencies(
   "nav2_msgs"
   "tf2"
   "tf2_geometry_msgs"
+  "control_interfaces"  
 )
 
 install(TARGETS robot_navigator
