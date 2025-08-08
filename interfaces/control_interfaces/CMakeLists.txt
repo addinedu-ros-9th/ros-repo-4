@@ -17,6 +17,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/EventHandle.srv"
   "srv/NavigateHandle.srv"
   "srv/TrackHandle.srv"
+  "srv/DetectHandle.srv"
 )
 
 if(BUILD_TESTING)
