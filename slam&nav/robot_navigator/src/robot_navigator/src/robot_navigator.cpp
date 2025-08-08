@@ -15,13 +15,23 @@ RobotNavigator::RobotNavigator() : Node("robot_navigator")
     // 웨이포인트 초기화
     initializeWaypoints();
     
+    // 로봇 정보 초기화
+    robot_info_ = std::make_shared<RobotInfo>();
+    robot_info_->navigation_status = "idle";
+    robot_info_->current_target = "none";
+    robot_info_->start_point_name = "none";
+    robot_info_->is_online = false;
+    robot_info_->start_point_set = false;
+    robot_info_->last_update = this->get_clock()->now();
+    robot_info_->teleop_active = false;
+    
     // 명령 로그 퍼블리셔 초기화
     command_log_publisher_ = this->create_publisher<std_msgs::msg::String>("navigation_commands", 10);
     
-    // 로봇별 구독자 및 Action 클라이언트 초기화
+    // 로봇 구독자 및 Action 클라이언트 초기화
     initializeRobotSubscribers();
-    setupActionClients();
-    setupIndividualPublishers();
+    setupActionClient();
+    setupPublishers();
     setupNavigationCommandSubscriber();
     
     // 상태 업데이트 타이머
@@ -38,7 +48,7 @@ RobotNavigator::RobotNavigator() : Node("robot_navigator")
 void RobotNavigator::initializeWaypoints()
 {
     // 미리 정의된 웨이포인트들
-    waypoints_["lobby_station"] = {"Main Lobby", 9.53, -1.76, 90.0, "병원 로비 스테이션"};
+    waypoints_["lobby_station"] = {"Main Lobby", 9, -1.76, 90.0, "병원 로비 스테이션"};
     waypoints_["breast_cancer"] = {"Breast Cancer Center", 7.67, 1.12, 180.0, "유방암 센터"};
     waypoints_["brain_tumor"] = {"Brain Tumor Center", 6.1, 1.12, 180.0, "뇌종양 센터"};
     waypoints_["lung_cancer"] = {"Lung Cancer Center", 5.07, -2.17, 0.0, "폐암 센터"};
@@ -61,84 +71,46 @@ void RobotNavigator::initializeWaypoints()
 
 void RobotNavigator::initializeRobotSubscribers()
 {
-    std::vector<std::string> robot_ids = {"robot1"};
+    // AMCL Pose 구독자
+    amcl_subscriber_ = this->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
+        "/amcl_pose", 10, 
+        std::bind(&RobotNavigator::amclCallback, this, _1));
     
-    for (const auto& robot_id : robot_ids) {
-        // 로봇 정보 초기화
-        auto robot_info = std::make_shared<RobotMonitorInfo>();
-        robot_info->robot_id = robot_id;
-        robot_info->navigation_status = "idle";
-        robot_info->current_target = "none";
-        robot_info->start_point_name = "none";  // 시작점 이름 초기화
-        robot_info->is_online = false;
-        robot_info->start_point_set = false;
-        robot_info->last_update = this->get_clock()->now();
-        
-        {
-            std::lock_guard<std::mutex> lock(robots_mutex_);
-            robots_[robot_id] = robot_info;
-        }
-        
-        // AMCL Pose 구독자
-        std::string amcl_topic = "/amcl_pose";
-        amcl_subscribers_[robot_id] = this->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
-            amcl_topic, 10, 
-            [this, robot_id](const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg) {
-                this->amclCallback(robot_id, msg);
-            });
-        
-        // CMD_VEL 구독자
-        std::string cmd_vel_topic = "/cmd_vel";
-        cmd_vel_subscribers_[robot_id] = this->create_subscription<geometry_msgs::msg::Twist>(
-            cmd_vel_topic, 10,
-            [this, robot_id](const geometry_msgs::msg::Twist::SharedPtr msg) {
-                this->cmdVelCallback(robot_id, msg);
-            });
-        
-        RCLCPP_INFO(this->get_logger(), "Initialized subscribers for %s", robot_id.c_str());
+    // CMD_VEL 구독자
+    cmd_vel_subscriber_ = this->create_subscription<geometry_msgs::msg::Twist>(
+        "/cmd_vel", 10,
+        std::bind(&RobotNavigator::cmdVelCallback, this, _1));
+
+    // teleop_event 구독자
+    teleop_event_subscriber_ = this->create_subscription<std_msgs::msg::String>(
+        "/teleop_event", 10,
+        std::bind(&RobotNavigator::teleopEventCallback, this, _1));
+    
+    RCLCPP_INFO(this->get_logger(), "Initialized robot subscribers");
+}
+
+void RobotNavigator::setupActionClient()
+{
+    try {
+        nav_client_ = rclcpp_action::create_client<NavigateToPose>(this, "/navigate_to_pose");
+        RCLCPP_INFO(this->get_logger(), "Created navigation action client");
+    } catch (const std::exception& e) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to create action client: %s", e.what());
     }
 }
 
-void RobotNavigator::setupActionClients()
+void RobotNavigator::setupPublishers()
 {
-    for (const auto& [robot_id, robot_info] : robots_) {
-        try {
-            std::string nav_topic = "/navigate_to_pose";
-            nav_clients_[robot_id] = rclcpp_action::create_client<NavigateToPose>(this, nav_topic);
-            RCLCPP_INFO(this->get_logger(), "Created navigation action client for %s", robot_id.c_str());
-        } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "Failed to create action client for %s: %s", 
-                        robot_id.c_str(), e.what());
-        }
-    }
-}
-
-void RobotNavigator::setupIndividualPublishers()
-{
-    for (const auto& [robot_id, robot_info] : robots_) {
-        // 개별 토픽 퍼블리셔들 생성
-        std::string pose_topic = "/fleet/" + robot_id + "/pose";
-        std::string start_point_topic = "/fleet/" + robot_id + "/start_point";  // 시작점 이름 토픽
-        std::string velocity_topic = "/fleet/" + robot_id + "/velocity";
-        std::string nav_status_topic = "/fleet/" + robot_id + "/nav_status";
-        std::string target_topic = "/fleet/" + robot_id + "/target";
-        std::string online_topic = "/fleet/" + robot_id + "/online";
-        
-        pose_publishers_[robot_id] = this->create_publisher<geometry_msgs::msg::Pose>(pose_topic, 10);
-        start_point_publishers_[robot_id] = this->create_publisher<std_msgs::msg::String>(start_point_topic, 10);  // String 타입
-        velocity_publishers_[robot_id] = this->create_publisher<geometry_msgs::msg::Twist>(velocity_topic, 10);
-        nav_status_publishers_[robot_id] = this->create_publisher<std_msgs::msg::String>(nav_status_topic, 10);
-        target_publishers_[robot_id] = this->create_publisher<std_msgs::msg::String>(target_topic, 10);
-        online_status_publishers_[robot_id] = this->create_publisher<std_msgs::msg::Bool>(online_topic, 10);
-        
-        RCLCPP_INFO(this->get_logger(), "Created individual publishers for %s:", robot_id.c_str());
-        RCLCPP_INFO(this->get_logger(), "  - %s", pose_topic.c_str());
-        RCLCPP_INFO(this->get_logger(), "  - %s (waypoint name)", start_point_topic.c_str());
-        RCLCPP_INFO(this->get_logger(), "  - %s", velocity_topic.c_str());
-        RCLCPP_INFO(this->get_logger(), "  - %s", nav_status_topic.c_str());
-        RCLCPP_INFO(this->get_logger(), "  - %s", target_topic.c_str());
-        RCLCPP_INFO(this->get_logger(), "  - %s", online_topic.c_str());
-    }
+    // 개별 토픽 퍼블리셔들 생성
+    pose_publisher_ = this->create_publisher<geometry_msgs::msg::Pose>("/pose", 10);
+    start_point_publisher_ = this->create_publisher<std_msgs::msg::String>("/start_point", 10);
+    velocity_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>("/velocity", 10);
+    nav_status_publisher_ = this->create_publisher<std_msgs::msg::String>("/nav_status", 10);
+    target_publisher_ = this->create_publisher<std_msgs::msg::String>("/target", 10);
+    online_status_publisher_ = this->create_publisher<std_msgs::msg::Bool>("/online", 10);
+    teleop_command_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
+    
+    RCLCPP_INFO(this->get_logger(), "Created robot publishers");
 }
 
 void RobotNavigator::setupNavigationCommandSubscriber()
@@ -155,6 +127,20 @@ void RobotNavigator::setupNavigationCommandSubscriber()
     RCLCPP_INFO(this->get_logger(), "  - status: Check current status");
     RCLCPP_INFO(this->get_logger(), "  - list: Show available waypoints");
     RCLCPP_INFO(this->get_logger(), "Note: Start point is automatically updated upon reaching destinations");
+}
+
+void RobotNavigator::setupServices()
+{
+    control_event_server_ = this->create_service<control_interfaces::srv::EventHandle>(
+        "control_service", &controlEventHandle);
+    tracking_event_server_ = this->create_service<control_interfaces::srv::TrackHandle>(
+        "control_service", &trackEventHandle);
+    navigate_event_server_ = this->create_service<control_interfaces::srv::NavigateHandle>(
+        "control_service", &navigateEventHandle);
+    //robot_event_client_ = this->create_client<control_interfaces::srv::EventHandle>(
+    //    "robot_service");
+
+    RCLCPP_INFO(this->get_logger(), "Service Server & Client created!");
 }
 
 std::string RobotNavigator::findNearestWaypoint(double x, double y) const
@@ -179,103 +165,276 @@ std::string RobotNavigator::findNearestWaypoint(double x, double y) const
     return nearest_waypoint;
 }
 
-void RobotNavigator::setStartPoint(const std::string& robot_id, const std::string& waypoint_name)
+void RobotNavigator::setStartPoint(const std::string& waypoint_name)
 {
-    std::lock_guard<std::mutex> lock(robots_mutex_);
+    std::lock_guard<std::mutex> lock(robot_mutex_);
     
-    if (robots_.find(robot_id) != robots_.end() && waypoints_.find(waypoint_name) != waypoints_.end()) {
-        robots_[robot_id]->start_point_name = waypoint_name;
-        robots_[robot_id]->start_point_set = true;
+    if (waypoints_.find(waypoint_name) != waypoints_.end()) {
+        robot_info_->start_point_name = waypoint_name;
+        robot_info_->start_point_set = true;
         
         const auto& wp = waypoints_[waypoint_name];
-        RCLCPP_INFO(this->get_logger(), "Start point set for %s: '%s' (%.2f, %.2f, %.1f°)", 
-                   robot_id.c_str(), waypoint_name.c_str(), wp.x, wp.y, wp.yaw);
+        RCLCPP_INFO(this->get_logger(), "Start point set: '%s' (%.2f, %.2f, %.1f°)", 
+                   waypoint_name.c_str(), wp.x, wp.y, wp.yaw);
         
-        publishCommandLog("SET_START: " + robot_id + " -> " + waypoint_name + 
+        publishCommandLog("SET_START: " + waypoint_name + 
                          " (" + std::to_string(wp.x) + ", " + std::to_string(wp.y) + ")");
     }
 }
 
-bool RobotNavigator::sendRobotToStartPoint(const std::string& robot_id)
+bool RobotNavigator::sendRobotToStartPoint()
 {
-    std::lock_guard<std::mutex> lock(robots_mutex_);
+    std::lock_guard<std::mutex> lock(robot_mutex_);
     
-    if (robots_.find(robot_id) == robots_.end()) {
-        RCLCPP_ERROR(this->get_logger(), "Robot %s not found", robot_id.c_str());
+    if (!robot_info_->start_point_set) {
+        RCLCPP_ERROR(this->get_logger(), "Start point not set");
+        publishCommandLog("ERROR: Start point not set");
         return false;
     }
     
-    if (!robots_[robot_id]->start_point_set) {
-        RCLCPP_ERROR(this->get_logger(), "Start point not set for robot %s", robot_id.c_str());
-        publishCommandLog("ERROR: Start point not set for " + robot_id);
-        return false;
-    }
+    std::string start_waypoint = robot_info_->start_point_name;
+    robot_mutex_.unlock();  // unlock before calling sendNavigationGoal
     
-    std::string start_waypoint = robots_[robot_id]->start_point_name;
-    robots_mutex_.unlock();  // unlock before calling sendNavigationGoal
+    RCLCPP_INFO(this->get_logger(), "Sending robot to start point waypoint: %s", start_waypoint.c_str());
     
-    RCLCPP_INFO(this->get_logger(), "Sending %s to start point waypoint: %s", 
-               robot_id.c_str(), start_waypoint.c_str());
-    
-    return sendNavigationGoal(robot_id, start_waypoint);
+    return sendNavigationGoal(start_waypoint);
 }
 
-bool RobotNavigator::sendRobotToLobby(const std::string& robot_id)
+bool RobotNavigator::sendRobotToLobby()
 {
-    std::lock_guard<std::mutex> lock(robots_mutex_);
-    robots_[robot_id]->navigation_status = "moving_to_station";
+    std::lock_guard<std::mutex> lock(robot_mutex_);
+    robot_info_->navigation_status = "moving_to_station";
+    robot_mutex_.unlock();  // unlock before calling sendNavigationGoal
     
-    if (robots_.find(robot_id) == robots_.end()) {
-        RCLCPP_ERROR(this->get_logger(), "Robot %s not found", robot_id.c_str());
-        return false;
-    }
-
-    robots_mutex_.unlock();  // unlock before calling sendNavigationGoal
+    RCLCPP_INFO(this->get_logger(), "Sending robot to lobby station");
     
-    RCLCPP_INFO(this->get_logger(), "Sending %s to lobby station", 
-               robot_id.c_str());
-    
-    return sendNavigationGoal(robot_id, "lobby_station");
+    return sendNavigationGoal("lobby_station");
 }
 
-void RobotNavigator::amclCallback(const std::string& robot_id, 
-                                      const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg)
+void RobotNavigator::amclCallback(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg)
 {
-    std::lock_guard<std::mutex> lock(robots_mutex_);
+    std::lock_guard<std::mutex> lock(robot_mutex_);
     
-    if (robots_.find(robot_id) != robots_.end()) {
-        robots_[robot_id]->current_pose = msg->pose.pose;
-        robots_[robot_id]->is_online = true;
-        robots_[robot_id]->last_update = this->get_clock()->now();
+    robot_info_->current_pose = msg->pose.pose;
+    robot_info_->is_online = true;
+    robot_info_->last_update = this->get_clock()->now();
+    
+    // 첫 번째 위치 수신 시 가장 가까운 waypoint를 시작점으로 설정
+    if (!robot_info_->start_point_set) {
+        std::string nearest_wp = findNearestWaypoint(
+            msg->pose.pose.position.x, 
+            msg->pose.pose.position.y);
         
-        // 첫 번째 위치 수신 시 가장 가까운 waypoint를 시작점으로 설정
-        if (!robots_[robot_id]->start_point_set) {
-            std::string nearest_wp = findNearestWaypoint(
-                msg->pose.pose.position.x, 
-                msg->pose.pose.position.y);
-            
-            robots_[robot_id]->start_point_name = nearest_wp;
-            robots_[robot_id]->start_point_set = true;
-            
-            const auto& wp = waypoints_[nearest_wp];
-            RCLCPP_INFO(this->get_logger(), "Auto-set start point for %s: '%s' (%.2f, %.2f) - nearest to current position (%.2f, %.2f)", 
-                       robot_id.c_str(), nearest_wp.c_str(), wp.x, wp.y,
-                       msg->pose.pose.position.x, msg->pose.pose.position.y);
-            
-            publishCommandLog("AUTO: Start point set for " + robot_id + " -> " + nearest_wp + 
-                            " (nearest to current position)");
-        }
+        robot_info_->start_point_name = nearest_wp;
+        robot_info_->start_point_set = true;
+        
+        const auto& wp = waypoints_[nearest_wp];
+        RCLCPP_INFO(this->get_logger(), "Auto-set start point: '%s' (%.2f, %.2f) - nearest to current position (%.2f, %.2f)", 
+                   nearest_wp.c_str(), wp.x, wp.y,
+                   msg->pose.pose.position.x, msg->pose.pose.position.y);
+        
+        publishCommandLog("AUTO: Start point set -> " + nearest_wp + 
+                        " (nearest to current position)");
     }
 }
 
-void RobotNavigator::cmdVelCallback(const std::string& robot_id,
-                                        const geometry_msgs::msg::Twist::SharedPtr msg)
+void RobotNavigator::cmdVelCallback(const geometry_msgs::msg::Twist::SharedPtr msg)
 {
-    std::lock_guard<std::mutex> lock(robots_mutex_);
+    std::lock_guard<std::mutex> lock(robot_mutex_);
     
-    if (robots_.find(robot_id) != robots_.end()) {
-        robots_[robot_id]->current_velocity = *msg;
-        robots_[robot_id]->last_update = this->get_clock()->now();
+    robot_info_->current_velocity = *msg;
+    robot_info_->last_update = this->get_clock()->now();
+}
+
+void RobotNavigator::teleopEventCallback(const std_msgs::msg::String::SharedPtr teleop_key)
+{
+    std::lock_guard<std::mutex> lock(robot_mutex_);
+
+    try {
+        auto message = geometry_msgs::msg::Twist();
+        
+        // teleop_twist_keyboard의 moveBindings에 따라 Twist 메시지 설정
+        if (teleop_key == "1") {
+            // u: 앞으로 가면서 좌회전 (1,0,0,1)
+            message.linear.x = 1.0;
+            message.linear.y = 0.0;
+            message.angular.z = 1.0;
+        } else if (teleop_key == "2") {
+            // i: 전진 (1,0,0,0)
+            message.linear.x = 1.0;
+            message.linear.y = 0.0;
+            message.angular.z = 0.0;
+        } else if (teleop_key == "3") {
+            // o: 앞으로 가면서 우회전 (1,0,0,-1)
+            message.linear.x = 1.0;
+            message.linear.y = 0.0;
+            message.angular.z = -1.0;
+        } else if (teleop_key == "4") {
+            // j: 제자리에서 왼쪽으로 회전 (0,0,0,1)
+            message.linear.x = 0.0;
+            message.linear.y = 0.0;
+            message.angular.z = 1.0;
+        } else if (teleop_key == "5") {
+            // k: 정지 (기본값)
+            message.linear.x = 0.0;
+            message.linear.y = 0.0;
+            message.angular.z = 0.0;
+        } else if (teleop_key == "6") {
+            // l: 제자리에서 오른쪽으로 회전 (0,0,0,-1)
+            message.linear.x = 0.0;
+            message.linear.y = 0.0;
+            message.angular.z = -1.0;
+        } else if (teleop_key == "7") {
+            // m: 뒤로 가면서 좌회전 (-1,0,0,-1)
+            message.linear.x = -1.0;
+            message.linear.y = 0.0;
+            message.angular.z = -1.0;
+        } else if (teleop_key == "8") {
+            // ,: 후진 (-1,0,0,0)
+            message.linear.x = -1.0;
+            message.linear.y = 0.0;
+            message.angular.z = 0.0;
+        } else if (teleop_key == "9") {
+            // .: 뒤로 가면서 우회전 (-1,0,0,1)
+            message.linear.x = -1.0;
+            message.linear.y = 0.0;
+            message.angular.z = 1.0;
+        } else {
+            // 정지
+            message.linear.x = 0.0;
+            message.linear.y = 0.0;
+            message.angular.z = 0.0;
+        }
+        
+        teleop_command_publisher_->publish(message);
+        logNavigationCommand("teleop: " + teleop_key);
+        
+        RCLCPP_INFO(this->get_logger(), "원격 제어 명령 전송: %s", teleop_key.c_str());
+        //return true;
+    } catch (const std::exception& e) {
+        RCLCPP_ERROR(this->get_logger(), "원격 제어 명령 전송 실패: %s", e.what());
+        //return false;
+    }
+}
+
+void controlEventHandle(
+    const std::shared_ptr<control_interfaces::srv::EventHandle::Request> control_req,
+    std::shared_ptr<control_interfaces::srv::EventHandle::Response> control_res
+)
+{
+    std::lock_guard<std::mutex> lock(robot_mutex_);
+
+    std::string event_type = control_req->event_type;
+    //call_with_voice, call_with_screen, control_by_admin 처리
+    if (event_type == "call_with_voice" || 
+        event_type == "call_with_screen" || event_type == "control_by_admin")
+    {
+        robot_info_->navigation_status = "waiting_for_navigation";
+        control_res->status = "waiting_for_navigation";
+        RCLCPP_INFO(this->get_logger(), "Status changed into " + robot_info_->navigation_status);
+    }
+    //teleop_request 처리
+    else if (robot_info_->navigation_status = "waiting_for_navigation" && event_type == "teleop_request")
+    {
+        robot_info_->teleop_active = true;
+        robot_info_->navigation_status = "moving_manual";
+        control_res->status = "moving_manual";
+        RCLCPP_INFO(this->get_logger(), "Status changed into " + robot_info_->navigation_status);
+    }
+    //teleop_complete 처리
+    else if (robot_info_->navigation_status = "moving_manual" && event_type == "teleop_complete")
+    {
+        robot_info_->teleop_active = false;
+        robot_info_->navigation_status = "waiting_for_navigation";
+        control_res->status = "waiting_for_navigation";
+        RCLCPP_INFO(this->get_logger(), "Status changed into " + robot_info_->navigation_status);
+    }
+    else
+    {
+        RCLCPP_ERROR(this->get_logger(), "State 변경 실패: %s", e.what());
+    }
+}
+
+void trackEventHandle(
+    const std::shared_ptr<control_interfaces::srv::trackHandle::Request> track_req,
+    std::shared_ptr<control_interfaces::srv::EventHandle::Response> track_res
+)
+{
+    //call_with_gesture
+}
+
+void navigateEventHandle(
+    const std::shared_ptr<control_interfaces::srv::navigateHandle::Request> nav_req,
+    std::shared_ptr<control_interfaces::srv::navigateHandle::Response> nav_res
+)
+{
+    if (event_type != "patient_navigating" && 
+        event_type != "unknown_navigating" &&
+        event_type != "unknown_navigating")
+    {
+        
+    }
+    std::string event_type = nav_req->event_type;
+    std::string command = nav_req->command;
+    RCLCPP_INFO(this->get_logger(), "Received navigation command: '%s'", command.c_str());
+    
+    if (command == "go_start" || command == "return_start") {
+        if (sendRobotToStartPoint()) {
+            publishCommandLog("GO_START: returning to start point");
+            RCLCPP_INFO(this->get_logger(), "Sending robot to start point");
+        } else {
+            publishCommandLog("ERROR: Failed to send robot to start point");
+            RCLCPP_ERROR(this->get_logger(), "Failed to send robot to start point");
+        }
+        return;
+    }
+
+    if (command == "return_lobby")
+    {
+        if (sendRobotToLobby()) {
+            publishCommandLog("RETURN_LOBBY: returning to lobby station");
+            RCLCPP_INFO(this->get_logger(), "Sending robot to lobby station");
+        } else {
+            publishCommandLog("ERROR: Failed to send robot to lobby station");
+            RCLCPP_ERROR(this->get_logger(), "Failed to send robot to lobby station");
+        }
+        return;
+    }
+    
+    // 기존 특수 명령들
+    if (command == "stop" || command == "cancel") {
+        std::lock_guard<std::mutex> lock(robot_mutex_);
+        robot_info_->navigation_status = "idle";
+        robot_info_->current_target = "canceled";
+        publishCommandLog("CANCEL: Navigation canceled");
+        return;
+    }
+    
+    if (command == "status") {
+        std::lock_guard<std::mutex> lock(robot_mutex_);
+        publishCommandLog("STATUS: " + robot_info_->navigation_status + 
+                        " (target: " + robot_info_->current_target + 
+                        ", start_point: " + robot_info_->start_point_name + 
+                        ", auto_start: enabled)");
+        return;
+    }
+    
+    if (command == "list") {
+        publishAvailableWaypoints();
+        return;
+    }
+    
+    // 실제 네비게이션 명령 처리
+    if (waypoints_.find(command) != waypoints_.end()) {
+        if (sendNavigationGoal(command)) {
+            publishCommandLog("COMMAND: -> " + command);
+            RCLCPP_INFO(this->get_logger(), "Manual navigation command executed: -> %s", command.c_str());
+        } else {
+            publishCommandLog("ERROR: Failed to send command -> " + command);
+        }
+    } else {
+        publishCommandLog("ERROR: Unknown waypoint '" + command + "'");
+        publishAvailableWaypoints();
     }
 }
 
@@ -284,109 +443,86 @@ void RobotNavigator::navigationCommandCallback(const std_msgs::msg::String::Shar
     std::string command = msg->data;
     RCLCPP_INFO(this->get_logger(), "Received navigation command: '%s'", command.c_str());
     
-    // 명령 파싱
-    std::string robot_id = "robot1";
-    std::string waypoint_name = command;
-    
-    size_t colon_pos = command.find(':');
-    if (colon_pos != std::string::npos) {
-        robot_id = command.substr(0, colon_pos);
-        waypoint_name = command.substr(colon_pos + 1);
-    }
-    
-    // set_start 명령 제거 (자동으로 설정되므로)
-    /*
-    if (waypoint_name == "set_start") {
-        publishCommandLog("INFO: Start point is now automatically updated upon reaching destinations");
-        RCLCPP_INFO(this->get_logger(), "Start point is automatically updated when reaching destinations. Manual setting disabled.");
-        return;
-    }
-    */
-    
-    if (waypoint_name == "go_start" || waypoint_name == "return_start") {
-        if (sendRobotToStartPoint(robot_id)) {
-            publishCommandLog("GO_START: " + robot_id + " returning to start point");
-            RCLCPP_INFO(this->get_logger(), "Sending %s to start point", robot_id.c_str());
+    if (command == "go_start" || command == "return_start") {
+        if (sendRobotToStartPoint()) {
+            publishCommandLog("GO_START: returning to start point");
+            RCLCPP_INFO(this->get_logger(), "Sending robot to start point");
         } else {
-            publishCommandLog("ERROR: Failed to send " + robot_id + " to start point");
-            RCLCPP_ERROR(this->get_logger(), "Failed to send %s to start point", robot_id.c_str());
+            publishCommandLog("ERROR: Failed to send robot to start point");
+            RCLCPP_ERROR(this->get_logger(), "Failed to send robot to start point");
         }
         return;
     }
 
-    if (waypoint_name == "return_lobby")
+    if (command == "return_lobby")
     {
-        if (sendRobotToLobby(robot_id)) {
-            publishCommandLog("RETURN_LOBBY: " + robot_id + " returning to lobby station");
-            RCLCPP_INFO(this->get_logger(), "Sending %s to lobby station", robot_id.c_str());
-            robots_[robot_id]->navigation_status = "moving_to_station";
+        if (sendRobotToLobby()) {
+            publishCommandLog("RETURN_LOBBY: returning to lobby station");
+            RCLCPP_INFO(this->get_logger(), "Sending robot to lobby station");
         } else {
-            publishCommandLog("ERROR: Failed to send " + robot_id + " lobby station");
-            RCLCPP_ERROR(this->get_logger(), "Failed to send %s to lobby station", robot_id.c_str());
-            robots_[robot_id]->navigation_status = "failed";
+            publishCommandLog("ERROR: Failed to send robot to lobby station");
+            RCLCPP_ERROR(this->get_logger(), "Failed to send robot to lobby station");
         }
         return;
     }
     
     // 기존 특수 명령들
-    if (waypoint_name == "stop" || waypoint_name == "cancel") {
-        std::lock_guard<std::mutex> lock(robots_mutex_);
-        if (robots_.find(robot_id) != robots_.end()) {
-            robots_[robot_id]->navigation_status = "idle";
-            robots_[robot_id]->current_target = "canceled";
-        }
-        publishCommandLog("CANCEL: Navigation canceled for " + robot_id);
+    if (command == "stop" || command == "cancel") {
+        std::lock_guard<std::mutex> lock(robot_mutex_);
+        robot_info_->navigation_status = "idle";
+        robot_info_->current_target = "canceled";
+        publishCommandLog("CANCEL: Navigation canceled");
         return;
     }
     
-    if (waypoint_name == "status") {
-        std::lock_guard<std::mutex> lock(robots_mutex_);
-        if (robots_.find(robot_id) != robots_.end()) {
-            auto robot = robots_[robot_id];
-            publishCommandLog("STATUS: " + robot_id + " - " + robot->navigation_status + 
-                            " (target: " + robot->current_target + 
-                            ", start_point: " + robot->start_point_name + 
-                            ", auto_start: enabled)");
-        }
+    if (command == "status") {
+        std::lock_guard<std::mutex> lock(robot_mutex_);
+        publishCommandLog("STATUS: " + robot_info_->navigation_status + 
+                        " (target: " + robot_info_->current_target + 
+                        ", start_point: " + robot_info_->start_point_name + 
+                        ", auto_start: enabled)");
         return;
     }
     
-    if (waypoint_name == "list") {
+    if (command == "list") {
         publishAvailableWaypoints();
         return;
     }
     
     // 실제 네비게이션 명령 처리
-    if (waypoints_.find(waypoint_name) != waypoints_.end()) {
-        if (sendNavigationGoal(robot_id, waypoint_name)) {
-            publishCommandLog("COMMAND: " + robot_id + " -> " + waypoint_name);
-            RCLCPP_INFO(this->get_logger(), "Manual navigation command executed: %s -> %s", 
-                       robot_id.c_str(), waypoint_name.c_str());
+    if (waypoints_.find(command) != waypoints_.end()) {
+        if (sendNavigationGoal(command)) {
+            publishCommandLog("COMMAND: -> " + command);
+            RCLCPP_INFO(this->get_logger(), "Manual navigation command executed: -> %s", command.c_str());
         } else {
-            publishCommandLog("ERROR: Failed to send command " + robot_id + " -> " + waypoint_name);
+            publishCommandLog("ERROR: Failed to send command -> " + command);
         }
     } else {
-        publishCommandLog("ERROR: Unknown waypoint '" + waypoint_name + "'");
+        publishCommandLog("ERROR: Unknown waypoint '" + command + "'");
         publishAvailableWaypoints();
     }
 }
 
-bool RobotNavigator::sendNavigationGoal(const std::string& robot_id, const std::string& waypoint_name)
+bool RobotNavigator::sendNavigationGoal(const std::string& waypoint_name)
 {
+    if (robot_info_->teleop_active == true)
+    {
+        RCLCPP_ERROR(this->get_logger(), "Navigation action server not available due to manual control");
+        return false;
+    }
+
     if (waypoints_.find(waypoint_name) == waypoints_.end()) {
         RCLCPP_ERROR(this->get_logger(), "Waypoint '%s' not found", waypoint_name.c_str());
         return false;
     }
     
-    if (nav_clients_.find(robot_id) == nav_clients_.end()) {
-        RCLCPP_ERROR(this->get_logger(), "No navigation client found for robot %s", robot_id.c_str());
+    if (!nav_client_) {
+        RCLCPP_ERROR(this->get_logger(), "No navigation client found");
         return false;
     }
     
-    auto nav_client = nav_clients_[robot_id];
-    
-    if (!nav_client->wait_for_action_server(std::chrono::seconds(5))) {
-        RCLCPP_ERROR(this->get_logger(), "Navigation action server not available for %s", robot_id.c_str());
+    if (!nav_client_->wait_for_action_server(std::chrono::seconds(5))) {
+        RCLCPP_ERROR(this->get_logger(), "Navigation action server not available");
         return false;
     }
     
@@ -396,35 +532,33 @@ bool RobotNavigator::sendNavigationGoal(const std::string& robot_id, const std::
     goal_msg.pose = createPoseStamped(waypoint.x, waypoint.y, waypoint.yaw);
     
     {
-        std::lock_guard<std::mutex> lock(robots_mutex_);
-        if (robots_.find(robot_id) != robots_.end()) {
-            robots_[robot_id]->navigation_status = "navigating";
-            robots_[robot_id]->current_target = waypoint_name;
-        }
+        std::lock_guard<std::mutex> lock(robot_mutex_);
+        robot_info_->navigation_status = "navigating";
+        robot_info_->current_target = waypoint_name;
     }
     
     auto send_goal_options = rclcpp_action::Client<NavigateToPose>::SendGoalOptions();
     
     send_goal_options.goal_response_callback =
-        [this, robot_id](const GoalHandleNavigate::SharedPtr& goal_handle) {
-            this->goalResponseCallback(robot_id, goal_handle);
+        [this](const GoalHandleNavigate::SharedPtr& goal_handle) {
+            this->goalResponseCallback(goal_handle);
         };
     
     send_goal_options.feedback_callback =
-        [this, robot_id](const GoalHandleNavigate::SharedPtr goal_handle,
-                        const std::shared_ptr<const NavigateToPose::Feedback> feedback) {
-            this->feedbackCallback(robot_id, goal_handle, feedback);
+        [this](const GoalHandleNavigate::SharedPtr goal_handle,
+               const std::shared_ptr<const NavigateToPose::Feedback> feedback) {
+            this->feedbackCallback(goal_handle, feedback);
         };
     
     send_goal_options.result_callback =
-        [this, robot_id](const GoalHandleNavigate::WrappedResult& result) {
-            this->resultCallback(robot_id, result);
+        [this](const GoalHandleNavigate::WrappedResult& result) {
+            this->resultCallback(result);
         };
     
-    nav_client->async_send_goal(goal_msg, send_goal_options);
+    nav_client_->async_send_goal(goal_msg, send_goal_options);
     
-    RCLCPP_INFO(this->get_logger(), "Sent navigation goal: %s -> %s (%.2f, %.2f, %.1f°)", 
-               robot_id.c_str(), waypoint.name.c_str(), waypoint.x, waypoint.y, waypoint.yaw);
+    RCLCPP_INFO(this->get_logger(), "Sent navigation goal: -> %s (%.2f, %.2f, %.1f°)", 
+               waypoint.name.c_str(), waypoint.x, waypoint.y, waypoint.yaw);
     
     return true;
 }
@@ -453,75 +587,72 @@ tf2::Quaternion RobotNavigator::getQuaternionFromYaw(double yaw_degrees)
     return quaternion;
 }
 
-void RobotNavigator::goalResponseCallback(const std::string& robot_id, const GoalHandleNavigate::SharedPtr& goal_handle)
+void RobotNavigator::goalResponseCallback(const GoalHandleNavigate::SharedPtr& goal_handle)
 {
     if (!goal_handle) {
-        RCLCPP_ERROR(this->get_logger(), "Goal rejected for robot %s", robot_id.c_str());
-        std::lock_guard<std::mutex> lock(robots_mutex_);
-        if (robots_.find(robot_id) != robots_.end()) {
-            robots_[robot_id]->navigation_status = "failed";
-        }
-        publishCommandLog("REJECTED: Goal rejected for " + robot_id);
+        RCLCPP_ERROR(this->get_logger(), "Goal rejected");
+        std::lock_guard<std::mutex> lock(robot_mutex_);
+        robot_info_->navigation_status = "failed";
+        publishCommandLog("REJECTED: Goal rejected");
     } else {
-        RCLCPP_INFO(this->get_logger(), "Goal accepted for robot %s", robot_id.c_str());
-        publishCommandLog("ACCEPTED: Goal accepted for " + robot_id);
+        RCLCPP_INFO(this->get_logger(), "Goal accepted");
+        publishCommandLog("ACCEPTED: Goal accepted");
     }
 }
 
-void RobotNavigator::feedbackCallback(const std::string& robot_id, const GoalHandleNavigate::SharedPtr,
-                                          const std::shared_ptr<const NavigateToPose::Feedback> feedback)
+void RobotNavigator::feedbackCallback(const GoalHandleNavigate::SharedPtr,
+                                     const std::shared_ptr<const NavigateToPose::Feedback> feedback)
 {
-    RCLCPP_INFO(this->get_logger(), "Robot %s navigation feedback: distance remaining %.2fm", 
-               robot_id.c_str(), feedback->distance_remaining);
+    RCLCPP_INFO(this->get_logger(), "Navigation feedback: distance remaining %.2fm", 
+               feedback->distance_remaining);
 }
 
-void RobotNavigator::resultCallback(const std::string& robot_id, const GoalHandleNavigate::WrappedResult& result)
+void RobotNavigator::resultCallback(const GoalHandleNavigate::WrappedResult& result)
 {
-    std::lock_guard<std::mutex> lock(robots_mutex_);
-    
-    if (robots_.find(robot_id) == robots_.end()) return;
+    std::lock_guard<std::mutex> lock(robot_mutex_);
     
     switch (result.code) {
         case rclcpp_action::ResultCode::SUCCEEDED:
-            robots_[robot_id]->navigation_status = "waiting_for_return";
+            robot_event_client_ = this->create_client
+            robot_info_->navigation_status = "waiting_for_return";
             
             // 도착 시 자동으로 현재 목표를 새로운 시작점으로 설정
-            if (robots_[robot_id]->current_target != "start_point") {  // 시작점 복귀가 아닌 경우만
-                std::string old_start = robots_[robot_id]->start_point_name;
-                robots_[robot_id]->start_point_name = robots_[robot_id]->current_target;
-                robots_[robot_id]->start_point_set = true;
-                robots_[robot_id]->canceled_time = this->get_clock()->now(); // CANCELED 시각 기록
-                RCLCPP_INFO(this->get_logger(), "Robot %s successfully reached target: %s", 
-                           robot_id.c_str(), robots_[robot_id]->current_target.c_str());
-                RCLCPP_INFO(this->get_logger(), "Auto-updated start point for %s: %s -> %s", 
-                           robot_id.c_str(), old_start.c_str(), robots_[robot_id]->start_point_name.c_str());
+            if (robot_info_->current_target != "start_point") {  // 시작점 복귀가 아닌 경우만
+                std::string old_start = robot_info_->start_point_name;
+                robot_info_->start_point_name = robot_info_->current_target;
+                robot_info_->start_point_set = true;
+                robot_info_->canceled_time = this->get_clock()->now(); // CANCELED 시각 기록
+                RCLCPP_INFO(this->get_logger(), "Robot successfully reached target: %s", 
+                           robot_info_->current_target.c_str());
+                RCLCPP_INFO(this->get_logger(), "Auto-updated start point: %s -> %s", 
+                           old_start.c_str(), robot_info_->start_point_name.c_str());
                 
-                publishCommandLog("SUCCESS: " + robot_id + " reached " + robots_[robot_id]->current_target);
-                publishCommandLog("AUTO_START: Start point updated to " + robots_[robot_id]->start_point_name);              
+                publishCommandLog("SUCCESS: reached " + robot_info_->current_target);
+                publishCommandLog("AUTO_START: Start point updated to " + robot_info_->start_point_name);              
             } else {
-                RCLCPP_INFO(this->get_logger(), "Robot %s returned to start point: %s", 
-                           robot_id.c_str(), robots_[robot_id]->start_point_name.c_str());
-                publishCommandLog("SUCCESS: " + robot_id + " returned to start point " + robots_[robot_id]->start_point_name);
+                RCLCPP_INFO(this->get_logger(), "Robot returned to start point: %s", 
+                           robot_info_->start_point_name.c_str());
+                publishCommandLog("SUCCESS: returned to start point " + robot_info_->start_point_name);
             }
             break;
             
         case rclcpp_action::ResultCode::ABORTED:
-            robots_[robot_id]->navigation_status = "failed";
-            RCLCPP_ERROR(this->get_logger(), "Robot %s navigation aborted", robot_id.c_str());
-            publishCommandLog("FAILED: " + robot_id + " navigation aborted");
+            robot_info_->navigation_status = "failed";
+            RCLCPP_ERROR(this->get_logger(), "Navigation aborted");
+            publishCommandLog("FAILED: navigation aborted");
             break;
             
         case rclcpp_action::ResultCode::CANCELED:
-            robots_[robot_id]->navigation_status = "idle";
-            robots_[robot_id]->canceled_time = this->get_clock()->now(); // CANCELED 시각 기록
-            RCLCPP_WARN(this->get_logger(), "Robot %s navigation canceled", robot_id.c_str());
-            publishCommandLog("CANCELED: " + robot_id + " navigation canceled");
+            robot_info_->navigation_status = "idle";
+            robot_info_->canceled_time = this->get_clock()->now(); // CANCELED 시각 기록
+            RCLCPP_WARN(this->get_logger(), "Navigation canceled");
+            publishCommandLog("CANCELED: navigation canceled");
             break;
             
         default:
-            robots_[robot_id]->navigation_status = "failed";
-            RCLCPP_ERROR(this->get_logger(), "Robot %s navigation unknown result", robot_id.c_str());
-            publishCommandLog("ERROR: " + robot_id + " navigation unknown result");
+            robot_info_->navigation_status = "failed";
+            RCLCPP_ERROR(this->get_logger(), "Navigation unknown result");
+            publishCommandLog("ERROR: navigation unknown result");
             break;
     }
 }
@@ -530,68 +661,54 @@ void RobotNavigator::statusTimerCallback()
 {
     // 10초 timeout 후 lobby_station 복귀 로직
     {
-        std::lock_guard<std::mutex> lock(robots_mutex_);
-        for (auto& [robot_id, robot] : robots_) {
-            if (robot->navigation_status == "idle" &&
-                robot->canceled_time.nanoseconds() != 0) {
-                rclcpp::Duration elapsed = this->get_clock()->now() - robot->canceled_time;
-                if (elapsed.seconds() >= 10.0) {
-                    publishCommandLog("TIMEOUT: " + robot_id + " canceled -> returning to lobby_station");
-                    sendRobotToLobby(robot_id);
-                    robot->canceled_time = rclcpp::Time(0, 0, RCL_ROS_TIME);
-                }
+        std::lock_guard<std::mutex> lock(robot_mutex_);
+        if (robot_info_->navigation_status == "idle" &&
+            robot_info_->canceled_time.nanoseconds() != 0) {
+            rclcpp::Duration elapsed = this->get_clock()->now() - robot_info_->canceled_time;
+            if (elapsed.seconds() >= 10.0) {
+                publishCommandLog("TIMEOUT: canceled -> returning to lobby_station");
+                sendRobotToLobby();
+                robot_info_->canceled_time = rclcpp::Time(0, 0, RCL_ROS_TIME);
             }
         }
     }
-    publishIndividualRobotData();
+    publishRobotData();
 }
 
-void RobotNavigator::publishIndividualRobotData()
+void RobotNavigator::publishRobotData()
 {
-    std::lock_guard<std::mutex> lock(robots_mutex_);
+    std::lock_guard<std::mutex> lock(robot_mutex_);
     
-    for (const auto& [robot_id, robot] : robots_) {
-        auto time_diff = this->get_clock()->now() - robot->last_update;
-        bool is_online = time_diff.seconds() < 10.0;
-        
-        // 위치 정보 발행
-        if (pose_publishers_.find(robot_id) != pose_publishers_.end()) {
-            pose_publishers_[robot_id]->publish(robot->current_pose);
-        }
-        
-        // 시작점 이름 발행
-        if (start_point_publishers_.find(robot_id) != start_point_publishers_.end() && robot->start_point_set) {
-            std_msgs::msg::String start_point_msg;
-            start_point_msg.data = robot->start_point_name;
-            start_point_publishers_[robot_id]->publish(start_point_msg);
-        }
-        
-        // 속도 정보 발행
-        if (velocity_publishers_.find(robot_id) != velocity_publishers_.end()) {
-            velocity_publishers_[robot_id]->publish(robot->current_velocity);
-        }
-        
-        // 네비게이션 상태 발행
-        if (nav_status_publishers_.find(robot_id) != nav_status_publishers_.end()) {
-            std_msgs::msg::String nav_status_msg;
-            nav_status_msg.data = robot->navigation_status;
-            nav_status_publishers_[robot_id]->publish(nav_status_msg);
-        }
-        
-        // 현재 목표 발행
-        if (target_publishers_.find(robot_id) != target_publishers_.end()) {
-            std_msgs::msg::String target_msg;
-            target_msg.data = robot->current_target;
-            target_publishers_[robot_id]->publish(target_msg);
-        }
-        
-        // 온라인 상태 발행
-        if (online_status_publishers_.find(robot_id) != online_status_publishers_.end()) {
-            std_msgs::msg::Bool online_msg;
-            online_msg.data = is_online;
-            online_status_publishers_[robot_id]->publish(online_msg);
-        }
+    auto time_diff = this->get_clock()->now() - robot_info_->last_update;
+    bool is_online = time_diff.seconds() < 10.0;
+    
+    // 위치 정보 발행
+    pose_publisher_->publish(robot_info_->current_pose);
+    
+    // 시작점 이름 발행
+    if (robot_info_->start_point_set) {
+        std_msgs::msg::String start_point_msg;
+        start_point_msg.data = robot_info_->start_point_name;
+        start_point_publisher_->publish(start_point_msg);
     }
+    
+    // 속도 정보 발행
+    velocity_publisher_->publish(robot_info_->current_velocity);
+    
+    // 네비게이션 상태 발행
+    std_msgs::msg::String nav_status_msg;
+    nav_status_msg.data = robot_info_->navigation_status;
+    nav_status_publisher_->publish(nav_status_msg);
+    
+    // 현재 목표 발행
+    std_msgs::msg::String target_msg;
+    target_msg.data = robot_info_->current_target;
+    target_publisher_->publish(target_msg);
+    
+    // 온라인 상태 발행
+    std_msgs::msg::Bool online_msg;
+    online_msg.data = is_online;
+    online_status_publisher_->publish(online_msg);
 }
 
 void RobotNavigator::publishCommandLog(const std::string& message)
