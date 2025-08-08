@@ -132,16 +132,23 @@ void RobotNavigator::setupNavigationCommandSubscriber()
 void RobotNavigator::setupServices()
 {
     control_event_server_ = this->create_service<control_interfaces::srv::EventHandle>(
-        "control_event", &controlEventHandle);
-    tracking_event_server_ = this->create_service<control_interfaces::srv::TrackHandle>(
-        "tracking_event", &trackEventHandle);
-    navigate_event_server_ = this->create_service<control_interfaces::srv::NavigateHandle>(
-        "navigate_event", &navigateEventHandle);
-    //robot_event_client_ = this->create_client<control_interfaces::srv::EventHandle>(
-    //    "robot_service");
+        "control_event_service",
+        std::bind(&RobotNavigator::controlEventHandle, this, std::placeholders::_1, std::placeholders::_2));
 
-    RCLCPP_INFO(this->get_logger(), "Service Server & Client created!");
+    tracking_event_server_ = this->create_service<control_interfaces::srv::TrackHandle>(
+        "tracking_event_service",
+        std::bind(&RobotNavigator::trackEventHandle, this, std::placeholders::_1, std::placeholders::_2));
+
+    navigate_event_server_ = this->create_service<control_interfaces::srv::NavigateHandle>(
+        "navigate_event_service",
+        std::bind(&RobotNavigator::navigateEventHandle, this, std::placeholders::_1, std::placeholders::_2));
+
+    // ✳️ 로봇 이벤트 클라이언트 초기화도 필요시 포함
+    // robot_event_client_ = this->create_client<control_interfaces::srv::EventHandle>("robot_event_service");
+
+    RCLCPP_INFO(this->get_logger(), "✅ Service Servers created: control_event_service, tracking_event_service, navigate_event_service");
 }
+
 
 std::string RobotNavigator::findNearestWaypoint(double x, double y) const
 {
@@ -356,9 +363,10 @@ void controlEventHandle(
 }
 
 void trackEventHandle(
-    const std::shared_ptr<control_interfaces::srv::trackHandle::Request> track_req,
-    std::shared_ptr<control_interfaces::srv::EventHandle::Response> track_res
+    const std::shared_ptr<control_interfaces::srv::TrackHandle::Request> track_req,
+    std::shared_ptr<control_interfaces::srv::TrackHandle::Response> track_res
 )
+
 {
     //call_with_gesture
 }

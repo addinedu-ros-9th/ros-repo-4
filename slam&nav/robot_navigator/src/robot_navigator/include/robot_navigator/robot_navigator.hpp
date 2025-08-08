@@ -110,13 +110,15 @@ private:
         std::shared_ptr<control_interfaces::srv::EventHandle::Response> control_res
     );
     void trackEventHandle(
-        const std::shared_ptr<control_interfaces::srv::trackHandle::Request> track_req,
-        std::shared_ptr<control_interfaces::srv::EventHandle::Response> track_res
+    const std::shared_ptr<control_interfaces::srv::TrackHandle::Request> track_req,
+    std::shared_ptr<control_interfaces::srv::TrackHandle::Response> track_res
     );
+
     void navigateEventHandle(
-        const std::shared_ptr<control_interfaces::srv::navigateHandle::Request> nav_req,
-        std::shared_ptr<control_interfaces::srv::navigateHandle::Response> nav_res
+    const std::shared_ptr<control_interfaces::srv::NavigateHandle::Request> nav_req,
+    std::shared_ptr<control_interfaces::srv::NavigateHandle::Response> nav_res
     );
+
     
     // Navigation 관련 함수들
     bool sendNavigationGoal(const std::string& waypoint_name);
