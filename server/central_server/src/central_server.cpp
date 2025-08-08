@@ -207,6 +207,8 @@ void CentralServer::start() {
     RCLCPP_INFO(this->get_logger(), "3단계: WebSocket 스레드 시작중...");
     websocket_thread_ = std::thread(&CentralServer::runWebSocketThread, this);
     
+
+    
     // 잠시 대기
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
@@ -236,6 +238,8 @@ void CentralServer::stop() {
         websocket_thread_.join();
         RCLCPP_INFO(this->get_logger(), "WebSocket 스레드 종료됨");
     }
+    
+
     
     RCLCPP_INFO(this->get_logger(), "서버 종료 완료");
 }

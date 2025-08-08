@@ -5,6 +5,10 @@
 #include <curl/curl.h>
 #include <json/json.h>
 #include <ctime>
+#include <chrono>
+#include <future>
+
+using namespace std::chrono_literals;
 
 RobotNavigationManager::RobotNavigationManager() 
     : Node("robot_navigation_manager") {
@@ -223,24 +227,34 @@ bool RobotNavigationManager::sendControlEvent(const std::string& event_type) {
         return false;
     }
     
+    // 서비스가 사용 가능한지 확인 (1초 대기)
+    while (!control_event_client_->wait_for_service(1s)) {
+        if (!rclcpp::ok()) {
+            RCLCPP_ERROR(this->get_logger(), "ROS 2 시스템이 중단되었습니다. Control Event 전송을 중단합니다.");
+            return false;
+        }
+        RCLCPP_INFO(this->get_logger(), "Control Event 서비스가 사용 불가능합니다. 다시 시도합니다...");
+    }
+    
     try {
         auto request = std::make_shared<control_interfaces::srv::EventHandle::Request>();
         request->event_type = event_type;
         
         auto future = control_event_client_->async_send_request(request);
         
-        // 비동기 응답 대기 (5초 타임아웃)
-        if (future.wait_for(std::chrono::seconds(5)) == std::future_status::ready) {
+        // 공식 문서 방식으로 응답 대기
+        if (rclcpp::spin_until_future_complete(this->shared_from_this(), future) == 
+            rclcpp::FutureReturnCode::SUCCESS) {
             auto response = future.get();
             RCLCPP_INFO(this->get_logger(), "Control Event 전송 성공: %s, 응답: %s", 
                        event_type.c_str(), response->status.c_str());
             return true;
         } else {
-            RCLCPP_ERROR(this->get_logger(), "Control Event 전송 타임아웃: %s", event_type.c_str());
+            RCLCPP_ERROR(this->get_logger(), "Control Event 전송 실패: %s", event_type.c_str());
             return false;
         }
     } catch (const std::exception& e) {
-        RCLCPP_ERROR(this->get_logger(), "Control Event 전송 실패: %s, 오류: %s", 
+        RCLCPP_ERROR(this->get_logger(), "Control Event 전송 중 예외 발생: %s, 오류: %s", 
                     event_type.c_str(), e.what());
         return false;
     }
@@ -252,6 +266,15 @@ bool RobotNavigationManager::sendNavigateEvent(const std::string& event_type, co
         return false;
     }
     
+    // 서비스가 사용 가능한지 확인 (1초 대기)
+    while (!navigate_client_->wait_for_service(1s)) {
+        if (!rclcpp::ok()) {
+            RCLCPP_ERROR(this->get_logger(), "ROS 2 시스템이 중단되었습니다. Navigate Event 전송을 중단합니다.");
+            return false;
+        }
+        RCLCPP_INFO(this->get_logger(), "Navigate Event 서비스가 사용 불가능합니다. 다시 시도합니다...");
+    }
+    
     try {
         auto request = std::make_shared<control_interfaces::srv::NavigateHandle::Request>();
         request->event_type = event_type;
@@ -259,18 +282,19 @@ bool RobotNavigationManager::sendNavigateEvent(const std::string& event_type, co
         
         auto future = navigate_client_->async_send_request(request);
         
-        // 비동기 응답 대기 (5초 타임아웃)
-        if (future.wait_for(std::chrono::seconds(5)) == std::future_status::ready) {
+        // 공식 문서 방식으로 응답 대기
+        if (rclcpp::spin_until_future_complete(this->shared_from_this(), future) == 
+            rclcpp::FutureReturnCode::SUCCESS) {
             auto response = future.get();
             RCLCPP_INFO(this->get_logger(), "Navigate Event 전송 성공: %s, 명령: %s, 응답: %s", 
                        event_type.c_str(), command.c_str(), response->status.c_str());
             return true;
         } else {
-            RCLCPP_ERROR(this->get_logger(), "Navigate Event 전송 타임아웃: %s", event_type.c_str());
+            RCLCPP_ERROR(this->get_logger(), "Navigate Event 전송 실패: %s", event_type.c_str());
             return false;
         }
     } catch (const std::exception& e) {
-        RCLCPP_ERROR(this->get_logger(), "Navigate Event 전송 실패: %s, 오류: %s", 
+        RCLCPP_ERROR(this->get_logger(), "Navigate Event 전송 중 예외 발생: %s, 오류: %s", 
                     event_type.c_str(), e.what());
         return false;
     }
@@ -282,6 +306,15 @@ bool RobotNavigationManager::sendTrackingEvent(const std::string& event_type, do
         return false;
     }
     
+    // 서비스가 사용 가능한지 확인 (1초 대기)
+    while (!tracking_event_client_->wait_for_service(1s)) {
+        if (!rclcpp::ok()) {
+            RCLCPP_ERROR(this->get_logger(), "ROS 2 시스템이 중단되었습니다. Tracking Event 전송을 중단합니다.");
+            return false;
+        }
+        RCLCPP_INFO(this->get_logger(), "Tracking Event 서비스가 사용 불가능합니다. 다시 시도합니다...");
+    }
+    
     try {
         auto request = std::make_shared<control_interfaces::srv::TrackHandle::Request>();
         request->event_type = event_type;
@@ -290,18 +323,19 @@ bool RobotNavigationManager::sendTrackingEvent(const std::string& event_type, do
         
         auto future = tracking_event_client_->async_send_request(request);
         
-        // 비동기 응답 대기 (5초 타임아웃)
-        if (future.wait_for(std::chrono::seconds(5)) == std::future_status::ready) {
+        // 공식 문서 방식으로 응답 대기
+        if (rclcpp::spin_until_future_complete(this->shared_from_this(), future) == 
+            rclcpp::FutureReturnCode::SUCCESS) {
             auto response = future.get();
             RCLCPP_INFO(this->get_logger(), "Tracking Event 전송 성공: %s, 응답: %s, 거리: %.2f", 
                        event_type.c_str(), response->status.c_str(), response->distance);
             return true;
         } else {
-            RCLCPP_ERROR(this->get_logger(), "Tracking Event 전송 타임아웃: %s", event_type.c_str());
+            RCLCPP_ERROR(this->get_logger(), "Tracking Event 전송 실패: %s", event_type.c_str());
             return false;
         }
     } catch (const std::exception& e) {
-        RCLCPP_ERROR(this->get_logger(), "Tracking Event 전송 실패: %s, 오류: %s", 
+        RCLCPP_ERROR(this->get_logger(), "Tracking Event 전송 중 예외 발생: %s, 오류: %s", 
                     event_type.c_str(), e.what());
         return false;
     }
