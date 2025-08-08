@@ -49,13 +49,13 @@
         android:layout_gravity="top|end"
         android:layout_marginTop="20dp"
         android:layout_marginEnd="20dp"
-        android:text="🧪 테스트"
-        android:textSize="16sp"
-        android:textColor="#FFFFFF"
         android:backgroundTint="#FF5722"
-        android:padding="8dp"
         android:elevation="20dp"
+        android:padding="8dp"
+        android:text="🧪 테스트"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
         android:translationZ="20dp"
-        android:visibility="visible" />
+        android:visibility="gone" />
 
 </FrameLayout>

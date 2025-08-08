@@ -18,8 +18,9 @@ class CheckinPopupDialog(
     private val department: String,
     private val reservationTime: String = "",
     private val status: String = "", // ✅ 상태 추가
+    private val patientId: String = "",  // ✅ 추가
     private val waitingNumber: String = "",
-    private val onConfirm: (() -> Unit)? = null
+    private val onConfirm: ((patientId: String) -> Unit)? = null
 ) : DialogFragment() {
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
@@ -70,7 +71,7 @@ class CheckinPopupDialog(
         // ✅ 버튼 클릭 처리
         btnYes.setOnClickListener {
             applyAlphaEffect(it) {
-                onConfirm?.invoke()
+                onConfirm?.invoke(patientId)  // ✅ patientId 전달
                 activity?.overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
                 dismiss()
             }

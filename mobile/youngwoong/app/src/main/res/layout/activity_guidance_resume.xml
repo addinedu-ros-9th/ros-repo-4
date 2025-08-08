@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- 전체 배경 -->
+    <ImageView
+        android:id="@+id/guidance_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:src="@drawable/guidance_page_bg"
+        android:contentDescription="길안내 배경" />
+
+    <!-- 상단 안내 문구 -->
+    <TextView
+        android:id="@+id/text_resume_message"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="110dp"
+        android:contentDescription="안내 재개 문구"
+        android:fontFamily="@font/noto_sans_kr_bold"
+        android:gravity="center"
+        android:lineSpacingExtra="4dp"
+        android:text="안내를 다시 시작할까요?"
+        android:textColor="#333333"
+        android:textSize="24sp"
+        android:textStyle="bold" />
+
+    <!-- 지도 이미지 -->
+    <ImageView
+        android:id="@+id/image_map"
+        android:layout_width="1020dp"
+        android:layout_height="530dp"
+        android:layout_marginHorizontal="60dp"
+        android:layout_marginTop="230dp"
+        android:layout_marginBottom="140dp"
+        android:scaleType="fitXY"
+        android:src="@drawable/hospital_navigation_map"
+        android:contentDescription="지도 이미지" />
+
+    <!-- 🚩 도착지 마커 -->
+    <ImageView
+        android:id="@+id/image_destination_marker"
+        android:layout_width="42dp"
+        android:layout_height="42dp"
+        android:layout_gravity="top|start"
+        android:layout_marginStart="150dp"
+        android:layout_marginTop="300dp"
+        android:contentDescription="도착지 마커"
+        android:src="@drawable/destination_marker"
+        android:visibility="gone" />
+
+    <!-- 🤖 로봇 마커 -->
+    <ImageView
+        android:id="@+id/image_robot_marker"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:layout_gravity="top|start"
+        android:layout_marginStart="220dp"
+        android:layout_marginTop="320dp"
+        android:contentDescription="로봇 위치 마커"
+        android:src="@drawable/robot_marker"
+        android:visibility="gone" />
+
+    <!-- 오른쪽 하단 버튼 묶음 -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="50dp"
+        android:layout_marginBottom="50dp"
+        android:orientation="vertical">
+
+        <!-- 안내 종료 버튼 -->
+        <ImageView
+            android:id="@+id/btn_end_guidance"
+            android:layout_width="200dp"
+            android:layout_height="70dp"
+            android:layout_marginBottom="20dp"
+            android:scaleType="fitXY"
+            android:src="@drawable/button_end_guidance"
+            android:contentDescription="안내 종료 버튼" />
+
+        <!-- 안내 재개 버튼 -->
+        <ImageView
+            android:id="@+id/btn_resume_guidance"
+            android:layout_width="200dp"
+            android:layout_height="70dp"
+            android:scaleType="fitXY"
+            android:src="@drawable/button_resume_guidance"
+            android:contentDescription="안내 재개 버튼" />
+    </LinearLayout>
+</FrameLayout>

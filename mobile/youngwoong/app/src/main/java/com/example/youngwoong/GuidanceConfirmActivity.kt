@@ -2,6 +2,7 @@ package com.example.youngwoong
 
 import android.content.Intent
 import android.graphics.Color
+import android.os.*
 import android.os.Bundle
 import android.text.SpannableString
 import android.text.Spanned
@@ -16,12 +17,20 @@ import kotlinx.coroutines.*
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
 import org.json.JSONObject
 
 class GuidanceConfirmActivity : AppCompatActivity() {
 
     private var isFromCheckin: Boolean = false
     private val robotLocationUrl = NetworkConfig.getRobotLocationUrl()
+    private val timeoutHandler = Handler(Looper.getMainLooper())
+    private val timeoutRunnable = Runnable {
+        Log.d("GuidanceConfirm", "🕒 30초 무입력 타임아웃 발생")
+        disableInteraction()
+        sendTimeoutAlert()
+        navigateToMainMenu()
+    }
 
     private val rosCoords = mapOf(
         "초음파 검사실" to Pair(-4.9f, -1.96f),
@@ -47,7 +56,6 @@ class GuidanceConfirmActivity : AppCompatActivity() {
         Log.d("MapDebug", "📐 중심 기준 px=$px, py=$py → ROS: x=$rosX, y=$rosY")
         return rosX to rosY
     }
-
 
 
     private val uiCoords = mapOf(
@@ -86,8 +94,10 @@ class GuidanceConfirmActivity : AppCompatActivity() {
         val message = when {
             isFromCheckin && userName != null && department != null ->
                 "${userName}님 ${department} 접수가 완료되었습니다.\n안내를 시작할까요?"
+
             selectedText != null ->
                 "${selectedText}를 선택하셨습니다.\n안내를 시작할까요?"
+
             else -> "안내를 시작할까요?"
         }
 
@@ -184,6 +194,7 @@ class GuidanceConfirmActivity : AppCompatActivity() {
                 finish()
             }, 100)
         }
+        resetTimeoutTimer()
     }
 
     private fun fetchRobotPosition(robotMarker: ImageView, mapView: ImageView) {
@@ -192,7 +203,10 @@ class GuidanceConfirmActivity : AppCompatActivity() {
                 val json = JSONObject().apply { put("robot_id", 3) }
                 val request = Request.Builder()
                     .url(robotLocationUrl)
-                    .post(json.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull()))
+                    .post(
+                        json.toString()
+                            .toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
+                    )
                     .build()
 
                 val client = OkHttpClient()
@@ -231,7 +245,6 @@ class GuidanceConfirmActivity : AppCompatActivity() {
         view.alpha = 0.6f
         view.postDelayed({ view.alpha = 1.0f }, 100)
     }
-
 
 
     private fun mapToPixelRobot(x: Float, y: Float, mapView: ImageView): Pair<Float, Float> {
@@ -304,6 +317,68 @@ class GuidanceConfirmActivity : AppCompatActivity() {
         else -> null
     }
 
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        resetTimeoutTimer()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        window.decorView.systemUiVisibility =
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_FULLSCREEN
+        resetTimeoutTimer()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        timeoutHandler.removeCallbacks(timeoutRunnable)
+    }
+
+    private fun disableInteraction() {
+        runOnUiThread {
+            findViewById<ImageView>(R.id.btn_cancel).isEnabled = false
+            findViewById<ImageView>(R.id.btn_start_guidance).isEnabled = false
+        }
+    }
+
+    private fun sendTimeoutAlert() {
+        val url = NetworkConfig.getTimeoutAlertUrl()
+        val json = JSONObject().apply { put("robot_id", 3) }
+        val body =
+            json.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
+        val request = Request.Builder().url(url).post(body).build()
+        OkHttpClient().newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                Log.e("GuidanceConfirm", "❌ Timeout 전송 실패: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                Log.d("GuidanceConfirm", "✅ Timeout 전송 성공: ${response.code}")
+            }
+        })
+    }
+
+    private fun navigateToMainMenu() {
+        val intent = Intent(this, MainMenuActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        startActivity(intent)
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+        finish()
+    }
+
+    private fun resetTimeoutTimer() {
+        timeoutHandler.removeCallbacks(timeoutRunnable)
+        timeoutHandler.postDelayed(timeoutRunnable, 30_000) // 30초
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        timeoutHandler.removeCallbacks(timeoutRunnable)
+    }
+
+
     private fun sendDirectionRequest(patientId: String?, stationId: Int) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -312,19 +387,22 @@ class GuidanceConfirmActivity : AppCompatActivity() {
                 else
                     NetworkConfig.getWithoutAuthDirectionUrl()
 
+                val safePatientId = patientId?.takeIf { it.isNotBlank() } ?: "unknown"
+
                 val json = JSONObject().apply {
                     put("robot_id", 3)
                     put("department_id", stationId)
-                    if (isFromCheckin && !patientId.isNullOrBlank()) {
-                        put("patient_id", patientId.toIntOrNull() ?: return@launch)
-                    }
+                    put("patient_id", safePatientId)  // ✅ 무조건 포함
                 }
 
                 Log.d("DirectionAPI", "📤 안내 요청: $json → $url")
 
                 val request = Request.Builder()
                     .url(url)
-                    .post(json.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull()))
+                    .post(
+                        json.toString()
+                            .toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
+                    )
                     .build()
 
                 val client = OkHttpClient()

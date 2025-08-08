@@ -33,6 +33,12 @@ class AuthenticationActivity : AppCompatActivity() {
     private val esp32Url = NetworkConfig.getEsp32Url()
     private var lastUid: String? = null
 
+    private val timeoutHandler = Handler(Looper.getMainLooper())
+    private val timeoutRunnable = Runnable {
+        sendTimeoutAlert()
+        goToIdleMainActivity()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_authentication)
@@ -219,13 +225,15 @@ class AuthenticationActivity : AppCompatActivity() {
                     val name = data.optString("name")
                     val reservation = data.optString("reservation")
                     val reservationTime = data.optString("datetime")
-                    val department = data.optString("department") // 서버 값 그대로 사용
+                    val department = data.optString("department")
                     val status = data.optString("status")
+                    val patientId = data.optString("patient_id")  // 🔥 추가됨
 
+                    Log.d("AUTH_RFID", "✅ 파싱된 데이터: name=$name, department=$department, time=$reservationTime, patientId=$patientId")
 
                     if (name.isNotBlank() && department.isNotBlank()) {
                         withContext(Dispatchers.Main) {
-                            showUidPopup(name, department, reservationTime, status)
+                            showUidPopup(name, department, reservationTime, status, patientId)  // 🔥 전달
                         }
                     } else {
                         withContext(Dispatchers.Main) {
@@ -266,15 +274,16 @@ class AuthenticationActivity : AppCompatActivity() {
                 if (!body.isNullOrEmpty()) {
                     val data = JSONObject(body)
                     val name = data.optString("name")
-                    val department = data.optString("department") // ✅ 서버 응답 그대로 사용
+                    val department = data.optString("department")
                     val reservationTime = data.optString("datetime")
                     val status = data.optString("status")
+                    val patientId = data.optString("patient_id")  // 🔥 추가된 부분
 
-                    Log.d("AUTH_SSN", "✅ 파싱된 데이터: name=$name, department=$department, time=$reservationTime")
+                    Log.d("AUTH_SSN", "✅ 파싱된 데이터: name=$name, department=$department, time=$reservationTime, patientId=$patientId")
 
                     if (name.isNotBlank() && department.isNotBlank()) {
                         withContext(Dispatchers.Main) {
-                            showUidPopup(name, department, reservationTime, status)
+                            showUidPopup(name, department, reservationTime, status, patientId)  // 🔥 patientId 넘김
                         }
                     } else {
                         withContext(Dispatchers.Main) {
@@ -329,12 +338,13 @@ class AuthenticationActivity : AppCompatActivity() {
                     val department = data.optString("department")
                     val reservationTime = data.optString("datetime")
                     val status = data.optString("status")
+                    val returnedPatientId = data.optString("patient_id")  // 🔥 추가됨
 
-                    Log.d("AUTH_PATIENT_ID", "✅ 파싱된 데이터: name=$name, department=$department, time=$reservationTime, status=$status")
+                    Log.d("AUTH_PATIENT_ID", "✅ 파싱된 데이터: name=$name, department=$department, time=$reservationTime, status=$status, patientId=$returnedPatientId")
 
                     if (name.isNotBlank() && department.isNotBlank()) {
                         withContext(Dispatchers.Main) {
-                            showUidPopup(name, department, reservationTime, status)
+                            showUidPopup(name, department, reservationTime, status, returnedPatientId)  // 🔥 전달
                         }
                     } else {
                         withContext(Dispatchers.Main) {
@@ -355,8 +365,72 @@ class AuthenticationActivity : AppCompatActivity() {
         }
     }
 
+    private fun startTimeoutTimer() {
+        timeoutHandler.postDelayed(timeoutRunnable, 30_000L)
+    }
 
-    private fun showUidPopup(userName: String, department: String, reservationTime: String, status: String) {
+    private fun resetTimeoutTimer() {
+        timeoutHandler.removeCallbacks(timeoutRunnable)
+        timeoutHandler.postDelayed(timeoutRunnable, 30_000L)
+    }
+
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent?): Boolean {
+        resetTimeoutTimer()
+        return super.dispatchTouchEvent(ev)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        window.decorView.systemUiVisibility =
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_FULLSCREEN
+        startTimeoutTimer()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        timeoutHandler.removeCallbacks(timeoutRunnable)
+    }
+
+    private fun sendTimeoutAlert() {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val json = JSONObject().apply { put("robot_id", 3) }
+                val request = Request.Builder()
+                    .url(NetworkConfig.getTimeoutAlertUrl())
+                    .post(json.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull()))
+                    .build()
+
+                val client = OkHttpClient()
+                val response = client.newCall(request).execute()
+                val statusCode = response.code
+
+                Log.d("TimeoutAlert", "✅ /alert_timeout 호출 결과: $statusCode")
+            } catch (e: Exception) {
+                Log.e("TimeoutAlert", "❌ /alert_timeout 호출 실패: ${e.message}")
+            }
+        }
+    }
+
+    private fun goToIdleMainActivity() {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+        startActivity(intent)
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+        finish()
+    }
+
+
+
+    private fun showUidPopup(
+        userName: String,
+        department: String,
+        reservationTime: String,
+        status: String,
+        patientId: String  // 🔼 파라미터 추가
+    ) {
         val popup = CheckinPopupDialog(
             userName = userName,
             department = department,
@@ -367,11 +441,7 @@ class AuthenticationActivity : AppCompatActivity() {
                     putExtra("user_name", userName)
                     putExtra("department", department)
                     putExtra("isFromCheckin", true)
-
-                    // 주민번호(13자리)가 아닌 경우에만 patient_id로 전달
-                    if (maxLength == 8) {
-                        putExtra("patient_id", realInput.joinToString(""))
-                    }
+                    putExtra("patient_id", patientId)  // 🔥 무조건 전달
                 }
                 startActivity(intent)
                 finish()

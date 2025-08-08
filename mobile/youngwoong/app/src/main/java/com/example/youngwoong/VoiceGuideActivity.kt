@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.os.*
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -27,6 +28,7 @@ import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 import java.util.*
 
@@ -45,6 +47,14 @@ class VoiceGuideActivity : AppCompatActivity() {
     private var blinkAnimation: AlphaAnimation? = null
     private var loadingJob: Job? = null
     private lateinit var streamer: AndroidStreamer
+
+    private val timeoutHandler = Handler(Looper.getMainLooper())
+    private val timeoutRunnable = Runnable {
+        Log.d(TAG, "🕒 VoiceGuideActivity 30초 타임아웃 발생")
+        disableInteraction()
+        sendTimeoutAlert()
+        navigateToMain()
+    }
 
     private lateinit var speechRecognizer: SpeechRecognizer
     private lateinit var speechIntent: Intent
@@ -111,6 +121,8 @@ class VoiceGuideActivity : AppCompatActivity() {
             applyAlphaEffect(it)
             toggleListening(voiceButton)
         }
+
+        resetTimeoutTimer()
     }
 
 
@@ -122,6 +134,63 @@ class VoiceGuideActivity : AppCompatActivity() {
         if (notGranted.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, notGranted.toTypedArray(), 1000)
         }
+    }
+
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        resetTimeoutTimer()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        window.decorView.systemUiVisibility =
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_FULLSCREEN
+        resetTimeoutTimer()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        timeoutHandler.removeCallbacks(timeoutRunnable)
+    }
+
+    private fun resetTimeoutTimer() {
+        timeoutHandler.removeCallbacks(timeoutRunnable)
+        timeoutHandler.postDelayed(timeoutRunnable, 30_000) // 30초
+    }
+
+    private fun disableInteraction() {
+        runOnUiThread {
+            voiceButton.isEnabled = false
+            findViewById<ImageView>(R.id.btn_back).isEnabled = false
+            dimView.isClickable = true
+        }
+    }
+
+    private fun sendTimeoutAlert() {
+        val url = NetworkConfig.getTimeoutAlertUrl()
+        val json = JSONObject().apply { put("robot_id", 3) }
+        val body = json.toString().toRequestBody(jsonMediaType)
+        val request = Request.Builder().url(url).post(body).build()
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                Log.e(TAG, "❌ Timeout 전송 실패: ${e.message}")
+            }
+            override fun onResponse(call: Call, response: Response) {
+                Log.d(TAG, "✅ Timeout 전송 성공: ${response.code}")
+            }
+        })
+    }
+
+    private fun navigateToMain() {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            putExtra("from_timeout", true)
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+        startActivity(intent)
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+        finish()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -211,7 +280,9 @@ class VoiceGuideActivity : AppCompatActivity() {
 
         speechRecognizer.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {}
-            override fun onBeginningOfSpeech() {}
+            override fun onBeginningOfSpeech() {
+                resetTimeoutTimer()
+            }
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEndOfSpeech() {}
@@ -270,6 +341,7 @@ class VoiceGuideActivity : AppCompatActivity() {
 
                         voiceButton.isEnabled = false  // ✅ 버튼 비활성화
                     }
+                    resetTimeoutTimer()
                     sendMessageToLLM(userMessage)
                 }
             }
@@ -305,6 +377,7 @@ class VoiceGuideActivity : AppCompatActivity() {
             override fun onStart(utteranceId: String?) {}
             override fun onDone(utteranceId: String?) {
                 runOnUiThread {
+                    resetTimeoutTimer()
                     voiceButton.isEnabled = true // ✅ TTS 끝나면 다시 버튼 활성화
 
                     // 👉 appointment_service 함수일 경우 다음 화면으로 이동
@@ -330,6 +403,7 @@ class VoiceGuideActivity : AppCompatActivity() {
                     stopLoadingDots()
                     textBotMessage.text = result.reply
                     textPrompt.text = "터치로 대화를 시작합니다"
+                    pendingFunctionName = result.functionName
                     speakResponse(result.reply)
 
                     // ✅ navigate 호출이면 GuidanceWaitingActivity로 이동
@@ -400,9 +474,42 @@ class VoiceGuideActivity : AppCompatActivity() {
 
     private fun speakResponse(text: String) {
         if (::textToSpeech.isInitialized) {
+            resetTimeoutTimer()
+
+            // ✅ 항상 리스너 설정
+            textToSpeech.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                override fun onDone(utteranceId: String?) {
+                    runOnUiThread {
+                        voiceButton.isEnabled = true
+
+                        when (pendingFunctionName) {
+                            "appointment_service" -> {
+                                val intent = Intent(this@VoiceGuideActivity, AuthenticationActivity::class.java)
+                                startActivity(intent)
+                                overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+                                finish()
+                            }
+                            "navigate" -> {
+                                val intent = Intent(this@VoiceGuideActivity, GuidanceWaitingActivity::class.java)
+                                startActivity(intent)
+                                overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+                                finish()
+                            }
+                            // 추가적인 functionName도 여기서 분기 가능
+                        }
+
+                        pendingFunctionName = null
+                    }
+                }
+
+                override fun onStart(utteranceId: String?) {}
+                override fun onError(utteranceId: String?) {}
+            })
+
             textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "response_utterance")
         }
     }
+
 
     private fun startLoadingDots(baseText: String, textView: TextView) {
         loadingJob?.cancel()
@@ -424,6 +531,7 @@ class VoiceGuideActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        timeoutHandler.removeCallbacks(timeoutRunnable)
         speechRecognizer.destroy()
         if (::textToSpeech.isInitialized) {
             textToSpeech.stop()

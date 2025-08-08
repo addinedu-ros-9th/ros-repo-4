@@ -6,6 +6,19 @@ import android.view.View
 import android.widget.ImageView
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import android.util.Log
+import android.os.Handler
+import android.os.Looper
+import android.view.MotionEvent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+
 
 class GuidanceActivity : AppCompatActivity() {
 
@@ -13,6 +26,18 @@ class GuidanceActivity : AppCompatActivity() {
     private var selectedButton: ImageView? = null
     private var selectedId: Int? = null
     private var selectedName: String? = null  // 선택된 이름 저장
+    private val timeoutHandler = Handler(Looper.getMainLooper())
+    private val timeoutRunnable = Runnable {
+        Log.d("Timeout", "⏰ GuidanceActivity 30초 타임아웃 발생")
+        sendTimeoutAlert()
+        val intent = Intent(this, MainActivity::class.java).apply {
+            putExtra("from_timeout", true)
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+        startActivity(intent)
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+        finish()
+    }
 
     private val buttonMap by lazy {
         mapOf(
@@ -108,6 +133,53 @@ class GuidanceActivity : AppCompatActivity() {
         // 확인 버튼 활성화
         confirmButton.setImageResource(R.drawable.btn_confirm_on)
     }
+
+    override fun onResume() {
+        super.onResume()
+        window.decorView.systemUiVisibility =
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_FULLSCREEN
+        resetTimeout()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        timeoutHandler.removeCallbacks(timeoutRunnable)
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        resetTimeout()
+        return super.dispatchTouchEvent(ev)
+    }
+
+    private fun resetTimeout() {
+        timeoutHandler.removeCallbacks(timeoutRunnable)
+        timeoutHandler.postDelayed(timeoutRunnable, 30_000) // 30초
+    }
+
+    private fun sendTimeoutAlert() {
+        val json = JSONObject().apply { put("robot_id", "3") }
+        val requestBody = json.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
+        val request = Request.Builder()
+            .url(NetworkConfig.getTimeoutAlertUrl())
+            .post(requestBody)
+            .build()
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val response = OkHttpClient().newCall(request).execute()
+                Log.d("TimeoutAlert", "📡 GuidanceActivity 알림 응답 코드: ${response.code}")
+            } catch (e: Exception) {
+                Log.e("TimeoutAlert", "❌ 알림 전송 실패: ${e.message}")
+            }
+        }
+    }
+
+
+
+
+
 
     private fun applyAlphaEffect(view: View) {
         view.alpha = 0.6f

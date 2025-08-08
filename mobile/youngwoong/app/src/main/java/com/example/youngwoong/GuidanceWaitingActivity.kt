@@ -30,6 +30,10 @@ class GuidanceWaitingActivity : AppCompatActivity() {
     private lateinit var backButton: ImageView
     private lateinit var touchHintText: TextView
 
+    private var selectedText: String? = null
+    private var isFromCheckin: Boolean = false
+    private var patientId: String? = null
+
     private val handler = Handler(Looper.getMainLooper())
     private var angle = 0.0
 
@@ -48,6 +52,14 @@ class GuidanceWaitingActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_guidance_waiting)
 
+        // ✅ 인텐트에서 값 받기
+        selectedText = intent.getStringExtra("selected_text")
+        isFromCheckin = intent.getBooleanExtra("isFromCheckin", false)
+        patientId = intent.getStringExtra("patient_id")
+
+        Log.d("ResumeIntent", "✅ 초기화됨 selected_text = $selectedText, isFromCheckin = $isFromCheckin, patient_id = $patientId")
+
+        // 🔧 UI 요소 초기화
         leftEye = findViewById(R.id.left_eye)
         rightEye = findViewById(R.id.right_eye)
         guidingText = findViewById(R.id.text_guiding)
@@ -57,6 +69,7 @@ class GuidanceWaitingActivity : AppCompatActivity() {
         startEyeAnimation()
         startTouchHintBlink()
 
+        // 🔙 뒤로가기 버튼 동작
         backButton.setOnClickListener {
             cancelInactivityTimer()
             applyAlphaEffect(backButton)
@@ -66,6 +79,7 @@ class GuidanceWaitingActivity : AppCompatActivity() {
             }, 100)
         }
     }
+
 
     private fun startEyeAnimation() {
         val radiusX = 30f
@@ -124,13 +138,26 @@ class GuidanceWaitingActivity : AppCompatActivity() {
         if (event?.action == MotionEvent.ACTION_DOWN) {
             cancelInactivityTimer()
             sendRobotStopStatus()
-            navigateToConfirm()
-            return true
+
+            // 디버깅 로그 추가
+            Log.d("ResumeIntent", "📤 selected_text = $selectedText, isFromCheckin = $isFromCheckin, patient_id = $patientId")
+
+            // Resume 페이지로 이동
+            val intent = Intent(this, GuidanceResumeActivity::class.java).apply {
+                putExtra("selected_text", selectedText ?: "")
+                putExtra("isFromCheckin", isFromCheckin)
+                putExtra("patient_id", patientId ?: "")
+            }
+            startActivity(intent)
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+            finish()
         }
         return super.onTouchEvent(event)
     }
 
+
     private fun navigateToConfirm() {
+        cancelInactivityTimer()
         val selectedText = intent.getStringExtra("selected_text")
         val intent = Intent(this, GuidanceConfirmActivity::class.java)
 
@@ -148,6 +175,7 @@ class GuidanceWaitingActivity : AppCompatActivity() {
     }
 
     private fun navigateToComplete() {
+        cancelInactivityTimer()
         val selectedText = intent.getStringExtra("selected_text")
         val isFromCheckin = intent.getBooleanExtra("isFromCheckin", false)
         val patientId = intent.getStringExtra("patient_id")  // null 가능성 고려
@@ -173,6 +201,10 @@ class GuidanceWaitingActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        window.decorView.systemUiVisibility =
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_FULLSCREEN
         startInactivityTimer()
     }
 
@@ -186,11 +218,12 @@ class GuidanceWaitingActivity : AppCompatActivity() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val json = JSONObject().apply {
-                    put("robot_id", "3")
+                    put("robot_id", 3)
+                    put("patient_id", patientId?.takeIf { it.isNotBlank() } ?: "unknown")
                 }
 
                 val request = Request.Builder()
-                    .url(NetworkConfig.getChangeRobotStatusUrl())
+                    .url(NetworkConfig.getPauseRobotUrl())  // ✅ 올바른 IF-08 URL 사용
                     .post(json.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull()))
                     .build()
 
