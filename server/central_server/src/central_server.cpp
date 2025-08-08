@@ -2,6 +2,7 @@
 #include <chrono>
 #include <yaml-cpp/yaml.h>
 #include <json/json.h>
+#include <ctime>
 #include <iomanip>
 #include <sstream>
 
@@ -29,6 +30,21 @@ CentralServer::CentralServer() : Node("central_server") {
     nav_manager_->setNavigateClient(navigate_client_);
     nav_manager_->setTrackingEventClient(tracking_event_client_);
     
+    // WebSocket 서버 설정
+    setupWebSocketServer();
+
+    // 로봇 ID 로드 (config.yaml의 central_server.robot_id, 기본 0)
+    try {
+        const char* config_env = std::getenv("CENTRAL_SERVER_CONFIG");
+        std::string config_path = config_env ? config_env : "config.yaml";
+        YAML::Node config = YAML::LoadFile(config_path);
+        robot_id_ = config["central_server"]["robot_id"].as<int>(0);
+        RCLCPP_INFO(this->get_logger(), "로봇 ID 설정: %d", robot_id_);
+    } catch (const std::exception& e) {
+        robot_id_ = 0;
+        RCLCPP_WARN(this->get_logger(), "로봇 ID 설정 로드 실패: %s (기본 0)", e.what());
+    }
+    
     // HttpServer 생성 (DatabaseManager를 shared_ptr로 전달)
     auto shared_db_manager = std::shared_ptr<DatabaseManager>(db_manager_.get(), [](DatabaseManager*){});
     http_server_ = std::make_unique<HttpServer>(shared_db_manager, http_port_);
@@ -36,6 +52,86 @@ CentralServer::CentralServer() : Node("central_server") {
     // HttpServer와 RobotNavigationManager 연결
     auto shared_nav_manager = std::shared_ptr<RobotNavigationManager>(nav_manager_.get(), [](RobotNavigationManager*){});
     http_server_->setRobotNavigationManager(shared_nav_manager);
+    
+    // WebSocket 서버 생성
+    websocket_server_ = std::make_unique<WebSocketServer>(websocket_port_);
+
+    // 로봇 이벤트 → WebSocket(GUI) 전달 + DB 로그 저장 콜백 설정
+    nav_manager_->setRobotEventCallback([this](const std::string& event_type) {
+        try {
+            if (event_type == "arrived_to_call") {
+                Json::Value message;
+                message["type"] = "arrived_to_call";
+                message["timestamp"] = std::to_string(time(nullptr));
+
+                Json::StreamWriterBuilder builder;
+                std::string json_message = Json::writeString(builder, message);
+
+                if (websocket_server_) {
+                    websocket_server_->broadcastMessageToType("gui", json_message);
+                }
+            }
+            else if (event_type == "navigating_complete") {
+                Json::Value message;
+                message["type"] = "navigating_complete";
+                message["timestamp"] = std::to_string(time(nullptr));
+
+                Json::StreamWriterBuilder builder;
+                std::string json_message = Json::writeString(builder, message);
+
+                if (websocket_server_) {
+                    websocket_server_->broadcastMessageToType("gui", json_message);
+                }
+            }
+            else if (event_type == "arrived_to_station") {
+                Json::Value message;
+                message["type"] = "arrived_to_station";
+                message["timestamp"] = std::to_string(time(nullptr));
+
+                Json::StreamWriterBuilder builder;
+                std::string json_message = Json::writeString(builder, message);
+
+                if (websocket_server_) {
+                    websocket_server_->sendAlertIdle(robot_id_);
+                }
+            }
+            else if (event_type == "return_command") {
+                Json::Value message;
+                message["type"] = "return_command";
+                message["timestamp"] = std::to_string(time(nullptr));
+
+                Json::StreamWriterBuilder builder;
+                std::string json_message = Json::writeString(builder, message);
+
+                if (websocket_server_) {
+                    websocket_server_->broadcastMessageToType("gui", json_message);
+                }
+            }
+            else{
+                RCLCPP_WARN(this->get_logger(), "알 수 없는 이벤트 타입: %s", event_type.c_str());
+                return;
+            }
+            
+            // 공통 DB 로그 저장 (모든 이벤트 공통)
+            if (db_manager_) {
+                std::string current_datetime = db_manager_->getCurrentDateTime();
+                if (!current_datetime.empty() && robot_id_ != 0) {
+                    bool log_ok = db_manager_->insertRobotLogWithType(
+                        robot_id_, nullptr, current_datetime, 0, 0, event_type, "");
+                    if (!log_ok) {
+                        RCLCPP_WARN(this->get_logger(), "robot_log 저장 실패: %s", event_type.c_str());
+                    }
+                } else if (robot_id_ == 0) {
+                    RCLCPP_WARN(this->get_logger(), "robot_id가 0입니다. config.yaml의 central_server.robot_id를 설정하세요.");
+                } else {
+                    RCLCPP_WARN(this->get_logger(), "현재 시간 조회 실패로 robot_log 미저장 (event: %s)", event_type.c_str());
+                }
+            }
+            // 다른 이벤트는 필요 시 별도 처리 분기 추가
+        } catch (const std::exception& e) {
+            RCLCPP_ERROR(this->get_logger(), "로봇 이벤트 웹소켓 전송 실패: %s", e.what());
+        }
+    });
 }
 
 CentralServer::~CentralServer() {
@@ -69,6 +165,29 @@ void CentralServer::setupHttpServer()
     }
 }
 
+void CentralServer::setupWebSocketServer()
+{
+    try {
+        // 설정 파일 로드
+        const char* config_env = std::getenv("CENTRAL_SERVER_CONFIG");
+        std::string config_path = config_env ? config_env : "config.yaml";
+        YAML::Node config = YAML::LoadFile(config_path);
+        
+        // WebSocket 서버 설정
+        websocket_port_ = config["central_server"]["websocket_port"].as<int>();
+        
+        RCLCPP_INFO(this->get_logger(), "WebSocket 서버 설정 로드 완료:");
+        RCLCPP_INFO(this->get_logger(), "  - WebSocket 서버 포트: %d", websocket_port_);
+        
+    } catch (const std::exception& e) {
+        RCLCPP_ERROR(this->get_logger(), "WebSocket 설정 파일 로드 실패: %s", e.what());
+        // 기본값 사용
+        websocket_port_ = 3000;
+        
+        RCLCPP_WARN(this->get_logger(), "기본값 사용: WebSocket 포트=%d", websocket_port_);
+    }
+}
+
 void CentralServer::start() {
     if (running_.load()) {
         RCLCPP_WARN(this->get_logger(), "서버가 이미 실행중입니다");
@@ -82,6 +201,9 @@ void CentralServer::start() {
     
     RCLCPP_INFO(this->get_logger(), "2단계: HTTP 스레드 시작중...");
     http_thread_ = std::thread(&CentralServer::runHttpThread, this);
+    
+    RCLCPP_INFO(this->get_logger(), "3단계: WebSocket 스레드 시작중...");
+    websocket_thread_ = std::thread(&CentralServer::runWebSocketThread, this);
     
     // 잠시 대기
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -106,6 +228,11 @@ void CentralServer::stop() {
     if (http_thread_.joinable()) {
         http_thread_.join();
         RCLCPP_INFO(this->get_logger(), "HTTP 스레드 종료됨");
+    }
+    
+    if (websocket_thread_.joinable()) {
+        websocket_thread_.join();
+        RCLCPP_INFO(this->get_logger(), "WebSocket 스레드 종료됨");
     }
     
     RCLCPP_INFO(this->get_logger(), "서버 종료 완료");
@@ -241,4 +368,24 @@ void CentralServer::init() {
     teleop_publisher_ = this->create_publisher<std_msgs::msg::String>("/teleop_event", 10);
     tracking_event_client_ = this->create_client<control_interfaces::srv::TrackHandle>("/tracking_event");
     RCLCPP_INFO(this->get_logger(), "ROS2 서비스 설정 완료");
+}
+
+void CentralServer::runWebSocketThread() {
+    RCLCPP_INFO(this->get_logger(), "WebSocket 스레드 시작됨");
+    
+    // WebSocket 서버 시작
+    if (websocket_server_->start()) {
+        RCLCPP_INFO(this->get_logger(), "WebSocket 서버 시작 완료 (포트: %d)", websocket_port_);
+    } else {
+        RCLCPP_ERROR(this->get_logger(), "WebSocket 서버 시작 실패!");
+        return;
+    }
+    
+    while (running_.load() && rclcpp::ok()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    
+    // WebSocket 서버 종료
+    websocket_server_->stop();
+    RCLCPP_INFO(this->get_logger(), "WebSocket 스레드 종료중...");
 }

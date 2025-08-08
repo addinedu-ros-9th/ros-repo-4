@@ -161,9 +161,11 @@ void WebSocketServer::broadcastMessageToType(const std::string& client_type, con
             } else {
                 // 전송 실패 시 클라이언트 제거
                 std::cout << "[WebSocket] 클라이언트 " << ip << " 연결 종료 (전송 실패)" << std::endl;
-                close(client.socket_fd);
-                clients_by_socket_.erase(client.socket_fd);
+                int socket_fd = client.socket_fd;
                 it = clients_by_ip_.erase(it);
+                clients_by_socket_.erase(socket_fd);
+                // removeClient를 호출하지 않고 직접 close만 수행
+                close(socket_fd);
             }
         } else {
             ++it;
@@ -326,9 +328,8 @@ void WebSocketServer::handleClient(int client_socket, const std::string& client_
     }
     
     // 클라이언트 연결 종료
-    removeClient(client_socket);
-    close(client_socket);
     std::cout << "[WebSocket] 클라이언트 " << client_ip << " (소켓: " << client_socket << ") 연결 종료" << std::endl;
+    removeClient(client_socket);
 }
 
 bool WebSocketServer::isWebSocketRequest(const std::string& request) {
@@ -452,6 +453,15 @@ void WebSocketServer::removeClient(int client_socket) {
     if (it != clients_by_socket_.end()) {
         const std::string& ip = it->second;
         clients_by_socket_.erase(it);
-        clients_by_ip_.erase(ip);
+        
+        auto ip_it = clients_by_ip_.find(ip);
+        if (ip_it != clients_by_ip_.end()) {
+            clients_by_ip_.erase(ip_it);
+        }
+        
+        std::cout << "[WebSocket] 클라이언트 " << ip << " (소켓: " << client_socket << ") 제거됨" << std::endl;
+        
+        // 소켓 닫기 (클라이언트가 존재할 때만)
+        close(client_socket);
     }
 } 

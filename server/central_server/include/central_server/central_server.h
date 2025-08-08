@@ -10,6 +10,7 @@
 #include "database_manager.h"
 #include "http_server.h"
 #include "robot_navigation_manager.h"
+#include "websocket_server.h"
 
 #include <thread>
 #include <atomic>
@@ -31,19 +32,22 @@ private:
     // 기존 함수들
     void runDatabaseThread();
     void runHttpThread();
+    void runWebSocketThread();
     void eventHandleCallback(
         const std::shared_ptr<control_interfaces::srv::EventHandle::Request> request,
         std::shared_ptr<control_interfaces::srv::EventHandle::Response> response);
 
     
-    // HTTP 서버 설정
+    // 서버 설정
     void setupHttpServer();
+    void setupWebSocketServer();
     
     // 기존 멤버 변수들
     std::atomic<bool> running_;
     
     std::unique_ptr<DatabaseManager> db_manager_;
     std::unique_ptr<HttpServer> http_server_;
+    std::unique_ptr<WebSocketServer> websocket_server_;
     std::unique_ptr<RobotNavigationManager> nav_manager_;
     
     rclcpp::Service<control_interfaces::srv::EventHandle>::SharedPtr event_service_;
@@ -54,10 +58,13 @@ private:
     
     std::thread db_thread_;
     std::thread http_thread_;
+    std::thread websocket_thread_;
     
-    // HTTP 서버 설정
+    // 서버 설정
     int http_port_;
     std::string http_host_;
+    int websocket_port_;
+    int robot_id_;
 };
 
 #endif // CENTRAL_SERVER_H

@@ -399,16 +399,10 @@ void RobotNavigationManager::robotEventCallback(
         RCLCPP_INFO(this->get_logger(), "호출 위치 도착 이벤트 처리");
     } else if (request->event_type == "navigating_complete") {
         response->status = "success";
-        RCLCPP_INFO(this->get_logger(), "목적지 도착 이벤트 처리");
+        RCLCPP_INFO(this->get_logger(), "로비 도착 이벤트 처리");
     } else if (request->event_type == "arrived_to_station") {
         response->status = "success";
         RCLCPP_INFO(this->get_logger(), "대기장소 도착 이벤트 처리");
-    } else if (request->event_type == "charging_request") {
-        response->status = "success";
-        RCLCPP_INFO(this->get_logger(), "충전 요청 이벤트 처리");
-    } else if (request->event_type == "charging_complete") {
-        response->status = "success";
-        RCLCPP_INFO(this->get_logger(), "충전 완료 이벤트 처리");
     } else if (request->event_type == "return_command") {
         response->status = "success";
         RCLCPP_INFO(this->get_logger(), "반환 요청 이벤트 처리");

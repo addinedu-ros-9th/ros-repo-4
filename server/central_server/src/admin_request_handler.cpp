@@ -201,75 +201,54 @@ std::string AdminRequestHandler::handleControlByAdmin(const Json::Value& request
     int robot_id = request["robot_id"].asInt();
     std::string admin_id = request["admin_id"].asString();
     // 공통 함수를 사용하여 원격 제어 명령 처리
-    return sendControlCommand(robot_id, nullptr, "admin_control", "원격 제어", admin_id);
+    return sendControlCommand(robot_id, nullptr, "control_by_admin", "원격 제어 요청", admin_id);
 }
 
 std::string AdminRequestHandler::handleReturnCommand(const Json::Value& request) {
     std::cout << "[ADMIN] 원격 제어 취소 요청 처리 (IF-07)" << std::endl;
     
     // 요청 데이터 검증
-    if (!request.isMember("robot_id")) {
+    if (!request.isMember("robot_id") || !request.isMember("admin_id")) {
         return "400"; // Bad Request
     }
     
     int robot_id = request["robot_id"].asInt();
+    std::string admin_id = request["admin_id"].asString();
     
-    // 실제 로봇 시스템에서 취소 명령 전송 (정지 후 대기장소로 이동)
-    if (nav_manager_) {
-        // 1. 먼저 정지
-        if (!nav_manager_->sendStopCommand()) {
-            return "500"; // Internal Server Error
-        }
-        
-        // 2. 병원 로비로 이동
-        DepartmentInfo lobby_department;
-        if (!db_manager_->getDepartmentById(8, lobby_department)) {
-            return "500"; // Internal Server Error
-        }
-        
-        if (!nav_manager_->sendWaypointCommand(lobby_department.department_name)) {
-            return "500"; // Internal Server Error
-        }
-        
-        std::cout << "[ADMIN] 로봇 원격 제어 취소 명령 전송 완료: Robot " << robot_id 
-                  << " (정지 후 " << lobby_department.department_name << "로 이동)" << std::endl;
-    } else {
-        return "503"; // Service Unavailable
-    }
-    
-    return "200"; // 성공
+    // 공통 함수를 사용하여 원격 제어 명령 처리
+    return sendControlCommand(robot_id, nullptr, "return_command", "원격 제어 취소", admin_id);
 }
 
 std::string AdminRequestHandler::handleTeleopRequest(const Json::Value& request) {
     std::cout << "[ADMIN] 수동제어 요청 처리" << std::endl;
     
     // 요청 데이터 검증
-    if (!request.isMember("robot_id")) {
+    if (!request.isMember("robot_id") || !request.isMember("admin_id")) {
         return "400"; // Bad Request
     }
     
     int robot_id = request["robot_id"].asInt();
-    
+    std::string admin_id = request["admin_id"].asString();
     // TODO: 실제 로봇 시스템에서 수동제어 모드 활성화
     std::cout << "[ADMIN] 수동제어 요청 처리 완료: Robot " << robot_id << std::endl;
-    
-    return "200"; // 성공
+
+    return sendControlCommand(robot_id, nullptr, "teleop_request", "수동제어 요청", admin_id);
 }
 
 std::string AdminRequestHandler::handleTeleopComplete(const Json::Value& request) {
     std::cout << "[ADMIN] 수동제어 완료 처리" << std::endl;
     
     // 요청 데이터 검증
-    if (!request.isMember("robot_id")) {
+    if (!request.isMember("robot_id") || !request.isMember("admin_id")) {
         return "400"; // Bad Request
     }
     
     int robot_id = request["robot_id"].asInt();
-    
+    std::string admin_id = request["admin_id"].asString();
     // TODO: 실제 로봇 시스템에서 수동제어 모드 비활성화
     std::cout << "[ADMIN] 수동제어 완료 처리: Robot " << robot_id << std::endl;
     
-    return "200"; // 성공
+    return sendControlCommand(robot_id, nullptr, "teleop_complete", "수동제어 완료", admin_id);
 }
 
 std::string AdminRequestHandler::handleCommandMoveTeleop(const Json::Value& request) {
@@ -317,31 +296,53 @@ std::string AdminRequestHandler::handleCommandMoveDest(const Json::Value& reques
     std::cout << "[ADMIN] 목적지 이동 명령 처리 (IF-09)" << std::endl;
     
     // 요청 데이터 검증
-    if (!request.isMember("robot_id") || !request.isMember("dest")) {
+    if (!request.isMember("robot_id") || !request.isMember("dest") || !request.isMember("admin_id")) {
         return "400"; // Bad Request
     }
     
     int robot_id = request["robot_id"].asInt();
     int dest = request["dest"].asInt();
-    
+    std::string admin_id = request["admin_id"].asString();
+
     // 목적지 ID를 department_name으로 변환
     DepartmentInfo department;
     if (!db_manager_->getDepartmentById(dest, department)) {
         return "400"; // Bad Request - 잘못된 목적지 ID
     }
     std::string waypoint_name = department.department_name;
-    
-    // 실제 로봇 시스템에서 목적지 이동 명령 전송
+
+    // 네비게이션 이벤트 전송 (유저 흐름과 동일한 방식)
     if (nav_manager_) {
-        if (!nav_manager_->sendWaypointCommand(waypoint_name)) {
+        bool sent = nav_manager_->sendNavigateEvent("admin_navigating", waypoint_name);
+        if (!sent) {
             return "500"; // Internal Server Error
         }
-        std::cout << "[ADMIN] 로봇 목적지 이동 명령 전송 완료: Robot " << robot_id 
+        std::cout << "[ADMIN] 로봇 네비게이션 명령 전송 완료: Robot " << robot_id
                   << ", Dest: " << dest << ", Waypoint: " << waypoint_name << std::endl;
     } else {
         return "503"; // Service Unavailable
     }
-    
+
+    // 현재 로봇 위치 기반 출발지 계산
+    double current_x = nav_manager_->getCurrentRobotX();
+    double current_y = nav_manager_->getCurrentRobotY();
+    int orig_department_id = db_manager_->findNearestDepartment(static_cast<float>(current_x), static_cast<float>(current_y));
+    if (orig_department_id == -1) {
+        std::cout << "[ADMIN][WARNING] 출발지 부서를 찾지 못했습니다" << std::endl;
+        return "500";
+    }
+
+    // 로깅 (robot_log, navigating_log)
+    std::string current_datetime = db_manager_->getCurrentDateTime();
+    if (current_datetime.empty()) {
+        return "500";
+    }
+
+    bool log_success = db_manager_->insertRobotLogWithType(robot_id, nullptr, current_datetime, orig_department_id, dest, "admin_navigating", admin_id);
+    if (!log_success) {
+        return "500";
+    }
+
     return "200"; // 성공
 }
 
@@ -349,12 +350,12 @@ std::string AdminRequestHandler::handleCancelNavigating(const Json::Value& reque
     std::cout << "[ADMIN] 길안내 취소 요청 처리" << std::endl;
     
     // 요청 데이터 검증
-    if (!request.isMember("robot_id")) {
+    if (!request.isMember("robot_id") || !request.isMember("admin_id")) {
         return "400"; // Bad Request
     }
     
     int robot_id = request["robot_id"].asInt();
-    
+    std::string admin_id = request["admin_id"].asString();
     // 실제 로봇 시스템에서 길안내 취소 명령 전송
     if (nav_manager_) {
         if (!nav_manager_->sendStopCommand()) {
@@ -365,7 +366,7 @@ std::string AdminRequestHandler::handleCancelNavigating(const Json::Value& reque
         return "503"; // Service Unavailable
     }
     
-    return "200"; // 성공
+    return sendControlCommand(robot_id, nullptr, "cancel_navigating", "길안내 취소", admin_id);
 }
 
 std::string AdminRequestHandler::handleGetLogData(const Json::Value& request) {
@@ -433,81 +434,6 @@ std::string AdminRequestHandler::handleGetLogData(const Json::Value& request) {
     Json::StreamWriterBuilder builder;
     return Json::writeString(builder, response);
 }
-
-std::string AdminRequestHandler::handleGetHeatmap(const Json::Value& request) {
-    std::cout << "[ADMIN] 히트맵 데이터 요청 처리 (IF-11)" << std::endl;
-    
-    // 요청 데이터 검증 및 파라미터 처리
-    std::string period = "";
-    std::string start_date = "";
-    std::string end_date = "";
-    
-    // period 파라미터 처리
-    if (request.isMember("period")) {
-        if (request["period"].isString()) {
-            std::string period_str = request["period"].asString();
-            if (period_str != "None" && period_str != "null" && !period_str.empty()) {
-                period = period_str;
-            }
-        }
-    }
-    
-    // start_date 파라미터 처리
-    if (request.isMember("start_date")) {
-        if (request["start_date"].isString()) {
-            std::string start_date_str = request["start_date"].asString();
-            if (start_date_str != "None" && start_date_str != "null" && !start_date_str.empty()) {
-                start_date = start_date_str;
-            }
-        }
-    }
-    
-    // end_date 파라미터 처리
-    if (request.isMember("end_date")) {
-        if (request["end_date"].isString()) {
-            std::string end_date_str = request["end_date"].asString();
-            if (end_date_str != "None" && end_date_str != "null" && !end_date_str.empty()) {
-                end_date = end_date_str;
-            }
-        }
-    }
-    
-    // 에러 검증: period와 start_date/end_date가 동시에 값이 있으면 에러
-    if (!period.empty() && (!start_date.empty() || !end_date.empty())) {
-        return createErrorResponse("period와 start_date/end_date는 동시에 사용할 수 없습니다");
-    }
-    
-    // TODO: 실제 데이터베이스에서 히트맵 데이터 조회
-    // 현재는 더미 데이터로 응답
-    Json::Value response;
-    Json::Value matrix = Json::Value(Json::arrayValue);
-    
-    // 8x8 히트맵 매트릭스 생성 (더미 데이터)
-    int heatmap_data[8][8] = {
-        {0, 4, 2, 0, 0, 0, 1, 0},
-        {2, 0, 3, 0, 1, 0, 0, 0},
-        {1, 1, 0, 0, 0, 2, 0, 0},
-        {0, 0, 0, 0, 5, 0, 1, 0},
-        {0, 0, 0, 3, 0, 2, 0, 1},
-        {0, 0, 1, 0, 1, 0, 4, 0},
-        {2, 0, 0, 0, 0, 1, 0, 2},
-        {0, 0, 0, 0, 0, 0, 1, 0}
-    };
-    
-    for (int i = 0; i < 8; i++) {
-        Json::Value row = Json::Value(Json::arrayValue);
-        for (int j = 0; j < 8; j++) {
-            row.append(heatmap_data[i][j]);
-        }
-        matrix.append(row);
-    }
-    
-    response["matrix"] = matrix;
-    
-    Json::StreamWriterBuilder builder;
-    return Json::writeString(builder, response);
-}
-
 // 유틸리티 함수들
 
 std::string AdminRequestHandler::createErrorResponse(const std::string& message) {

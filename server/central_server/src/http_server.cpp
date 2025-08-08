@@ -253,56 +253,120 @@ std::string HttpServer::processRequest(const HttpRequest& request) {
     else if (request.path == "/control_by_admin" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
         std::string response = admin_handler_->handleControlByAdmin(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
+        int status_code = 200;
+        try {
+            Json::Value res_json = parseJson(response);
+            if (res_json.isMember("status_code") && res_json["status_code"].isInt()) {
+                status_code = res_json["status_code"].asInt();
+            } else if (res_json.isMember("error")) {
+                status_code = 500;
+            }
+        } catch (...) {
+            try { status_code = std::stoi(response); } catch (...) { status_code = 500; }
+        }
+        return createHttpResponse(status_code, "application/json", response, cors_headers);
     }
     else if (request.path == "/return_command" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
         std::string response = admin_handler_->handleReturnCommand(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
+        int status_code = 200;
+        try {
+            Json::Value res_json = parseJson(response);
+            if (res_json.isMember("status_code") && res_json["status_code"].isInt()) {
+                status_code = res_json["status_code"].asInt();
+            } else if (res_json.isMember("error")) {
+                status_code = 500;
+            }
+        } catch (...) {
+            try { status_code = std::stoi(response); } catch (...) { status_code = 500; }
+        }
+        return createHttpResponse(status_code, "application/json", response, cors_headers);
     }
     else if (request.path == "/teleop_request" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
         std::string response = admin_handler_->handleTeleopRequest(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
+        int status_code = 200;
+        try {
+            Json::Value res_json = parseJson(response);
+            if (res_json.isMember("status_code") && res_json["status_code"].isInt()) {
+                status_code = res_json["status_code"].asInt();
+            } else if (res_json.isMember("error")) {
+                status_code = 500;
+            }
+        } catch (...) {
+            try { status_code = std::stoi(response); } catch (...) { status_code = 500; }
+        }
+        return createHttpResponse(status_code, "application/json", response, cors_headers);
     }
     else if (request.path == "/teleop_complete" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
         std::string response = admin_handler_->handleTeleopComplete(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
+        int status_code = 200;
+        try {
+            Json::Value res_json = parseJson(response);
+            if (res_json.isMember("status_code") && res_json["status_code"].isInt()) {
+                status_code = res_json["status_code"].asInt();
+            } else if (res_json.isMember("error")) {
+                status_code = 500;
+            }
+        } catch (...) {
+            try { status_code = std::stoi(response); } catch (...) { status_code = 500; }
+        }
+        return createHttpResponse(status_code, "application/json", response, cors_headers);
     }
     else if (request.path == "/command/move_teleop" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
         std::string response = admin_handler_->handleCommandMoveTeleop(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
+        int status_code = 200;
+        try {
+            Json::Value res_json = parseJson(response);
+            if (res_json.isMember("status_code") && res_json["status_code"].isInt()) {
+                status_code = res_json["status_code"].asInt();
+            } else if (res_json.isMember("error")) {
+                status_code = 500;
+            }
+        } catch (...) {
+            try { status_code = std::stoi(response); } catch (...) { status_code = 500; }
+        }
+        return createHttpResponse(status_code, "application/json", response, cors_headers);
     }
     else if (request.path == "/command/move_dest" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
         std::string response = admin_handler_->handleCommandMoveDest(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
+        int status_code = 200;
+        try {
+            Json::Value res_json = parseJson(response);
+            if (res_json.isMember("status_code") && res_json["status_code"].isInt()) {
+                status_code = res_json["status_code"].asInt();
+            } else if (res_json.isMember("error")) {
+                status_code = 500;
+            }
+        } catch (...) {
+            try { status_code = std::stoi(response); } catch (...) { status_code = 500; }
+        }
+        return createHttpResponse(status_code, "application/json", response, cors_headers);
     }
     else if (request.path == "/cancel_navigating" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
         std::string response = admin_handler_->handleCancelNavigating(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
+        int status_code = 200;
+        try {
+            Json::Value res_json = parseJson(response);
+            if (res_json.isMember("status_code") && res_json["status_code"].isInt()) {
+                status_code = res_json["status_code"].asInt();
+            } else if (res_json.isMember("error")) {
+                status_code = 500;
+            }
+        } catch (...) {
+            try { status_code = std::stoi(response); } catch (...) { status_code = 500; }
+        }
+        return createHttpResponse(status_code, "application/json", response, cors_headers);
     }
     else if (request.path == "/get/log_data" && request.method == "POST") {
         Json::Value json_request = parseJson(request.body);
         std::string response = admin_handler_->handleGetLogData(json_request);
         return createHttpResponse(200, "application/json", response, cors_headers);
     }
-    else if (request.path == "/get/heatmap" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = admin_handler_->handleGetHeatmap(json_request);
-        return createHttpResponse(200, "application/json", response, cors_headers);
-    }
-
     else if (request.path == "/ws" && request.method == "GET") {
         // WebSocket 연결 요청은 이미 위에서 처리됨
         return createHttpResponse(400, "text/plain", "WebSocket upgrade failed");
