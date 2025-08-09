@@ -14,6 +14,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/DetectedObstacle.msg"
   "srv/EventHandle.srv"
   "srv/NavigateHandle.srv"
   "srv/TrackHandle.srv"
@@ -31,5 +32,8 @@ if(BUILD_TESTING)
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
+
+
+ament_export_dependencies(rosidl_default_runtime) 
 
 ament_package()

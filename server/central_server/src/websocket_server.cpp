@@ -1,5 +1,6 @@
 #include "central_server/websocket_server.h"
 #include <sstream>
+#include <errno.h>
 
 WebSocketServer::WebSocketServer(int port)
     : port_(port), server_socket_(-1), running_(false) {
@@ -18,13 +19,18 @@ bool WebSocketServer::start() {
     // 소켓 생성
     server_socket_ = socket(AF_INET, SOCK_STREAM, 0);
     if (server_socket_ < 0) {
-        std::cerr << "[WebSocket] 소켓 생성 실패" << std::endl;
+        std::cerr << "[WebSocket] 소켓 생성 실패: " << strerror(errno) << " (errno: " << errno << ")" << std::endl;
         return false;
     }
     
     // 소켓 옵션 설정 (재사용 가능)
     int opt = 1;
-    setsockopt(server_socket_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    if (setsockopt(server_socket_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        std::cerr << "[WebSocket] 소켓 옵션 설정 실패: " << strerror(errno) << " (errno: " << errno << ")" << std::endl;
+        close(server_socket_);
+        server_socket_ = -1;
+        return false;
+    }
     
     // 주소 설정
     struct sockaddr_in address;
@@ -34,7 +40,7 @@ bool WebSocketServer::start() {
     
     // 바인딩
     if (bind(server_socket_, (struct sockaddr*)&address, sizeof(address)) < 0) {
-        std::cerr << "[WebSocket] 바인딩 실패" << std::endl;
+        std::cerr << "[WebSocket] 바인딩 실패: " << strerror(errno) << " (errno: " << errno << ")" << std::endl;
         close(server_socket_);
         server_socket_ = -1;
         return false;
@@ -42,7 +48,7 @@ bool WebSocketServer::start() {
     
     // 리스닝 시작
     if (listen(server_socket_, 5) < 0) {
-        std::cerr << "[WebSocket] 리스닝 실패" << std::endl;
+        std::cerr << "[WebSocket] 리스닝 실패: " << strerror(errno) << " (errno: " << errno << ")" << std::endl;
         close(server_socket_);
         server_socket_ = -1;
         return false;

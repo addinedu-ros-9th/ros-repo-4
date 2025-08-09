@@ -31,8 +31,16 @@ int main(int argc, char* argv[]) {
         server_node->start();
 
         RCLCPP_INFO(server_node->get_logger(), "중앙서버 시작 완료!");
-
-        rclcpp::spin(server_node);
+        
+        // 내부 Executor가 스핀 중이므로 여기서는 종료 신호까지 대기만 수행
+        rclcpp::on_shutdown([&]() {
+            if (server_node) {
+                server_node->stop();
+            }
+        });
+        rclcpp::executors::SingleThreadedExecutor wait_exec;
+        wait_exec.add_node(server_node);
+        wait_exec.spin();
 
     } catch (const std::exception& e) {
         RCLCPP_ERROR(rclcpp::get_logger("central_server"), "서버 시작 실패: %s", e.what());

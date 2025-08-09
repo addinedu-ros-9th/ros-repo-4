@@ -207,6 +207,19 @@ void CentralServer::start() {
     RCLCPP_INFO(this->get_logger(), "3단계: WebSocket 스레드 시작중...");
     websocket_thread_ = std::thread(&CentralServer::runWebSocketThread, this);
     
+    // 4단계: 단일 Executor 시작 (RobotNavigationManager 전용)
+    RCLCPP_INFO(this->get_logger(), "4단계: ROS Executor 스레드 시작중...");
+    executor_ = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
+    // 내부 Executor에는 RobotNavigationManager만 추가
+    executor_->add_node(nav_manager_->get_node_base_interface());
+    executor_thread_ = std::thread([this]() {
+        try {
+            executor_->spin();
+        } catch (const std::exception& e) {
+            RCLCPP_ERROR(this->get_logger(), "Executor 스핀 중 예외: %s", e.what());
+        }
+    });
+    
     // 잠시 대기
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
@@ -236,6 +249,25 @@ void CentralServer::stop() {
         websocket_thread_.join();
         RCLCPP_INFO(this->get_logger(), "WebSocket 스레드 종료됨");
     }
+    
+    // Executor 중지 및 스레드 종료
+    if (executor_) {
+        try {
+            executor_->cancel();
+        } catch (const std::exception& e) {
+            RCLCPP_WARN(this->get_logger(), "Executor 취소 중 경고: %s", e.what());
+        }
+    }
+    if (executor_thread_.joinable()) {
+        executor_thread_.join();
+        RCLCPP_INFO(this->get_logger(), "ROS Executor 스레드 종료됨");
+    }
+    if (executor_) {
+        try { executor_->remove_node(nav_manager_->get_node_base_interface()); } catch (...) {}
+        executor_.reset();
+    }
+    
+
     
     RCLCPP_INFO(this->get_logger(), "서버 종료 완료");
 }
@@ -288,17 +320,6 @@ void CentralServer::runDatabaseThread() {
                 }
             }
             last_db_check = now;
-        }
-        
-        // RobotNavigationManager의 콜백들 처리
-        if (nav_manager_) {
-            try {
-                auto shared_nav_manager = std::shared_ptr<RobotNavigationManager>(nav_manager_.get(), [](RobotNavigationManager*){});
-                rclcpp::spin_some(shared_nav_manager);
-            } catch (const std::exception& e) {
-                RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
-                                     "RobotNavigationManager 스핀 중 오류: %s", e.what());
-            }
         }
         
         std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 100ms 간격으로 스핀

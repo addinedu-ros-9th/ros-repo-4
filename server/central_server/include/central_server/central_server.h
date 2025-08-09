@@ -2,6 +2,7 @@
 #define CENTRAL_SERVER_H
 
 #include <rclcpp/rclcpp.hpp>
+#include <rclcpp/executors/multi_threaded_executor.hpp>
 #include <control_interfaces/srv/event_handle.h>
 #include <control_interfaces/srv/track_handle.h>
 #include <control_interfaces/srv/navigate_handle.h>
@@ -59,12 +60,16 @@ private:
     std::thread db_thread_;
     std::thread http_thread_;
     std::thread websocket_thread_;
+    std::thread executor_thread_;
     
     // 서버 설정
     int http_port_;
     std::string http_host_;
     int websocket_port_;
     int robot_id_;
+
+    // 단일 Executor (모든 ROS 콜백은 여기에서만 처리)
+    rclcpp::executors::MultiThreadedExecutor::SharedPtr executor_;
 };
 
 #endif // CENTRAL_SERVER_H

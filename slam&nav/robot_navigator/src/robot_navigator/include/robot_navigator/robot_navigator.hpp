@@ -74,7 +74,7 @@ private:
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr nav_status_publisher_;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr target_publisher_;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr online_status_publisher_;
-    rclcpp::Publisher<geometry_msgs::msg::Pose>::SharedPtr teleop_command_publisher_;
+    rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr teleop_command_publisher_;
     
     // 명령 로그 퍼블리셔
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr command_log_publisher_;
@@ -142,7 +142,7 @@ private:
     void publishCommandLog(const std::string& message);
     void publishAvailableWaypoints();
 
-    void callEventService(const std::string& event_type, const std::string& status);
+    void callEventService(const std::string& event_type);
 };
 
 #endif

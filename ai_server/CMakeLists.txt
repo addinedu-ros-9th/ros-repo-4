@@ -11,7 +11,7 @@ find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(image_transport REQUIRED)
-find_package(robot_interfaces REQUIRED)
+find_package(control_interfaces REQUIRED)
 find_package(OpenCV REQUIRED)
 
 # YAML 라이브러리 - find_package 방식
@@ -26,6 +26,7 @@ add_executable(ai_server_node
   src/ai_server.cpp
   src/webcam_streamer.cpp
   src/udp_image_sender.cpp
+  src/frame_shared_memory.cpp
 )
 
 ament_target_dependencies(ai_server_node 
@@ -33,7 +34,7 @@ ament_target_dependencies(ai_server_node
   sensor_msgs 
   cv_bridge 
   image_transport
-  robot_interfaces
+  control_interfaces
 )
 
 # 라이브러리 링크

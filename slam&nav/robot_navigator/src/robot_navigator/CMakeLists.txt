@@ -15,6 +15,7 @@ find_package(std_msgs REQUIRED)
 find_package(nav2_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
+find_package(control_interfaces REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
@@ -24,11 +25,20 @@ add_executable(robot_navigator
   src/main.cpp
 )
 
+add_executable(obstacle_detector
+  src/obstacle_detector.cpp
+)
+
 target_include_directories(robot_navigator PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 
+target_include_directories(obstacle_detector PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+
 target_compile_features(robot_navigator PUBLIC c_std_99 cxx_std_17)
+target_compile_features(obstacle_detector PUBLIC c_std_99 cxx_std_17)
 
 ament_target_dependencies(
   robot_navigator
@@ -40,9 +50,20 @@ ament_target_dependencies(
   "nav2_msgs"
   "tf2"
   "tf2_geometry_msgs"
+  "control_interfaces"  
 )
 
-install(TARGETS robot_navigator
+ament_target_dependencies(
+  obstacle_detector
+  "rclcpp"
+  "geometry_msgs"
+  "sensor_msgs"
+  "tf2"
+  "tf2_geometry_msgs"
+  "control_interfaces"
+)
+
+install(TARGETS robot_navigator obstacle_detector
   DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
