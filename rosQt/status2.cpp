@@ -225,11 +225,11 @@ void Status2Widget::onTeleopBtnClicked()
 
     QString url;
     if (teleop_status_) {
-        url = QString("http://%1:%2/command/teleop_complete")
+        url = QString("http://%1:%2/teleop_complete")
                 .arg(CENTRAL_IP.c_str())
                 .arg(CENTRAL_HTTP_PORT);
     } else {
-        url = QString("http://%1:%2/command/teleop_request")
+        url = QString("http://%1:%2/teleop_request")
                 .arg(CENTRAL_IP.c_str())
                 .arg(CENTRAL_HTTP_PORT);
     }
