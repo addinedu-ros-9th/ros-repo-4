@@ -47,6 +47,7 @@ class MainActivity : AppCompatActivity() {
     private val wakeWords = listOf("영웅아", "영화", "영아", "영우아", "영웅이")
 
     private var isBlocked = false
+    private var hasNavigatedToMenu = false
     private var blinkHandler: Handler? = null
     private var blinkRunnable: Runnable? = null
 
@@ -204,6 +205,9 @@ class MainActivity : AppCompatActivity() {
                     tapPrompt.setImageResource(R.drawable.tap_to_start)
                     startPromptBlink()
                 }
+                "arrived_to_call" -> {            // ✅ 호출 지점 도착 → 메인메뉴로 이동
+                    safeGoToMainMenu()
+                }
             }
         }
     }
@@ -239,6 +243,20 @@ class MainActivity : AppCompatActivity() {
             return true
         }
         return super.onTouchEvent(event)
+    }
+
+    private fun safeGoToMainMenu() {
+        if (hasNavigatedToMenu) return
+        hasNavigatedToMenu = true
+        isBlocked = true
+
+        try { speechRecognizer.cancel() } catch (_: Exception) {}
+        stopPromptBlink()
+
+        val intent = Intent(this, MainMenuActivity::class.java)
+        startActivity(intent)
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+        finish()
     }
 
     private fun sendCallRequest(endpoint: String) {

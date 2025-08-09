@@ -20,6 +20,9 @@
 #include <mutex>
 #include <vector>
 #include <limits>
+#include <algorithm>
+#include <cctype>
+#include <unordered_map>
 
 struct WaypointInfo {
     std::string name;

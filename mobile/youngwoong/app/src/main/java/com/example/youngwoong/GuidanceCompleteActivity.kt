@@ -17,20 +17,14 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import android.os.Handler
-import android.os.Looper
 import android.content.Intent
 import android.view.View
 
 
 class GuidanceCompleteActivity : AppCompatActivity() {
 
-    private val timeoutHandler = Handler(Looper.getMainLooper())
-    private val timeoutRunnable = Runnable {
-        Log.d("GuidanceComplete", "🕒 30초 타임아웃 발생 → 복귀 요청 전송")
-        sendRobotReturnCommand()
-        navigateToMain(fromTimeout = true) // ✅ 수정: 타임아웃에서 true 넘기기
-    }
+    private lateinit var webSocketClient: RobotStatusWebSocketClient
+    private var hasNavigated = false
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,20 +52,27 @@ class GuidanceCompleteActivity : AppCompatActivity() {
 
         // ✅ 확인 버튼 클릭 → 복귀 명령 전송
         confirmButton.setOnClickListener {
-            timeoutHandler.removeCallbacks(timeoutRunnable)
-            navigateToMain(fromTimeout = true)// 🔒 타임아웃 중단
             sendRobotReturnCommand()
+            safeNavigateToMain()// 🔒 타임아웃 중단
+        }
+
+        // ✅ 중앙서버 WebSocket에서 return_command 받으면 자동 이동
+        webSocketClient = RobotStatusWebSocketClient(
+            url = "ws://192.168.0.10:3000/?client_type=gui",
+            targetRobotId = "3"
+        ) { status ->
+            if (status == "return_command") {
+                Log.d("GuidanceComplete", "📨 return_command 수신 → 메인으로 이동")
+                runOnUiThread {
+                    navigateToMain(fromTimeout = true)
+                }
+            }
         }
     }
 
-    private fun resetTimeoutTimer() {
-        timeoutHandler.removeCallbacks(timeoutRunnable)
-        timeoutHandler.postDelayed(timeoutRunnable, 30_000) // 30초
-    }
 
     override fun onUserInteraction() {
         super.onUserInteraction()
-        resetTimeoutTimer()
     }
 
     override fun onResume() {
@@ -80,19 +81,34 @@ class GuidanceCompleteActivity : AppCompatActivity() {
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
                     View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
                     View.SYSTEM_UI_FLAG_FULLSCREEN
-        resetTimeoutTimer()
     }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try {
+            if (this::webSocketClient.isInitialized) {
+                webSocketClient.disconnect()
+            }
+        } catch (_: Exception) {}
+    }
+
+
 
     override fun onPause() {
         super.onPause()
-        timeoutHandler.removeCallbacks(timeoutRunnable)
+    }
+
+    private fun safeNavigateToMain() {
+        if (hasNavigated) return
+        hasNavigated = true
+        navigateToMain(fromTimeout = true)
     }
 
     private fun navigateToMain(fromTimeout: Boolean = false) {
         Log.d("GuidanceComplete", "navigateToMain 호출됨, fromTimeout=$fromTimeout")
         val intent = Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            putExtra("from_timeout", fromTimeout) // ✅ 복귀중 여부 전달
+            putExtra("from_timeout", fromTimeout) // ✅ 메인에서 '복귀중입니다' 표시 트리거
         }
         startActivity(intent)
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)

@@ -43,10 +43,9 @@ class GuidanceWaitingActivity : AppCompatActivity() {
     private var currentVerticalOffset = 0.0
     private var targetVerticalOffset = 0.0
 
-    private val inactivityHandler = Handler(Looper.getMainLooper())
-    private val inactivityRunnable = Runnable {
-        navigateToComplete()
-    }
+    private var isCompleted = false   // 중복 전환 방지
+    private var webSocketClient: RobotStatusWebSocketClient? = null
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,7 +70,6 @@ class GuidanceWaitingActivity : AppCompatActivity() {
 
         // 🔙 뒤로가기 버튼 동작
         backButton.setOnClickListener {
-            cancelInactivityTimer()
             applyAlphaEffect(backButton)
             backButton.postDelayed({
                 sendRobotStopStatus()
@@ -136,7 +134,6 @@ class GuidanceWaitingActivity : AppCompatActivity() {
     // ✅ 터치 시 정지 명령 전송 후 확인 화면으로 이동
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         if (event?.action == MotionEvent.ACTION_DOWN) {
-            cancelInactivityTimer()
             sendRobotStopStatus()
 
             // 디버깅 로그 추가
@@ -157,7 +154,6 @@ class GuidanceWaitingActivity : AppCompatActivity() {
 
 
     private fun navigateToConfirm() {
-        cancelInactivityTimer()
         val selectedText = intent.getStringExtra("selected_text")
         val intent = Intent(this, GuidanceConfirmActivity::class.java)
 
@@ -175,7 +171,6 @@ class GuidanceWaitingActivity : AppCompatActivity() {
     }
 
     private fun navigateToComplete() {
-        cancelInactivityTimer()
         val selectedText = intent.getStringExtra("selected_text")
         val isFromCheckin = intent.getBooleanExtra("isFromCheckin", false)
         val patientId = intent.getStringExtra("patient_id")  // null 가능성 고려
@@ -191,13 +186,27 @@ class GuidanceWaitingActivity : AppCompatActivity() {
     }
 
 
-    private fun startInactivityTimer() {
-        inactivityHandler.postDelayed(inactivityRunnable, 5000)
+    private fun startWebSocket() {
+        webSocketClient = RobotStatusWebSocketClient(
+            url = "ws://192.168.0.10:3000/?client_type=gui",
+            targetRobotId = "3"
+        ) { status ->
+            Log.d("WS", "📩 상태 수신: $status")
+            if (status == "navigating_complete" && !isCompleted) {
+                runOnUiThread {
+                    isCompleted = true
+                    navigateToComplete()
+                }
+            }
+        }
+        webSocketClient?.connect()
     }
 
-    private fun cancelInactivityTimer() {
-        inactivityHandler.removeCallbacks(inactivityRunnable)
+    private fun stopWebSocket() {
+        webSocketClient?.disconnect()
+        webSocketClient = null
     }
+
 
     override fun onResume() {
         super.onResume()
@@ -205,12 +214,19 @@ class GuidanceWaitingActivity : AppCompatActivity() {
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
                     View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
                     View.SYSTEM_UI_FLAG_FULLSCREEN
-        startInactivityTimer()
+
+        isCompleted = false
+        startWebSocket()
     }
 
     override fun onPause() {
         super.onPause()
-        cancelInactivityTimer()
+        stopWebSocket()
+    }
+
+    override fun onDestroy() {
+        stopWebSocket()
+        super.onDestroy()
     }
 
     // ✅ 로봇 정지 상태 전송 (IF-08)
@@ -240,5 +256,6 @@ class GuidanceWaitingActivity : AppCompatActivity() {
                 Log.e("RobotStatus", "❌ 네트워크 오류로 정지 명령 실패", e)
             }
         }
+
     }
 }
