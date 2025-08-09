@@ -6,11 +6,36 @@ from collections import deque
 import threading
 import queue
 import time
+import gc
+import os
 
+from shared_models import get_shared_seg_model, SEG_MODEL_LOCK
 
-# GPU 사용 가능 여부 확인
+# 캐시 비우기 옵션
+CLEAR_CACHE_AFTER_INFERENCE = os.environ.get("CLEAR_CACHE_AFTER_INFERENCE", "0").lower() == "1"
+
+def free_cuda_cache():
+    if torch.cuda.is_available():
+        try:
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+            gc.collect()
+        except Exception:
+            pass
+
+# GPU 사용 가능 여부 확인 및 메모리 제한 설정
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
+
+# GPU 메모리 제한 설정 (PersonTracker용 40%)
+if torch.cuda.is_available():
+    try:
+        total_memory = torch.cuda.get_device_properties(0).total_memory
+        person_tracker_memory = int(total_memory * 0.4)
+        torch.cuda.set_per_process_memory_fraction(0.4, 0)  # 40% 제한
+        print(f"🎮 PersonTracker GPU 메모리 제한: {person_tracker_memory / 1024**3:.1f}GB")
+    except Exception as e:
+        print(f"⚠️ GPU 메모리 제한 설정 실패: {e}")
 
 
 def estimate_distance(bbox_height, ref_height=300, ref_distance=1.0):
@@ -56,8 +81,9 @@ def estimate_distance_advanced(mask, ref_height=300, ref_distance=1.0):
 
 class PersonTracker:
     def __init__(self):
-        # YOLO 모델 초기화
-        self.model = YOLO('./deeplearning/yolov8s-seg.pt')
+        # YOLO 모델 초기화 → 공유 모델 사용
+        self.model = get_shared_seg_model()
+        self.model_lock = SEG_MODEL_LOCK
         
         # 사람 재식별 데이터
         self.people_data = {}
@@ -68,10 +94,10 @@ class PersonTracker:
         self.frame_skip_counter = 0
         
         # 매칭 관련 설정 (베이지색/검정색 구분 강화)
-        self.match_threshold = 0.65  # 0.55 → 0.65로 증가 (더 엄격한 매칭)
-        self.reentry_threshold = 0.60  # 0.50 → 0.60로 증가
-        self.min_detection_confidence = 0.6
-        self.min_person_area = 5000
+        self.match_threshold = 0.60  # 0.65 → 0.60로 완화
+        self.reentry_threshold = 0.55  # 0.60 → 0.55로 완화
+        self.min_detection_confidence = 0.45  # 0.6 → 0.45로 완화
+        self.min_person_area = 3000  # 5000 → 3000으로 완화
         self.max_frames_without_seen = 300
         
         # 히스토그램 기억 설정 (더 많은 히스토그램 저장)
@@ -86,11 +112,37 @@ class PersonTracker:
         # 결과 저장
         self.latest_detections = []
         
+        # 메모리 관리
+        self.last_memory_cleanup = time.time()
+        self.memory_cleanup_interval = 30.0  # 10 → 30초로 늘림 (정리 빈도 감소)
+        
         # 워커 스레드 자동 시작
         self.worker_thread = threading.Thread(target=self.tracking_worker)
         self.worker_thread.start()
         
         print("✅ Person Tracker 초기화 완료")
+    
+    def cleanup_gpu_memory(self):
+        """GPU 메모리 정리"""
+        if torch.cuda.is_available():
+            try:
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                gc.collect()
+                
+                # 메모리 상태 출력 (디버깅용)
+                if hasattr(self, '_cleanup_count'):
+                    self._cleanup_count += 1
+                else:
+                    self._cleanup_count = 0
+                
+                # 5번마다 한 번만 로그 출력 (빈도 감소)
+                if self._cleanup_count % 5 == 0:
+                    allocated = torch.cuda.memory_allocated() / 1024**2
+                    reserved = torch.cuda.memory_reserved() / 1024**2
+                    print(f"🧹 PersonTracker GPU 메모리 정리: {allocated:.1f}MB 할당, {reserved:.1f}MB 예약")
+            except Exception as e:
+                print(f"GPU 메모리 정리 중 오류: {e}")
     
     def tracking_worker(self):
         """사람 추적 워커"""
@@ -98,12 +150,22 @@ class PersonTracker:
             try:
                 frame_data = self.frame_queue.get(timeout=1.0)
                 if frame_data is None:
-                    break
+                    continue
                 
                 frame, frame_id, elapsed_time = frame_data
                 
-                # YOLO 감지
-                results = self.model(frame, verbose=False)
+                # 주기적 메모리 정리
+                current_time = time.time()
+                if current_time - self.last_memory_cleanup > self.memory_cleanup_interval:
+                    self.cleanup_gpu_memory()
+                    self.last_memory_cleanup = current_time
+                
+                # YOLO 감지 (공유 모델 락으로 직렬화)
+                with self.model_lock:
+                    infer_device = 0 if torch.cuda.is_available() else 'cpu'
+                    results = self.model(frame, imgsz=640, device=infer_device, verbose=False)
+                if CLEAR_CACHE_AFTER_INFERENCE:
+                    free_cuda_cache()
                 
                 current_detections = []
                 current_detection_ids = set()  # 현재 프레임에서 감지된 ID들
@@ -152,7 +214,7 @@ class PersonTracker:
                                         person_id = best_match_id
                                         
                                         # 매칭 디버깅 (30프레임마다)
-                                        if frame_id % 30 == 0:
+                                        if frame_id % 180 == 0:  # 30 → 180으로 늘림
                                             print(f"🔄 기존 사람 매칭: {person_id} (점수: {best_score:.3f})")
                                             print(f"   - 히스토그램 점수: {metrics.get('hist_score', 0):.3f}")
                                             print(f"   - 매칭 임계값: {self.match_threshold}")
@@ -167,7 +229,7 @@ class PersonTracker:
                                         }
                                         
                                         # 매칭 실패 디버깅 (30프레임마다)
-                                        if frame_id % 30 == 0:
+                                        if frame_id % 180 == 0:  # 30 → 180으로 늘림
                                             if best_match_id is not None:
                                                 print(f"❌ 매칭 실패: {best_match_id} (점수: {best_score:.3f} < 임계값: {self.match_threshold})")
                                                 print(f"   - 히스토그램 점수: {metrics.get('hist_score', 0):.3f}")
@@ -224,8 +286,8 @@ class PersonTracker:
             except queue.Empty:
                 continue
             except Exception as e:
-                print(f"❌ Person Tracker 워커 오류: {e}")
-                break
+                print(f"PersonTracker 워커 오류: {e}")
+                continue
     
     def get_latest_detections(self):
         """최신 감지 결과 반환"""

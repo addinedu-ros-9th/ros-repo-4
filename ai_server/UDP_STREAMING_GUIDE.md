@@ -67,7 +67,8 @@ udp_sender_->setMaxPacketSize(50000);
 ls /dev/video*
 
 # 권한 설정
-sudo chmod 666 /dev/video0
+sudo chmod 666 /dev/video2
+sudo chmod 666 /dev/video4
 ```
 
 ### 2. UDP 포트가 사용 중인 경우

@@ -5,8 +5,7 @@
 #include <sensor_msgs/msg/image.hpp>
 #include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
-#include <robot_interfaces/msg/robot_status.hpp>
-#include <robot_interfaces/srv/change_robot_status.hpp>
+#include <control_interfaces/msg/detected_obstacle.hpp>
 #include <opencv2/opencv.hpp>
 #include <thread>
 #include <atomic>
@@ -20,6 +19,7 @@
 
 #include "ai_server/webcam_streamer.h"
 #include "ai_server/udp_image_sender.h"
+#include "ai_server/frame_shared_memory.h"
 
 class AIServer : public rclcpp::Node
 {
@@ -47,15 +47,33 @@ private:
     // UDP 이미지 전송기
     std::unique_ptr<UdpImageSender> udp_sender_;
     
+    // 프레임 공유 메모리 (딥러닝 시스템과 공유)
+    std::unique_ptr<FrameSharedMemory> front_frame_shm_;
+    std::unique_ptr<FrameSharedMemory> back_frame_shm_;
+    
     // HTTP 서버 관련
     int http_server_fd_;
     int http_port_;
     std::thread http_server_thread_;
     
     // ROS2 퍼블리셔/서브스크라이버
+    std::shared_ptr<image_transport::ImageTransport> image_transport_;
     image_transport::Publisher image_publisher_;
-    rclcpp::Publisher<robot_interfaces::msg::RobotStatus>::SharedPtr status_publisher_;
-    rclcpp::Client<robot_interfaces::srv::ChangeRobotStatus>::SharedPtr status_client_;
+    rclcpp::Publisher<control_interfaces::msg::DetectedObstacle>::SharedPtr obstacle_publisher_;
+    
+    // 딥러닝 처리 관련
+    bool enable_deeplearning_;
+    std::thread deeplearning_thread_;
+    std::atomic<bool> deeplearning_running_;
+    
+    // 딥러닝 결과 저장
+    struct DeepLearningResult {
+        std::vector<std::map<std::string, cv::Rect>> person_detections;  // front, back
+        std::vector<std::string> gestures;  // front, back
+        std::vector<float> confidences;     // front, back
+        std::mutex result_mutex;
+    };
+    std::unique_ptr<DeepLearningResult> dl_result_;
     
     // 스레드들
     std::thread webcam_thread_;
@@ -66,26 +84,28 @@ private:
     // 콜백 함수들
     void publishWebcamFrame(const cv::Mat& frame);
     void processFrame(const cv::Mat& frame);
-    void sendStatusToCentralServer(const std::string& status_msg);
     void sendImageViaUDP(const cv::Mat& frame);
+    void sendStatusToCentralServer(const std::string& status_msg);
     
-    // 스레드 실행 함수들
-    void runWebcamThread();
-    void runProcessingThread();
+    // HTTP 서버 관련 함수들
     void runHttpServerThread();
-    
-    // HTTP 서버 함수들
     bool initializeHttpServer();
     void handleHttpRequest(int client_fd);
     void handleCameraChangeRequest(int client_fd, const std::string& request);
     std::string createHttpResponse(const cv::Mat& image);
     cv::Mat getCurrentCameraFrame();
-    
-    // 카메라 전환 함수
     void switchCamera(int camera_id);
     
-    // Image Transport
-    std::shared_ptr<image_transport::ImageTransport> image_transport_;
+    // 웹캠 스레드 함수
+    void runWebcamThread();
+    void runProcessingThread();
+    
+    // 딥러닝 처리 함수들
+    void runDeepLearningThread();
+    void startDeepLearning();
+    void stopDeepLearning();
+    void processDeepLearning();
+    std::string executePythonScript(const std::string& script_path, const std::string& input_data);
 };
 
 #endif // AI_SERVER_H

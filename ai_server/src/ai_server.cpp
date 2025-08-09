@@ -9,18 +9,30 @@ AIServer::AIServer()
       gui_client_ip_("127.0.0.1"),   
       gui_client_port_(8888),        
       max_packet_size_(60000),
-      http_port_(5005)  // 기본 HTTP 포트 설정
-      // webcam_streamer_ 제거됨
+      http_port_(5005),  // 기본 HTTP 포트 설정
+      current_camera_(0),  // 기본값: 전면 카메라
+      enable_deeplearning_(true),  // 딥러닝 활성화
+      deeplearning_running_(false)
 {
     RCLCPP_INFO(this->get_logger(), "AI Server 노드 생성중...");
 
     loadConfig();
+    
+    // 딥러닝 결과 초기화
+    dl_result_ = std::make_unique<DeepLearningResult>();
+    dl_result_->person_detections.resize(2);  // front, back
+    dl_result_->gestures.resize(2);
+    dl_result_->confidences.resize(2);
     
     // 전면/후면 카메라 초기화
     front_camera_ = std::make_unique<WebcamStreamer>(0);  // /dev/video0
     back_camera_ = std::make_unique<WebcamStreamer>(2);   // /dev/video2
     
     udp_sender_ = std::make_unique<UdpImageSender>(gui_client_ip_, gui_client_port_);
+    
+    // 프레임 공유 메모리 초기화 (딥러닝 시스템과 공유)
+    front_frame_shm_ = std::make_unique<FrameSharedMemory>("/front_camera_frame", 640, 480);
+    back_frame_shm_ = std::make_unique<FrameSharedMemory>("/back_camera_frame", 640, 480);
 }
 
 void AIServer::loadConfig()
@@ -71,12 +83,8 @@ void AIServer::initialize()
     
     // 퍼블리셔 생성
     image_publisher_ = image_transport_->advertise("webcam/image_raw", 1);
-    status_publisher_ = this->create_publisher<robot_interfaces::msg::RobotStatus>(
-        "robot_status", 10);
-    
-    // 서비스 클라이언트 생성 (central_server와 통신용)
-    status_client_ = this->create_client<robot_interfaces::srv::ChangeRobotStatus>(
-        "change_robot_status");
+    obstacle_publisher_ = this->create_publisher<control_interfaces::msg::DetectedObstacle>(
+        "detected_obstacles", 10);
     
     RCLCPP_INFO(this->get_logger(), "AI Server 초기화 완료");
 }
@@ -130,6 +138,11 @@ void AIServer::start()
     processing_thread_ = std::thread(&AIServer::runProcessingThread, this);
     http_server_thread_ = std::thread(&AIServer::runHttpServerThread, this);
     
+    // 딥러닝 처리 시작
+    if (enable_deeplearning_) {
+        startDeepLearning();
+    }
+    
     RCLCPP_INFO(this->get_logger(), "AI Server 시작 완료!");
     RCLCPP_INFO(this->get_logger(), "HTTP 서버: http://localhost:%d", http_port_);
     RCLCPP_INFO(this->get_logger(), "카메라 전환: GET /front 또는 GET /back");
@@ -148,6 +161,11 @@ void AIServer::stop()
     back_camera_->stop();
     udp_sender_->stop();
     
+    // 딥러닝 처리 종료
+    if (enable_deeplearning_) {
+        stopDeepLearning();
+    }
+    
     // HTTP 서버 소켓 닫기
     if (http_server_fd_ >= 0) {
         close(http_server_fd_);
@@ -164,6 +182,9 @@ void AIServer::stop()
     if (http_server_thread_.joinable()) {
         http_server_thread_.join();
     }
+    if (deeplearning_thread_.joinable()) {
+        deeplearning_thread_.join();
+    }
     
     RCLCPP_INFO(this->get_logger(), "AI Server 종료됨");
 }
@@ -174,6 +195,19 @@ void AIServer::runWebcamThread()
     
     // 현재 선택된 카메라에 따라 콜백 설정
     auto front_callback = [this](const cv::Mat& frame) {
+        // 전면 카메라는 항상 공유 메모리에 저장 (딥러닝 시스템용)
+        if (front_frame_shm_ && front_frame_shm_->isAvailable()) {
+            cv::Mat resized_frame;
+            cv::resize(frame, resized_frame, cv::Size(640, 480));
+            if (front_frame_shm_->writeFrame(resized_frame)) {
+                static int frame_count = 0;
+                frame_count++;
+                if (frame_count % 30 == 0) { // 30프레임마다 로그
+                    RCLCPP_INFO(this->get_logger(), "전면 카메라 프레임 공유 메모리 저장 성공");
+                }
+            }
+        }
+        
         if (current_camera_ == 0) {  // 전면 카메라가 선택된 경우만 처리
             this->publishWebcamFrame(frame);
             this->processFrame(frame);
@@ -182,6 +216,19 @@ void AIServer::runWebcamThread()
     };
     
     auto back_callback = [this](const cv::Mat& frame) {
+        // 후면 카메라는 항상 공유 메모리에 저장 (딥러닝 시스템용)
+        if (back_frame_shm_ && back_frame_shm_->isAvailable()) {
+            cv::Mat resized_frame;
+            cv::resize(frame, resized_frame, cv::Size(640, 480));
+            if (back_frame_shm_->writeFrame(resized_frame)) {
+                static int frame_count = 0;
+                frame_count++;
+                if (frame_count % 30 == 0) { // 30프레임마다 로그
+                    RCLCPP_INFO(this->get_logger(), "후면 카메라 프레임 공유 메모리 저장 성공");
+                }
+            }
+        }
+        
         if (current_camera_ == 1) {  // 후면 카메라가 선택된 경우만 처리
             this->publishWebcamFrame(frame);
             this->processFrame(frame);
@@ -250,24 +297,15 @@ void AIServer::processFrame(const cv::Mat& frame)
 
 void AIServer::sendStatusToCentralServer(const std::string& status_msg)
 {
-    // RobotStatus 메시지 생성 및 퍼블리시
-    auto status_message = robot_interfaces::msg::RobotStatus();
-    status_message.robot_id = 999; // AI Server ID (숫자)
-    status_message.status = status_msg;
-    // timestamp 필드가 없으므로 제거
+    // 간단한 로그 출력으로 대체 (서비스 호출 제거)
+    RCLCPP_INFO(this->get_logger(), "AI Server 상태: %s", status_msg.c_str());
     
-    status_publisher_->publish(status_message);
-    
-    // 서비스 요청 (선택적)
-    if (status_client_->wait_for_service(std::chrono::milliseconds(100))) {
-        auto request = std::make_shared<robot_interfaces::srv::ChangeRobotStatus::Request>();
-        request->robot_id = 999; // AI Server ID (숫자)
-        request->new_status = status_msg;
-        
-        auto future = status_client_->async_send_request(request);
-        // 비동기로 처리하므로 결과를 기다리지 않음
-    }
-    RCLCPP_INFO(this->get_logger(), "상태 변경 서비스 응답 완료");
+    // 필요시 장애물 감지 정보를 퍼블리시할 수 있음
+    // auto obstacle_msg = control_interfaces::msg::DetectedObstacle();
+    // obstacle_msg.x = 0.0;
+    // obstacle_msg.y = 0.0;
+    // obstacle_msg.yaw = 0.0;
+    // obstacle_publisher_->publish(obstacle_msg);
 }
 
 void AIServer::sendImageViaUDP(const cv::Mat& frame)
@@ -501,4 +539,92 @@ void AIServer::switchCamera(int camera_id)
         current_camera_ = 1;
         RCLCPP_INFO(this->get_logger(), "후면 카메라로 전환");
     }
+}
+
+// 딥러닝 처리 함수들
+void AIServer::startDeepLearning()
+{
+    if (deeplearning_running_) {
+        RCLCPP_WARN(this->get_logger(), "딥러닝 처리가 이미 실행중입니다.");
+        return;
+    }
+    
+    RCLCPP_INFO(this->get_logger(), "딥러닝 처리 시작...");
+    deeplearning_running_ = true;
+    deeplearning_thread_ = std::thread(&AIServer::runDeepLearningThread, this);
+}
+
+void AIServer::stopDeepLearning()
+{
+    if (!deeplearning_running_) {
+        return;
+    }
+    
+    RCLCPP_INFO(this->get_logger(), "딥러닝 처리 종료중...");
+    deeplearning_running_ = false;
+    
+    if (deeplearning_thread_.joinable()) {
+        deeplearning_thread_.join();
+    }
+    
+    RCLCPP_INFO(this->get_logger(), "딥러닝 처리 종료됨");
+}
+
+void AIServer::runDeepLearningThread()
+{
+    RCLCPP_INFO(this->get_logger(), "딥러닝 처리 스레드 시작");
+    
+    while (deeplearning_running_) {
+        // 주기적으로 딥러닝 처리 실행
+        processDeepLearning();
+        
+        // 1초마다 실행 (실시간 처리 대신 주기적 처리)
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+    
+    RCLCPP_INFO(this->get_logger(), "딥러닝 처리 스레드 종료");
+}
+
+void AIServer::processDeepLearning()
+{
+    // 현재 카메라 프레임 가져오기
+    cv::Mat front_frame, back_frame;
+    
+    // 전면 카메라 프레임 (임시로 더미 데이터 사용)
+    front_frame = cv::Mat::zeros(480, 640, CV_8UC3);
+    
+    // 후면 카메라 프레임 (임시로 더미 데이터 사용)
+    back_frame = cv::Mat::zeros(480, 640, CV_8UC3);
+    
+    // Python 스크립트 실행을 위한 데이터 준비
+    // 실제로는 카메라에서 읽은 프레임을 사용해야 함
+    std::string input_data = "front_frame_data";  // 실제로는 이미지 데이터
+    
+    // 딥러닝 Python 스크립트 실행
+    std::string script_path = "/home/ckim/ros-repo-4/deeplearning/src/dual_camera_system.py";
+    std::string result = executePythonScript(script_path, input_data);
+    
+    // 결과 파싱 및 저장 (실제 구현 필요)
+    {
+        std::lock_guard<std::mutex> lock(dl_result_->result_mutex);
+        // 결과를 dl_result_에 저장
+        dl_result_->gestures[0] = "NORMAL";  // 전면 카메라
+        dl_result_->gestures[1] = "NORMAL";  // 후면 카메라
+        dl_result_->confidences[0] = 0.5;
+        dl_result_->confidences[1] = 0.5;
+    }
+    
+    RCLCPP_DEBUG(this->get_logger(), "딥러닝 처리 완료");
+}
+
+std::string AIServer::executePythonScript(const std::string& script_path, const std::string& input_data)
+{
+    // Python 스크립트 실행을 위한 명령어 구성
+    std::string command = "python3 " + script_path + " --input " + input_data;
+    
+    // 실제로는 popen을 사용하여 Python 스크립트 실행
+    // 여기서는 간단한 예시만 제공
+    RCLCPP_DEBUG(this->get_logger(), "Python 스크립트 실행: %s", command.c_str());
+    
+    return "dummy_result";  // 실제로는 Python 스크립트의 출력을 반환
 }
