@@ -32,8 +32,16 @@ object NetworkConfig {
     // 비인증 후 복귀 요청 URL (IF-07)
     fun getRobotReturnWithoutAuthUrl(): String = "${getCentralServerUrl()}/without_auth/robot_return"
 
-    // 로봇 상태 변경 (IF-08)
-    fun getChangeRobotStatusUrl(): String = "${getCentralServerUrl()}/change/robot_status"
+    // 로봇 일시정지 (IF-08)
+    fun getPauseRobotUrl(): String = "${getCentralServerUrl()}/pause_request"
+    // 로봇 일시정지 중 종료 요청
+    fun getStopNavigatingUrl(): String = "${getCentralServerUrl()}/stop_navigating"
+    // 로봇 일시정지 중 안내 재개 요청
+    fun getRestartNavigationUrl(): String = "${getCentralServerUrl()}/restart_navigation"
+
+    // 30초 타임아웃 알림 (IF-09)
+    fun getTimeoutAlertUrl(): String = "${getCentralServerUrl()}/alert_timeout"
+
 
     // 서버 IP들만 반환 (network_security_config.xml용)
     fun getCentralServerIp(): String = CENTRAL_SERVER_IP

@@ -53,6 +53,8 @@
 
         <activity android:name=".TestRobotSystemActivity" />
 
+        <activity android:name=".GuidanceResumeActivity" />
+
         <activity
             android:name="com.example.youngwoong.MainActivity"
             android:exported="true"

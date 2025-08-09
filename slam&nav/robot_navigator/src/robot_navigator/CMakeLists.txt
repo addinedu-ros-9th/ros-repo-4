@@ -50,6 +50,7 @@ ament_target_dependencies(
   "nav2_msgs"
   "tf2"
   "tf2_geometry_msgs"
+  "control_interfaces"  
 )
 
 ament_target_dependencies(

@@ -37,6 +37,10 @@ private:
     std::string createErrorResponse(const std::string& message);
     std::string createSuccessResponse(const Json::Value& data);
     std::string createStatusResponse(int status_code);
+    
+    // 공통 로직 함수들
+    std::string sendControlCommand(int robot_id, int* patient_id, const std::string& log_type, 
+                                  const std::string& command_name, const std::string& admin_id);
 };
 
 #endif // ADMIN_REQUEST_HANDLER_H 

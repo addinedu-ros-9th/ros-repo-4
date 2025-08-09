@@ -31,6 +31,7 @@ public:
         std::string client_id;
         std::string client_type;  // "gui", "admin", "unknown"
         
+        ClientInfo() : socket_fd(-1), ip_address(""), client_id(""), client_type("unknown") {}
         ClientInfo(int fd, const std::string& ip) 
             : socket_fd(fd), ip_address(ip), client_id(""), client_type("unknown") {}
     };
@@ -56,7 +57,7 @@ public:
     bool setClientType(const std::string& ip_address, const std::string& client_type);
     
     // 로봇 알림 메시지 전송 함수들
-    void sendAlertOccupied(int robot_id);                    // 모든 클라이언트에게
+    void sendAlertOccupied(int robot_id, std::string type);  // 지정된 타입의 클라이언트에게
     void sendAlertIdle(int robot_id);                        // 모든 클라이언트에게
     void sendNavigatingComplete(int robot_id);               // GUI 클라이언트에게만
     
@@ -74,7 +75,7 @@ private:
     // 클라이언트 관리 (IP 주소 기반)
     std::map<std::string, ClientInfo> clients_by_ip_;
     std::map<int, std::string> clients_by_socket_;
-    mutable std::mutex clients_mutex_;
+
     
     // 서버 메인 루프
     void serverLoop();
@@ -89,6 +90,7 @@ private:
     bool sendWebSocketFrame(int client_socket, const std::string& message);
     void removeClient(int client_socket);
     std::string extractWebSocketKey(const std::string& request);
+    std::string extractClientTypeFromRequest(const std::string& request);
 };
 
 #endif // WEBSOCKET_SERVER_H 

@@ -6,6 +6,11 @@
 #include "udp_image_receiver.h" 
 #include <rclcpp/rclcpp.hpp>
 
+#include <QtWebSockets/QWebSocket>
+#include <QtWebSockets/QWebSocketServer>
+#include <QJsonDocument>
+#include <QJsonObject>
+
 class Ui_DashboardWidget;  // UI 클래스 전방 선언
 class StatusWidget;
 class Status2Widget;
@@ -37,6 +42,12 @@ private slots:
     void onDestinationButtonClicked();
     void setControlStatusToAssigned();
     void setControlStatus(const QString& newStatus);
+
+    void onWebSocketConnected();
+    void onWebSocketDisconnected();
+    void onWebSocketMessageReceived(const QString& message);
+    void onWebSocketError(QAbstractSocket::SocketError error);
+
 private:
     Ui_DashboardWidget *ui;
     StatusWidget *status_widget;
@@ -77,6 +88,12 @@ private:
     void get_robot_location();
     // void amcl_pose_callback();
     void setPose(double x, double y, double yaw);
+
+    QWebSocket* websocket_;
+    void setupWebSocket();
+    void handleAlertOccupied(const QJsonObject& data);
+    void handleAlertIdle(const QJsonObject& data);
+    void handleNavigatingComplete(const QJsonObject& data);
 };
 
 #endif // DASHBOARDWIDGET_H

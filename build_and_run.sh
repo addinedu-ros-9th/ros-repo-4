@@ -17,12 +17,12 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo "2. AI Server 빌드중..."
-colcon build --packages-select ai_server
-if [ $? -ne 0 ]; then
-    echo "❌ AI Server 빌드 실패!"
-    exit 1
-fi
+# echo "2. AI Server 빌드중..."
+# colcon build --packages-select ai_server
+# if [ $? -ne 0 ]; then
+#     echo "❌ AI Server 빌드 실패!"
+#     exit 1
+# fi
 
 echo "3. Central Server 빌드중..."
 colcon build --packages-select central_server  

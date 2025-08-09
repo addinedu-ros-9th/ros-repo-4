@@ -19,10 +19,10 @@
         android:layout_height="425dp"
         android:layout_gravity="top"
         android:layout_marginStart="60dp"
-        android:layout_marginTop="140dp"
+        android:layout_marginTop="180dp"
         android:layout_marginEnd="60dp"
-        android:src="@drawable/check_in"
-        android:contentDescription="접수 버튼" />
+        android:contentDescription="접수 버튼"
+        android:src="@drawable/check_in" />
 
     <!-- 음성안내 & 길안내 버튼 그룹 -->
     <LinearLayout
@@ -30,11 +30,11 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="top"
-        android:layout_marginTop="580dp"
         android:layout_marginStart="80dp"
+        android:layout_marginTop="620dp"
         android:layout_marginEnd="80dp"
-        android:orientation="horizontal"
-        android:gravity="center">
+        android:gravity="center"
+        android:orientation="horizontal">
 
         <!-- 음성안내 버튼 -->
         <ImageView
@@ -42,8 +42,8 @@
             android:layout_width="0dp"
             android:layout_height="135dp"
             android:layout_weight="1"
-            android:src="@drawable/btn_voice_guide"
-            android:contentDescription="음성안내 버튼" />
+            android:contentDescription="음성안내 버튼"
+            android:src="@drawable/btn_voice_guide" />
 
         <!-- 길안내 버튼 -->
         <ImageView
@@ -51,8 +51,8 @@
             android:layout_width="0dp"
             android:layout_height="135dp"
             android:layout_weight="1"
-            android:src="@drawable/guidance"
-            android:contentDescription="길안내 버튼" />
+            android:contentDescription="길안내 버튼"
+            android:src="@drawable/guidance" />
     </LinearLayout>
 
 </FrameLayout>

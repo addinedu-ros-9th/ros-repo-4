@@ -89,6 +89,7 @@ public:
     bool getPatientBySSN(const std::string& ssn, PatientInfo& patient);
     bool getPatientById(int patient_id, PatientInfo& patient);
     bool getPatientByRFID(const std::string& rfid, PatientInfo& patient);
+    bool getPatientByRobotId(int robot_id, PatientInfo& patient);
     
     // 관리자 인증
     bool authenticateAdmin(const std::string& admin_id, const std::string& password, AdminInfo& admin);
@@ -99,36 +100,22 @@ public:
     bool getDepartmentById(int department_id, DepartmentInfo& department);
     std::vector<DepartmentInfo> getAllDepartments();
     
-    // 예약 정보 조회
-    bool getReservationByPatientId(int patient_id, ReservationInfo& reservation);
-    bool insertRobotLog(int robot_id, int patient_id, const std::string& datetime, float orig, float dest);
-    
     // 로봇 로그 관련 메서드들
     bool insertRobotLogWithType(int robot_id, int* patient_id, const std::string& datetime, 
                                int orig_department_id, int dest_department_id, const std::string& type, 
                                const std::string& admin_id = "");
+    bool insertNavigatingLog(int robot_id, const std::string& datetime, int orig_department_id, int dest_department_id);
     int findNearestDepartment(float x, float y);
+    
+    // Series 테이블 관련 메서드들
+    bool getTodayReservationWithDepartmentName(int patient_id, SeriesInfo& series, std::string& department_name);
+    bool updateSeriesStatus(int patient_id, const std::string& reservation_date, const std::string& new_status);
+    std::string getCurrentDateTime();
     
     // 로그 데이터 조회
     std::vector<std::map<std::string, std::string>> getRobotLogData(const std::string& period, 
                                                                     const std::string& start_date, 
                                                                     const std::string& end_date);
-    
-    // Navigating Log 관련 메서드들 (새로운 테이블)
-    std::vector<std::map<std::string, std::string>> getNavigatingLogData(const std::string& period,
-                                                                         const std::string& start_date,
-                                                                         const std::string& end_date);
-    bool insertNavigatingLog(int robot_id, const std::string& dttm, int orig, int dest);
-    
-    // Hospital 관련 메서드들 (새로운 테이블)
-    bool getHospitalById(int hospital_id, std::string& hospital_name);
-    std::vector<std::pair<int, std::string>> getAllHospitals();
-    
-    // Series 테이블 관련 메서드들
-    bool getSeriesByPatientAndDate(int patient_id, const std::string& reservation_date, SeriesInfo& series);
-    bool getTodayReservationWithDepartmentName(int patient_id, SeriesInfo& series, std::string& department_name);
-    bool updateSeriesStatus(int patient_id, const std::string& reservation_date, const std::string& new_status);
-    std::string getCurrentDateTime();
     
     // Connection Pool 관리 함수들
     bool initializeConnectionPool();
@@ -148,7 +135,7 @@ private:
     sql::mysql::MySQL_Driver* driver_;
     std::vector<std::unique_ptr<sql::Connection>> connection_pool_;
     std::queue<sql::Connection*> available_connections_;
-    std::mutex pool_mutex_;
+
     size_t pool_size_;
     
     // 내부 유틸리티 함수들

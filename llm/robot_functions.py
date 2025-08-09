@@ -322,9 +322,9 @@ class RobotFunctions:
                     closest_facility = facility_name
             
             if closest_facility:
-                result = f"현재 위치: {closest_facility} 근처"
+                result = f"{closest_facility} 근처"
             else:
-                result = "현재 위치: 알 수 없는 위치"
+                result = "알 수 없는 위치"
             
             return {
                 "function": "get_position",

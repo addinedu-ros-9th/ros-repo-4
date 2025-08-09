@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Qt 찾기
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network WebSockets)
 
 # OpenCV 찾기
 find_package(OpenCV REQUIRED)
@@ -75,6 +75,7 @@ target_link_libraries(BasicQtApp
     Qt6::Core
     Qt6::Widgets
     Qt6::Network Qt6::Widgets
+    Qt6::WebSockets
     ${OpenCV_LIBS}
     rclcpp::rclcpp
     ${geometry_msgs_TARGETS}

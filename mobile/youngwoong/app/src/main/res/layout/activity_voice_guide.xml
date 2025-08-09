@@ -34,12 +34,18 @@
         app:layout_constraintTop_toTopOf="parent" />
 
     <!-- 로봇 응답 텍스트 박스 -->
+
+
+    <!-- 녹음 버튼 -->
+
+    <!-- 뒤로가기 버튼 -->
+
     <TextView
         android:id="@+id/text_bot_message"
         android:layout_width="588dp"
         android:layout_height="234dp"
         android:layout_marginStart="664dp"
-        android:layout_marginTop="376dp"
+        android:layout_marginTop="392dp"
         android:fontFamily="@font/noto_sans_kr_bold"
         android:gravity="center_vertical|start"
         android:padding="16dp"
@@ -49,20 +55,32 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-
-    <!-- 녹음 버튼 -->
-
-    <!-- 뒤로가기 버튼 -->
-
     <ImageView
         android:id="@+id/btn_voice"
         android:layout_width="200dp"
         android:layout_height="200dp"
-        android:layout_marginStart="168dp"
+        android:layout_marginStart="184dp"
         android:layout_marginTop="300dp"
         android:src="@drawable/btn_voice_start"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/text_prompt"
+        android:layout_width="438dp"
+        android:layout_height="94dp"
+        android:layout_marginBottom="220dp"
+        android:fontFamily="@font/noto_sans_kr_bold"
+        android:gravity="center"
+        android:padding="16dp"
+        android:text="터치로 대화를 시작합니다"
+        android:textColor="#000000"
+        android:textSize="26sp"
+        android:visibility="visible"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.08"
+        app:layout_constraintStart_toStartOf="parent" />
 
     <ImageView
         android:id="@+id/btn_back"
@@ -90,23 +108,6 @@
 
     <!-- Lottie 애니메이션 -->
 
-
-    <TextView
-        android:id="@+id/text_prompt"
-        android:layout_width="438dp"
-        android:layout_height="94dp"
-        android:layout_marginBottom="228dp"
-        android:fontFamily="@font/noto_sans_kr_bold"
-        android:gravity="center"
-        android:padding="16dp"
-        android:text="터치로 대화를 시작합니다"
-        android:textColor="#000000"
-        android:textSize="26sp"
-        android:visibility="visible"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.046"
-        app:layout_constraintStart_toStartOf="parent" />
 
     <com.airbnb.lottie.LottieAnimationView
         android:id="@+id/voice_animation"

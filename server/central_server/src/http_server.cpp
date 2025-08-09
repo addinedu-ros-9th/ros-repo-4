@@ -23,7 +23,8 @@ HttpServer::HttpServer(std::shared_ptr<DatabaseManager> db_manager, int port)
     
     // 요청 핸들러들 초기화 (nav_manager_는 나중에 setRobotNavigationManager에서 설정)
     admin_handler_ = std::make_unique<AdminRequestHandler>(db_manager_, nullptr);
-    user_handler_ = std::make_unique<UserRequestHandler>(db_manager_, nullptr);
+    user_handler_ = std::make_unique<UserRequestHandler>(db_manager_, nullptr, nullptr);
+    ai_handler_ = std::make_unique<AiRequestHandler>(db_manager_, nullptr);
 }
 
 HttpServer::~HttpServer() {
@@ -138,179 +139,199 @@ std::string HttpServer::processRequest(const HttpRequest& request) {
     }
     
     try {
+        // 공통 응답 처리 함수
+        auto processHandlerResponse = [&](const std::string& response) -> std::string {
+            int status_code = 200;
+            std::string content_type = "application/json";
+            
+            try {
+                Json::Value res_json = parseJson(response);
+                if (res_json.isMember("status_code") && res_json["status_code"].isInt()) {
+                    status_code = res_json["status_code"].asInt();
+                } else if (res_json.isMember("error")) {
+                    status_code = 400; // 클라이언트 에러
+                }
+            } catch (...) {
+                // JSON 파싱 실패 시 숫자 문자열인지 확인
+                try {
+                    status_code = std::stoi(response);
+                    content_type = "text/plain";
+                } catch (...) {
+                    status_code = 500; // 서버 에러
+                    content_type = "application/json";
+                }
+            }
+            
+            return createHttpResponse(status_code, content_type, response, cors_headers);
+        };
     
-    // User GUI API 엔드포인트 라우팅
-    if (request.path == "/auth/ssn" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = user_handler_->handleAuthSSN(json_request);
-        return createHttpResponse(200, "application/json", response, cors_headers);
-    }
-    else if (request.path == "/auth/patient_id" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = user_handler_->handleAuthPatientId(json_request);
-        return createHttpResponse(200, "application/json", response, cors_headers);
-    }
-    else if (request.path == "/auth/rfid" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = user_handler_->handleAuthRFID(json_request);
-        return createHttpResponse(200, "application/json", response, cors_headers);
-    }
-    else if (request.path == "/auth/direction" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = user_handler_->handleAuthDirection(json_request);
-        return createHttpResponse(200, "application/json", response, cors_headers);
-    }
-    else if (request.path == "/auth/robot_return" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = user_handler_->handleRobotReturn(json_request);
-        return createHttpResponse(200, "application/json", response, cors_headers);
-    }
-    else if (request.path == "/without_auth/robot_return" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = user_handler_->handleWithoutAuthRobotReturn(json_request);
-        return createHttpResponse(200, "application/json", response, cors_headers);
-    }
-    else if (request.path == "/change/robot_status" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = user_handler_->handleRobotStatus(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
-    }
-    else if (request.path == "/without_auth/direction" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = user_handler_->handleWithoutAuthDirection(json_request);
-        return createHttpResponse(200, "application/json", response, cors_headers);
-    }
-    else if (request.path == "/api/config/llm" && request.method == "GET") {
-        Json::Value json_request;
-        std::string response = user_handler_->handleGetLLMConfig(json_request);
-        return createHttpResponse(200, "application/json", response, cors_headers);
-    }
-    else if (request.path == "/call_with_voice" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = user_handler_->handleCallWithVoice(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
-    }
-    else if (request.path == "/call_with_screen" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = user_handler_->handleCallWithScreen(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
-    }
-    else if (request.path == "/alert_timeout" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = user_handler_->handleAlertTimeout(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
-    }
-    else if (request.path == "/pause_request" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = user_handler_->handlePauseRequest(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
-    }
-    else if (request.path == "/restart_navigation" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = user_handler_->handleRestartNavigation(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
-    }
-    else if (request.path == "/stop_navigating" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = user_handler_->handleStopNavigating(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
-    }
+        // User GUI API 엔드포인트 라우팅
+        if (request.path == "/auth/ssn" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = user_handler_->handleAuthSSN(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/auth/patient_id" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = user_handler_->handleAuthPatientId(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/auth/rfid" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = user_handler_->handleAuthRFID(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/auth/direction" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = user_handler_->handleAuthDirection(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/auth/robot_return" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = user_handler_->handleRobotReturn(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/without_auth/robot_return" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = user_handler_->handleWithoutAuthRobotReturn(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/change/robot_status" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = user_handler_->handleRobotStatus(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/without_auth/direction" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = user_handler_->handleWithoutAuthDirection(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/api/config/llm" && request.method == "GET") {
+            Json::Value json_request;
+            std::string response = user_handler_->handleGetLLMConfig(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/call_with_voice" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = user_handler_->handleCallWithVoice(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/call_with_screen" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = user_handler_->handleCallWithScreen(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/alert_timeout" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = user_handler_->handleAlertTimeout(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/pause_request" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = user_handler_->handlePauseRequest(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/restart_navigation" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = user_handler_->handleRestartNavigation(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/stop_navigating" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = user_handler_->handleStopNavigating(json_request);
+            return processHandlerResponse(response);
+        }
 
-    // Admin GUI API 엔드포인트 라우팅
-    else if (request.path == "/auth/login" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = admin_handler_->handleAuthLogin(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
-    }
-    else if (request.path == "/auth/detail" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = admin_handler_->handleAuthDetail(json_request);
-        return createHttpResponse(200, "application/json", response, cors_headers);
-    }
-    else if (request.path == "/get/robot_location" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = admin_handler_->handleGetRobotLocation(json_request);
-        return createHttpResponse(200, "application/json", response, cors_headers);
-    }
-    else if (request.path == "/get/robot_status" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = admin_handler_->handleGetRobotStatus(json_request);
-        return createHttpResponse(200, "application/json", response, cors_headers);
-    }
-    else if (request.path == "/get/patient_info" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = admin_handler_->handleGetPatientInfo(json_request);
-        return createHttpResponse(200, "application/json", response, cors_headers);
-    }
-    else if (request.path == "/control_by_admin" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = admin_handler_->handleControlByAdmin(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
-    }
-    else if (request.path == "/return_command" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = admin_handler_->handleReturnCommand(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
-    }
-    else if (request.path == "/teleop_request" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = admin_handler_->handleTeleopRequest(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
-    }
-    else if (request.path == "/teleop_complete" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = admin_handler_->handleTeleopComplete(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
-    }
-    else if (request.path == "/command/move_teleop" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = admin_handler_->handleCommandMoveTeleop(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
-    }
-    else if (request.path == "/command/move_dest" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = admin_handler_->handleCommandMoveDest(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
-    }
-    else if (request.path == "/cancel_navigating" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = admin_handler_->handleCancelNavigating(json_request);
-        int status_code = std::stoi(response);
-        return createHttpResponse(status_code, "text/plain", response, cors_headers);
-    }
-    else if (request.path == "/get/log_data" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = admin_handler_->handleGetLogData(json_request);
-        return createHttpResponse(200, "application/json", response, cors_headers);
-    }
-    else if (request.path == "/get/heatmap" && request.method == "POST") {
-        Json::Value json_request = parseJson(request.body);
-        std::string response = admin_handler_->handleGetHeatmap(json_request);
-        return createHttpResponse(200, "application/json", response, cors_headers);
-    }
-
-    else if (request.path == "/ws" && request.method == "GET") {
-        // WebSocket 연결 요청은 이미 위에서 처리됨
-        return createHttpResponse(400, "text/plain", "WebSocket upgrade failed");
-    }
-    else {
-        return createHttpResponse(404, "text/plain", "Not Found");
-    }
-    
+        // Admin GUI API 엔드포인트 라우팅
+        else if (request.path == "/auth/login" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = admin_handler_->handleAuthLogin(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/auth/detail" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = admin_handler_->handleAuthDetail(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/get/robot_location" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = admin_handler_->handleGetRobotLocation(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/get/robot_status" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = admin_handler_->handleGetRobotStatus(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/get/patient_info" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = admin_handler_->handleGetPatientInfo(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/control_by_admin" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = admin_handler_->handleControlByAdmin(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/return_command" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = admin_handler_->handleReturnCommand(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/teleop_request" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = admin_handler_->handleTeleopRequest(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/teleop_complete" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = admin_handler_->handleTeleopComplete(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/command/move_teleop" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = admin_handler_->handleCommandMoveTeleop(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/command/move_dest" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = admin_handler_->handleCommandMoveDest(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/cancel_navigating" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = admin_handler_->handleCancelNavigating(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/get/log_data" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = admin_handler_->handleGetLogData(json_request);
+            return processHandlerResponse(response);
+        }
+        // AI 서버 HTTP 엔드포인트 라우팅
+        else if (request.path == "/gesture/come" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = ai_handler_->handleGestureCome(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/user_disappear" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = ai_handler_->handleUserDisappear(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/user_appear" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = ai_handler_->handleUserAppear(json_request);
+            return processHandlerResponse(response);
+        }
+        else if (request.path == "/ws" && request.method == "GET") {
+            // WebSocket 연결 요청은 이미 위에서 처리됨
+            return createHttpResponse(400, "text/plain", "WebSocket upgrade failed");
+        }
+        else {
+            return createHttpResponse(404, "text/plain", "Not Found");
+        }
+        
     } catch (const std::exception& e) {
         std::cerr << "[HTTP] 요청 처리 중 예외 발생: " << e.what() << std::endl;
         return createHttpResponse(500, "application/json", createErrorResponse("Internal server error: " + std::string(e.what())), cors_headers);
@@ -461,8 +482,16 @@ void HttpServer::setRobotNavigationManager(std::shared_ptr<RobotNavigationManage
         
         // 모든 핸들러에 nav_manager 설정
         admin_handler_ = std::make_unique<AdminRequestHandler>(db_manager_, nav_manager);
-        user_handler_ = std::make_unique<UserRequestHandler>(db_manager_, nav_manager);
+        user_handler_ = std::make_unique<UserRequestHandler>(db_manager_, nav_manager, nullptr);
+        ai_handler_ = std::make_unique<AiRequestHandler>(db_manager_, nav_manager, websocket_server_);
         
         std::cout << "[HTTP] 로봇 네비게이션 관리자 설정 완료" << std::endl;
+    }
+}
+
+void HttpServer::setWebSocketServer(std::shared_ptr<WebSocketServer> websocket_server) {
+    websocket_server_ = websocket_server;
+    if (ai_handler_) {
+        ai_handler_->setWebSocketServer(websocket_server_);
     }
 }
