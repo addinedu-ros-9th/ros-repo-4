@@ -24,6 +24,7 @@ RobotNavigator::RobotNavigator() : Node("robot_navigator")
     robot_info_->start_point_set = false;
     robot_info_->last_update = this->get_clock()->now();
     robot_info_->teleop_active = false;
+    robot_info_->net_signal_level = 0;
     
     // 명령 로그 퍼블리셔 초기화
     command_log_publisher_ = this->create_publisher<std_msgs::msg::String>("navigation_commands", 10);
@@ -106,6 +107,7 @@ void RobotNavigator::setupPublishers()
     target_publisher_ = this->create_publisher<std_msgs::msg::String>("/target", 10);
     online_status_publisher_ = this->create_publisher<std_msgs::msg::Bool>("/online", 10);
     teleop_command_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
+    net_level_publisher_ = this->create_publisher<std_msgs::msg::Int32>("/net_level", 10);
     
     RCLCPP_INFO(this->get_logger(), "Created robot publishers");
 }
@@ -140,8 +142,7 @@ void RobotNavigator::setupServices()
         "navigate_event",
         std::bind(&RobotNavigator::navigateEventHandle, this, std::placeholders::_1, std::placeholders::_2));
 
-    // ✳️ 로봇 이벤트 클라이언트 초기화도 필요시 포함
-    //robot_event_client_ = this->create_client<control_interfaces::srv::EventHandle>("robot_event");
+    robot_event_client_ = this->create_client<control_interfaces::srv::EventHandle>("robot_event");
 
     RCLCPP_INFO(this->get_logger(), "✅ Service Servers created: control_event_service, tracking_event_service, navigate_event_service");
 }
@@ -308,6 +309,32 @@ void RobotNavigator::teleopEventCallback(const std_msgs::msg::String::SharedPtr 
     }
 }
 
+void netLevelCallback() {
+    auto exec = [](const char* cmd) -> std::string {
+        char buf[128];
+        std::string out;
+        std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
+        if (!pipe) throw std::runtime_error("popen() 실패");
+        while (fgets(buf, sizeof buf, pipe.get())) out += buf;
+        return out;
+    };
+
+    std::string iw = exec("iwconfig 2>/dev/null");
+    std::smatch m;
+    std::regex sigRe(R"(Signal level=(-?\d+))");
+
+    if (!std::regex_search(iw, m, sigRe))
+        //throw std::runtime_error("Wi-Fi 신호를 찾을 수 없음");
+        RCLCPP_INFO(rclcpp::get_logger("RobotNavigator"), "Wi-Fi 신호를 찾을 수 없음");
+
+    int rssi = std::stoi(m[1].str());
+
+    if (rssi >= -50)      robot_info_->net_signal_level = 4;
+    else if (rssi >= -65) robot_info_->net_signal_level = 3;
+    else if (rssi >= -80) robot_info_->net_signal_level = 2;
+    else                  robot_info_->net_signal_level = 1;
+}
+
 
 void RobotNavigator::controlEventHandle(
     const std::shared_ptr<control_interfaces::srv::EventHandle::Request> control_req,
@@ -340,6 +367,20 @@ void RobotNavigator::controlEventHandle(
         control_res->status = "waiting_for_navigating";
         RCLCPP_INFO(rclcpp::get_logger("RobotNavigator"), "Status changed into waiting_for_navigating");
     }
+    else if (robot_info_->navigation_status == "waiting_for_return" && (event_type == "patient_return" ||
+                                                                        event_type == "unknown_return" ||
+                                                                        event_type == "admin_return"))
+    {
+        robot_info_->navigation_status = "moving_to_station";
+        control_res->status = "moving_to_station";
+        RCLCPP_INFO(rclcpp::get_logger("RobotNavigator"), "Status changed into moving_to_station");
+        if (sendRobotToLobby()) {
+            publishCommandLog("RETURN_LOBBY: returning to lobby station");
+        }
+        else {
+            publishCommandLog("ERROR: Failed to send robot to lobby station");
+        }
+    }
     else
     {
         RCLCPP_ERROR(rclcpp::get_logger("RobotNavigator"), "❌ Unknown or invalid event_type: %s", event_type.c_str());
@@ -351,7 +392,6 @@ void RobotNavigator::trackEventHandle(
     const std::shared_ptr<control_interfaces::srv::TrackHandle::Request> track_req,
     std::shared_ptr<control_interfaces::srv::TrackHandle::Response> track_res
 )
-
 {
     //call_with_gesture
 }
@@ -370,7 +410,7 @@ void RobotNavigator::navigateEventHandle(
          event_type == "unknown_navigating" ||
          event_type == "admin_navigating");
 
-    if (!is_navigating_event && event_type != "manual") {
+    if (!is_navigating_event && robot_info_->navigation_status != "waiting_for_navigating") {
         RCLCPP_WARN(this->get_logger(), "Invalid event_type: %s", event_type.c_str());
         nav_res->status = "invalid_event";
         return;
@@ -402,12 +442,46 @@ void RobotNavigator::navigateEventHandle(
         return;
     }
 
-    if (command == "stop" || command == "cancel") {
+    if (event_type == "pause_request" && command == "pause") {
         std::lock_guard<std::mutex> lock(robot_mutex_);
-        robot_info_->navigation_status = "idle";
-        robot_info_->current_target = "canceled";
-        publishCommandLog("CANCEL: Navigation canceled");
-        nav_res->status = "success";
+        robot_info_->navigation_status = "pause";
+        if (pauseNavigation())
+        {
+            publishCommandLog("PAUSE: Navigation paused");
+            nav_res->status = "success";
+            return;
+        }
+        publishCommandLog("PAUSE: Navigation pause failed");
+        nav_res->status = "failed";
+        return;
+    }
+
+    if (robot_info_->navigation_status = "pause" && event_type == "restart_navigating")
+    {
+        std::lock_guard<std::mutex> lock(robot_mutex_);
+        robot_info_->navigation_status = "navigation";
+        if (resumeNavigation())
+        {
+            publishCommandLog("RESUME: Navigation resumed");
+            nav_res->status = "success";
+            return;
+        }
+        publishCommandLog("RESUME: Navigation resume failed");
+        nav_res->status = "failed";
+        return;
+    }
+
+    if (event_type == "stop_navigating" && command == "cancel") {
+        std::lock_guard<std::mutex> lock(robot_mutex_);
+        robot_info_->navigation_status = "moving_to_station";
+        if (cancelNavigation())
+        {
+            publishCommandLog("CANCEL: Navigation canceled");
+            nav_res->status = "success";
+            return;
+        }
+        publishCommandLog("CANCEL: Navigation cancel failed");
+        nav_res->status = "failed";
         return;
     }
 
@@ -623,6 +697,7 @@ bool RobotNavigator::sendNavigationGoal(const std::string& waypoint_name)
 
     send_goal_options.goal_response_callback =
         [this](const GoalHandleNavigate::SharedPtr& goal_handle) {
+            current_goal_handle_ = goal_handle;
             this->goalResponseCallback(goal_handle);
         };
 
@@ -643,6 +718,45 @@ bool RobotNavigator::sendNavigationGoal(const std::string& waypoint_name)
                 waypoint.name.c_str(), waypoint.x, waypoint.y, waypoint.yaw);
 
     return true;
+}
+
+bool RobotNavigator::cancelNavigation()
+{
+    if (!current_goal_handle_) return false;
+    nav_client_->async_cancel_goal(current_goal_handle_);
+    RCLCPP_WARN(this->get_logger(), "Navigation goal canceled by user");
+    publishCommandLog("CANCEL: Navigation canceled by user");
+    if (sendRobotToLobby()) {
+        publishCommandLog("RETURN_LOBBY: returning to lobby station");
+        return true;
+    }
+    else {
+        publishCommandLog("ERROR: Failed to send robot to lobby station");
+        return false;
+    }
+}
+
+bool RobotNavigator::pauseNavigation()
+{
+    if (is_paused_ || !current_goal_handle_) return false;
+
+    // ❶ 현재 goal cancel → 정지
+    nav_client_->async_cancel_goal(current_goal_handle_);
+    paused_waypoint_ = robot_info_->current_target; // ❷ 재개용으로 저장
+    is_paused_ = true;
+    robot_info_->navigation_status = "pause";
+
+    publishCommandLog("PAUSE: Navigation paused at user request");
+    return true;
+}
+
+bool RobotNavigator::resumeNavigation()
+{
+    if (!is_paused_ || paused_waypoint_.empty()) return false;
+
+    is_paused_ = false;
+    publishCommandLog("RESUME: Navigation resumed");
+    return sendNavigationGoal(paused_waypoint_);    // ❸ 저장된 waypoint 재전송
 }
 
 
@@ -697,7 +811,7 @@ void RobotNavigator::resultCallback(const GoalHandleNavigate::WrappedResult& res
     
     switch (result.code) {
         case rclcpp_action::ResultCode::SUCCEEDED:
-            // robot_event_client_ = this->create_client<control_interfaces::srv::EventHandle>("robot_event");
+            robot_event_client_ = this->create_client<control_interfaces::srv::EventHandle>("robot_event");
             robot_info_->navigation_status = "waiting_for_return";
 
             this->callEventService("navigating_complete"); //추가
@@ -719,6 +833,7 @@ void RobotNavigator::resultCallback(const GoalHandleNavigate::WrappedResult& res
                 RCLCPP_INFO(this->get_logger(), "Robot returned to start point: %s", 
                            robot_info_->start_point_name.c_str());
                 publishCommandLog("SUCCESS: returned to start point " + robot_info_->start_point_name);
+                this->callEventService("arrived_to_station");
             }
             break;
             
@@ -777,6 +892,7 @@ void RobotNavigator::statusTimerCallback()
             rclcpp::Duration elapsed = this->get_clock()->now() - robot_info_->canceled_time;
             if (elapsed.seconds() >= 30.0) {
                 publishCommandLog("TIMEOUT: canceled -> returning to lobby_station");
+                this->callEventService("return_command");
                 sendRobotToLobby();
                 robot_info_->canceled_time = rclcpp::Time(0, 0, RCL_ROS_TIME);
             }
@@ -819,6 +935,11 @@ void RobotNavigator::publishRobotData()
     std_msgs::msg::Bool online_msg;
     online_msg.data = is_online;
     online_status_publisher_->publish(online_msg);
+
+    //네트워크 신호 세기 발행
+    std_msgs::msg::Int32 net_level_msg;
+    net_level_msg.data = robot_info_->net_signal_level;
+    net_level_publisher_->publish(net_level_msg);
 }
 
 void RobotNavigator::publishCommandLog(const std::string& message)

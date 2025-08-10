@@ -23,6 +23,9 @@
 #include <algorithm>
 #include <cctype>
 #include <unordered_map>
+#include <memory>
+#include <regex>
+#include <stdexcept>
 
 struct WaypointInfo {
     std::string name;
@@ -43,6 +46,7 @@ struct RobotInfo {
     rclcpp::Time last_update;
     rclcpp::Time canceled_time; // navigation canceled 시각
     bool teleop_active;
+    int net_signal_level;
 };
 
 class RobotNavigator : public rclcpp::Node
@@ -78,6 +82,7 @@ private:
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr target_publisher_;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr online_status_publisher_;
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr teleop_command_publisher_;
+    rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr net_level_publisher_;
     
     // 명령 로그 퍼블리셔
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr command_log_publisher_;
@@ -90,6 +95,10 @@ private:
     
     // 타이머
     rclcpp::TimerBase::SharedPtr status_timer_;
+
+    GoalHandleNavigate::SharedPtr current_goal_handle_;
+    std::string paused_waypoint_;
+    bool is_paused_ {false};
     
     // 초기화 함수들
     void initializeWaypoints();
@@ -103,6 +112,7 @@ private:
     void amclCallback(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg);
     void cmdVelCallback(const geometry_msgs::msg::Twist::SharedPtr msg);
     void teleopEventCallback(const std_msgs::msg::String::SharedPtr teleop_key);
+    void netLevelCallback();
     void navigationCommandCallback(const std_msgs::msg::String::SharedPtr msg);
     
     void statusTimerCallback();
@@ -139,6 +149,10 @@ private:
     void feedbackCallback(const GoalHandleNavigate::SharedPtr,
                          const std::shared_ptr<const NavigateToPose::Feedback> feedback);
     void resultCallback(const GoalHandleNavigate::WrappedResult& result);
+
+    bool cancelNavigation();
+    bool pauseNavigation();
+    bool resumeNavigation();
     
     // 유틸리티 함수들
     void publishRobotData();
