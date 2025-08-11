@@ -545,12 +545,13 @@ private:
         bool obstacle_detected = isObstacleInForwardPath(next_waypoint);
         
         if (obstacle_detected) {
-            // 다음 웨이포인트까지 충분히 가까운 경우에만 차단으로 판단
-            const double dxw = next_waypoint.pose.position.x - current_robot_pose_.pose.position.x;
-            const double dyw = next_waypoint.pose.position.y - current_robot_pose_.pose.position.y;
-            const double dist_to_waypoint = std::sqrt(dxw * dxw + dyw * dyw);
+            // 웨이포인트와 충분히 멀어졌을 때만 계산(근데 아무짝에도 쓸모없어서 그냥 폐기)
+            // const double dxw = next_waypoint.pose.position.x - current_robot_pose_.pose.position.x;
+            // const double dyw = next_waypoint.pose.position.y - current_robot_pose_.pose.position.y;
+            // const double dist_to_waypoint = std::sqrt(dxw * dxw + dyw * dyw);
             
-            return (dist_to_waypoint <= replan_trigger_distance_);
+            // return (dist_to_waypoint <= replan_trigger_distance_);
+            return true;
         }
         
         return false;
