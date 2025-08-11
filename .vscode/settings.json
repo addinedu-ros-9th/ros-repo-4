@@ -1,6 +1,7 @@
 {
     "cmake.sourceDirectory": "/home/wonho/ros-repo-4/rosQt",
     "files.associations": {
+        "*.xml": "xml",
         "cctype": "cpp",
         "clocale": "cpp",
         "cmath": "cpp",
@@ -78,6 +79,7 @@
         "typeindex": "cpp",
         "typeinfo": "cpp",
         "variant": "cpp",
-        "valarray": "cpp"
+        "valarray": "cpp",
+        "regex": "cpp"
     }
 }

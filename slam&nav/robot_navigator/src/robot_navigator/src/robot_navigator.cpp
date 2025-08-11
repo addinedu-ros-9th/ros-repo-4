@@ -88,11 +88,16 @@ void RobotNavigator::initializeRobotSubscribers()
         "/teleop_event", 10,
         std::bind(&RobotNavigator::teleopEventCallback, this, _1));
 
-    scan_sub_ = node_->create_subscription<sensor_msgs::msg::LaserScan>(
-        "/scan_filtered", 10,
-        std::bind(&RobotNavigator::dfjakljdka, this, _1)); //함수 이름 삽입하기
+    // 파라미터 선언 및 스캔 토픽 채택
+    this->declare_parameter<std::string>("scan_topic", scan_topic_);
+    this->get_parameter("scan_topic", scan_topic_);
+
+    // LaserScan 구독자 (전방 장애물 감지 및 DetectHandle 서비스 트리거)
+    scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
+        scan_topic_, 10,
+        std::bind(&RobotNavigator::scanCallback, this, _1));
     
-    RCLCPP_INFO(this->get_logger(), "Initialized robot subscribers");
+    RCLCPP_INFO(this->get_logger(), "Initialized robot subscribers (scan_topic=%s)", scan_topic_.c_str());
 }
 
 void RobotNavigator::setupActionClient()
@@ -314,7 +319,7 @@ void RobotNavigator::teleopEventCallback(const std_msgs::msg::String::SharedPtr 
     }
 }
 
-void netLevelCallback() {
+void RobotNavigator::netLevelCallback() {
     auto exec = [](const char* cmd) -> std::string {
         char buf[128];
         std::string out;
@@ -332,7 +337,10 @@ void netLevelCallback() {
         //throw std::runtime_error("Wi-Fi 신호를 찾을 수 없음");
         RCLCPP_INFO(rclcpp::get_logger("RobotNavigator"), "Wi-Fi 신호를 찾을 수 없음");
 
-    int rssi = std::stoi(m[1].str());
+    int rssi = 0;
+    if (m.size() >= 2) {
+        rssi = std::stoi(m[1].str());
+    }
 
     if (rssi >= -50)      robot_info_->net_signal_level = 4;
     else if (rssi >= -65) robot_info_->net_signal_level = 3;
@@ -461,10 +469,10 @@ void RobotNavigator::navigateEventHandle(
         return;
     }
 
-    if (robot_info_->navigation_status = "pause" && event_type == "restart_navigating")
+    if (robot_info_->navigation_status == "pause" && event_type == "restart_navigating")
     {
         std::lock_guard<std::mutex> lock(robot_mutex_);
-        robot_info_->navigation_status = "navigation";
+        robot_info_->navigation_status = "navigating";
         if (resumeNavigation())
         {
             publishCommandLog("RESUME: Navigation resumed");
@@ -809,6 +817,90 @@ void RobotNavigator::feedbackCallback(const GoalHandleNavigate::SharedPtr,
         "Navigation feedback: distance remaining %.2fm", feedback->distance_remaining);
 }
 
+void RobotNavigator::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg)
+{
+    // 네비게이션 중일 때만 장애물 각도 계산 및 전송 고려
+    {
+        std::lock_guard<std::mutex> lock(robot_mutex_);
+        if (robot_info_->navigation_status != "navigating") {
+            return;
+        }
+    }
+
+    const float front_half_angle_rad = 0.6f; // 약 ±34도
+    const float block_distance_m = 0.9f;     // 장애물로 간주할 거리
+
+    // 스캔에서 전방 섹터 인덱스 범위를 계산
+    const float a_min = msg->angle_min;
+    const float a_inc = msg->angle_increment;
+    const int n = static_cast<int>(msg->ranges.size());
+
+    int i_start = static_cast<int>(std::ceil(( -front_half_angle_rad - a_min) / a_inc));
+    int i_end   = static_cast<int>(std::floor(( +front_half_angle_rad - a_min) / a_inc));
+    i_start = std::max(0, std::min(n - 1, i_start));
+    i_end   = std::max(0, std::min(n - 1, i_end));
+    if (i_start > i_end) std::swap(i_start, i_end);
+
+    // 연속된 근접 장애물 클러스터 중 가장 큰 것을 찾기
+    int best_cluster_start = -1, best_cluster_end = -1;
+    int cur_start = -1;
+
+    auto is_block = [&](int idx) -> bool {
+        float r = msg->ranges[idx];
+        return std::isfinite(r) && r > msg->range_min && r < std::min(block_distance_m, msg->range_max);
+    };
+
+    for (int i = i_start; i <= i_end; ++i) {
+        if (is_block(i)) {
+            if (cur_start == -1) cur_start = i;
+        } else {
+            if (cur_start != -1) {
+                int cur_end = i - 1;
+                if (best_cluster_start == -1 || (cur_end - cur_start) > (best_cluster_end - best_cluster_start)) {
+                    best_cluster_start = cur_start;
+                    best_cluster_end = cur_end;
+                }
+                cur_start = -1;
+            }
+        }
+    }
+    if (cur_start != -1) {
+        int cur_end = i_end;
+        if (best_cluster_start == -1 || (cur_end - cur_start) > (best_cluster_end - best_cluster_start)) {
+            best_cluster_start = cur_start;
+            best_cluster_end = cur_end;
+        }
+    }
+
+    if (best_cluster_start == -1) {
+        // 전방에 차단 장애물 없음
+        return;
+    }
+
+    const float left_angle_rad = a_min + a_inc * static_cast<float>(best_cluster_end);
+    const float right_angle_rad = a_min + a_inc * static_cast<float>(best_cluster_start);
+
+    const float left_deg = left_angle_rad * 180.0f / static_cast<float>(M_PI);
+    const float right_deg = right_angle_rad * 180.0f / static_cast<float>(M_PI);
+
+    // 과도한 호출 방지: 각도 변화가 작고 최근에 전송했다면 스킵 (1.5초)
+    const rclcpp::Time now = this->get_clock()->now();
+    if (obstacle_angles_available_) {
+        const bool small_change = (std::fabs(left_deg - last_obstacle_left_angle_deg_) < 3.0f) &&
+                                  (std::fabs(right_deg - last_obstacle_right_angle_deg_) < 3.0f);
+        if (small_change && (now - last_obstacle_time_).seconds() < 1.5) {
+            return;
+        }
+    }
+
+    last_obstacle_left_angle_deg_ = left_deg;
+    last_obstacle_right_angle_deg_ = right_deg;
+    last_obstacle_time_ = now;
+    obstacle_angles_available_ = true;
+
+    publishCommandLog("OBSTACLE: left=" + std::to_string(left_deg) + "°, right=" + std::to_string(right_deg) + "°");
+    callDetectObstacle(left_deg, right_deg);
+}
 
 void RobotNavigator::resultCallback(const GoalHandleNavigate::WrappedResult& result)
 {
@@ -846,6 +938,10 @@ void RobotNavigator::resultCallback(const GoalHandleNavigate::WrappedResult& res
             robot_info_->navigation_status = "failed";
             RCLCPP_ERROR(this->get_logger(), "Navigation aborted");
             publishCommandLog("FAILED: navigation aborted");
+            // 장애물 각도 최신값이 있으면 전송 시도
+            if (obstacle_angles_available_ && (this->get_clock()->now() - last_obstacle_time_).seconds() < 5.0) {
+                callDetectObstacle(static_cast<float>(last_obstacle_left_angle_deg_), static_cast<float>(last_obstacle_right_angle_deg_));
+            }
             break;
             
         case rclcpp_action::ResultCode::CANCELED:
@@ -883,6 +979,32 @@ void RobotNavigator::callEventService(const std::string& event_type)
         RCLCPP_INFO(this->get_logger(), "✅ /robot_event 응답: [%s]", response->status.c_str());
     } catch (const std::exception& e) {
         RCLCPP_ERROR(this->get_logger(), "❌ 응답 수신 실패: %s", e.what());
+    }
+}
+
+void RobotNavigator::callDetectObstacle(float left_angle_deg, float right_angle_deg)
+{
+    if (!detect_event_client_) {
+        RCLCPP_WARN(this->get_logger(), "Detect service client not initialized");
+        return;
+    }
+
+    if (!detect_event_client_->wait_for_service(500ms)) {
+        RCLCPP_WARN(this->get_logger(), "❗ detect_obstacle 서비스가 준비되지 않음");
+        return;
+    }
+
+    auto request = std::make_shared<control_interfaces::srv::DetectHandle::Request>();
+    request->left_angle = left_angle_deg;
+    request->right_angle = right_angle_deg;
+
+    auto future = detect_event_client_->async_send_request(request);
+
+    try {
+        auto response = future.get();
+        RCLCPP_INFO(this->get_logger(), "✅ detect_obstacle 응답 flag: [%s]", response->flag.c_str());
+    } catch (const std::exception& e) {
+        RCLCPP_ERROR(this->get_logger(), "❌ detect_obstacle 응답 실패: %s", e.what());
     }
 }
 

@@ -9,12 +9,15 @@
 #include <geometry_msgs/msg/twist.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/int32.hpp>
 #include <nav2_msgs/action/navigate_to_pose.hpp>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include "control_interfaces/srv/event_handle.hpp"
 #include "control_interfaces/srv/track_handle.hpp"
 #include "control_interfaces/srv/navigate_handle.hpp"
+#include "control_interfaces/srv/detect_handle.hpp"
+#include <sensor_msgs/msg/laser_scan.hpp>
 #include <map>
 #include <string>
 #include <mutex>
@@ -70,7 +73,6 @@ private:
     rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr amcl_subscriber_;
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_subscriber_;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr teleop_event_subscriber_;
-    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr teleop_event_subscriber_;
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
     
     // 네비게이션 명령 구독자
@@ -102,6 +104,15 @@ private:
     GoalHandleNavigate::SharedPtr current_goal_handle_;
     std::string paused_waypoint_;
     bool is_paused_ {false};
+
+    // 장애물 각도 상태
+    double last_obstacle_left_angle_deg_ {0.0};
+    double last_obstacle_right_angle_deg_ {0.0};
+    bool obstacle_angles_available_ {false};
+    rclcpp::Time last_obstacle_time_ {0, 0, RCL_ROS_TIME};
+    
+    // 스캔 토픽명 (파라미터로 변경 가능)
+    std::string scan_topic_ {"/scan_filtered"};
     
     // 초기화 함수들
     void initializeWaypoints();
@@ -117,6 +128,7 @@ private:
     void teleopEventCallback(const std_msgs::msg::String::SharedPtr teleop_key);
     void netLevelCallback();
     void navigationCommandCallback(const std_msgs::msg::String::SharedPtr msg);
+    void scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg);
     
     void statusTimerCallback();
 
@@ -163,6 +175,7 @@ private:
     void publishAvailableWaypoints();
 
     void callEventService(const std::string& event_type);
+    void callDetectObstacle(float left_angle_deg, float right_angle_deg);
 };
 
 #endif
