@@ -3,7 +3,7 @@ network:
   # PC IP 주소
   wonho_pc: "192.168.0.74"     # 원호 PC (rosGui) - 실제 IP로 업데이트
   chaeyeon_pc: "192.168.0.27"  # 채연 PC (AI Server)
-  minje_pc: "192.168.0.10"     # 민제 PC (LLM Server)
+  minje_pc: "192.168.0."     # 민제 PC (LLM Server)
   taeho_pc: "192.168.0.18"     # 태호 PC (Central Server)
 
 llm_server:
@@ -31,7 +31,7 @@ ai_server:
 
 # Central 서버 설정
 central_server:
-  ip: "192.168.0.10"
+  ip: "192.168.0.36"
   port: 6000
   robot_id: 3
   

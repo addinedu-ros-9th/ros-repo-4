@@ -200,6 +200,15 @@ std::string AdminRequestHandler::handleControlByAdmin(const Json::Value& request
     
     int robot_id = request["robot_id"].asInt();
     std::string admin_id = request["admin_id"].asString();
+
+
+    // 웹소켓으로 gui 클라이언트에게 alert_occupied 메시지 전송
+    if (websocket_server_) {
+        websocket_server_->sendAlertOccupied(robot_id, "gui");
+        std::cout << "[ADMIN] gui 클라이언트에게 alert_occupied 메시지 전송: Robot " << robot_id << std::endl;
+    }
+
+
     // 공통 함수를 사용하여 원격 제어 명령 처리
     return sendControlCommand(robot_id, nullptr, "control_by_admin", "원격 제어 요청", admin_id);
 }

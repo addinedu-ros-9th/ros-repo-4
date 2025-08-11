@@ -26,6 +26,9 @@ public:
     // IF-05: 사라졌던 사람 다시 나타남
     std::string handleUserAppear(const Json::Value& request);
 
+    // IF-06: 트래킹 중지
+    std::string handleStopTracking(const Json::Value& request);
+
     void setRobotNavigationManager(std::shared_ptr<RobotNavigationManager> nav_manager);
     void setWebSocketServer(std::shared_ptr<WebSocketServer> websocket_server);
 
