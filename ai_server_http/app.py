@@ -8,6 +8,7 @@ import requests
 from datetime import datetime
 from typing import Optional
 import socket
+import yaml
 
 import numpy as np
 import cv2
@@ -29,19 +30,38 @@ except Exception:
 
 app = Flask(__name__)
 
+# config.yaml에서 설정 로드
+def load_config():
+    try:
+        config_path = "/home/ckim/ros-repo-4/config.yaml"
+        with open(config_path, 'r') as file:
+            config = yaml.safe_load(file)
+        
+        central_ip = config["central_server"]["ip"]
+        websocket_port = config["central_server"]["websocket_port"]
+        http_port = config["central_server"]["http_port"]
+        
+        return central_ip, websocket_port, http_port
+    except Exception as e:
+        print(f"config.yaml 로드 실패: {e}")
+        # 기본값 반환
+        return "192.168.0.36", 3000, 8080
+
 # 환경 설정
 AI_HTTP_HOST = os.environ.get("AI_HTTP_HOST", "0.0.0.0")
 AI_HTTP_PORT = int(os.environ.get("AI_HTTP_PORT", "5006"))
 ROBOT_ID = int(os.environ.get("ROBOT_ID", "3"))
 # 추가: 로컬 타임아웃 워커 사용 여부(기본 비활성)
 USE_TIMEOUT_WORKER = os.environ.get("USE_TIMEOUT_WORKER", "0") == "1"
-# 중앙 WebSocket URL
-CENTRAL_WS_URL = os.environ.get("CENTRAL_WS_URL", "ws://192.168.0.36:3000")
+
+# config.yaml에서 중앙 서버 설정 로드
+CENTRAL_IP, WEBSOCKET_PORT, HTTP_PORT = load_config()
+CENTRAL_WS_URL = os.environ.get("CENTRAL_WS_URL", f"ws://{CENTRAL_IP}:{WEBSOCKET_PORT}/?client_type=ai")
 
 # AI Server 2 설정
 AI_SERVER_2_URL = os.environ.get("AI_SERVER_2_URL", "http://192.168.0.74:5007")
 # 중앙 HTTP BASE (stop_tracking 전송용)
-CENTRAL_HTTP_BASE = os.environ.get("CENTRAL_HTTP_BASE", "http://192.168.0.36:8080")
+CENTRAL_HTTP_BASE = os.environ.get("CENTRAL_HTTP_BASE", f"http://{CENTRAL_IP}:{HTTP_PORT}")
 
 # 상태 저장
 STATE = {
@@ -202,16 +222,28 @@ def central_ws_loop():
     if websocket is None:
         app.logger.warning("websocket-client 미설치: CENTRAL_WS 비활성")
         return
+    
+    # WebSocket 연결 한 번만 시도
+    app.logger.info("=== WebSocket 연결 시작 ===")
+    app.logger.info(f"[WS] 설정된 URL: {CENTRAL_WS_URL}")
+    app.logger.info(f"[WS] ROBOT_ID: {ROBOT_ID}")
+    
     global _defunct
     # 프록시 환경변수 무시 (직접 접속)
+    app.logger.info("[WS] 프록시 환경변수 제거 중...")
     for k in ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"]:
         if os.environ.get(k):
+            app.logger.info(f"[WS] 프록시 환경변수 제거: {k}")
             os.environ.pop(k, None)
-    while not _defunct:
+    
+    try:
+        app.logger.info(f"[WS] 1단계: WebSocket 연결 시도 시작")
+        app.logger.info(f"[WS] 연결 대상: {CENTRAL_WS_URL}")
+        app.logger.info(f"[WS] 타임아웃: 5초")
+        
+        # WebSocket 연결 시도
         try:
-            app.logger.info(f"[WS] connecting to central: {CENTRAL_WS_URL}")
-            app.logger.info(f"[WS] robot_id: {ROBOT_ID}")
-            
+            app.logger.info("[WS] 2단계: websocket.create_connection() 호출")
             ws = websocket.create_connection(
                 CENTRAL_WS_URL,
                 timeout=5,
@@ -220,54 +252,64 @@ def central_ws_loop():
                 enable_multithread=True,
                 sockopt=[(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)]
             )
-            app.logger.info("[WS] connected to central")
-            
-            # 연결 후 초기 메시지 전송 (중앙 서버가 기대할 수 있음)
-            try:
-                init_msg = {
-                    "type": "ai_connect",
-                    "robot_id": ROBOT_ID,
-                    "timestamp": int(time.time())
-                }
-                ws.send(json.dumps(init_msg))
-                app.logger.info(f"[WS] sent init message: {init_msg}")
-            except Exception as e:
-                app.logger.warning(f"[WS] init message send failed: {e}")
-            
-            while True:
-                msg = ws.recv()
-                if not msg:
-                    break
-                app.logger.info(f"[WS] received: {msg}")
-                try:
-                    data = json.loads(msg)
-                    msg_type = data.get("type", "")
-                    if msg_type == "alert_idle":
-                        with worker_lock:
-                            STATE["can_send_come"] = True
-                        app.logger.info("[WS] alert_idle → can_send_come=True")
-                    elif msg_type == "alert_occupied":
-                        with worker_lock:
-                            STATE["can_send_come"] = False
-                        app.logger.info("[WS] alert_occupied → can_send_come=False")
-                    elif msg_type == "navigating_complete":
-                        # 중앙에서 길안내 완료 알림 → 트래킹 중단 및 초기화
-                        _local_stop_tracking()
-                    else:
-                        app.logger.info(f"[WS] unknown message type: {msg_type}")
-                except Exception as e:
-                    app.logger.warning(f"[WS] parse error: {e}")
+            app.logger.info("[WS] ✅ 3단계: create_connection 성공!")
+            app.logger.info(f"[WS] 연결된 소켓 정보: {ws}")
+        except Exception as conn_error:
+            app.logger.error(f"[WS] ❌ 3단계: create_connection 실패")
+            app.logger.error(f"[WS] 오류 타입: {type(conn_error).__name__}")
+            app.logger.error(f"[WS] 오류 메시지: {conn_error}")
+            app.logger.error(f"[WS] 연결 URL: {CENTRAL_WS_URL}")
+            app.logger.info("[WS] WebSocket 연결 실패 - 더 이상 시도하지 않음")
+            return
+        
+        # 연결 후 초기 메시지 전송 (중앙 서버가 기대할 수 있음)
+        try:
+            app.logger.info("[WS] 4단계: 초기 메시지 전송 시도")
+            init_msg = {
+                "type": "ai_connect",
+                "robot_id": ROBOT_ID,
+                "timestamp": int(time.time())
+            }
+            app.logger.info(f"[WS] 전송할 초기 메시지: {init_msg}")
+            ws.send(json.dumps(init_msg))
+            app.logger.info("[WS] ✅ 4단계: 초기 메시지 전송 성공")
         except Exception as e:
-            app.logger.warning(f"[WS] connection failed: {e}")
-            app.logger.info(f"[WS] 재연결 시도 3초 후...")
-            time.sleep(3.0)
+            app.logger.warning(f"[WS] ⚠️ 4단계: 초기 메시지 전송 실패: {e}")
+        
+        # 연결 성공 확인 후 종료 (중앙 서버가 메시지를 보내지 않으므로)
+        app.logger.info("[WS] ✅ WebSocket 연결 및 초기 메시지 전송 완료")
+        app.logger.info("[WS] 중앙 서버에서 메시지를 보내지 않으므로 연결 종료")
+        
+        # 연결 종료
+        try:
+            ws.close()
+            app.logger.info("[WS] WebSocket 연결 정상 종료")
+        except Exception as e:
+            app.logger.warning(f"[WS] WebSocket 연결 종료 중 오류: {e}")
+        
+        return
+                
+    except Exception as e:
+        app.logger.error(f"[WS] ❌ 전체 연결 과정 실패: {e}")
+        app.logger.error(f"[WS] 오류 타입: {type(e).__name__}")
+        app.logger.info("[WS] WebSocket 연결 실패 - 더 이상 시도하지 않음")
+    
+    app.logger.info("=== WebSocket 루프 종료 ===")
 
 
 def ensure_ws_client():
     global ws_thread
+    print("[WS] ensure_ws_client() 호출됨")
+    print(f"[WS] 현재 ws_thread 상태: {ws_thread}")
+    
     if ws_thread is None:
+        print("[WS] WebSocket 스레드 생성 중...")
         ws_thread = threading.Thread(target=central_ws_loop, daemon=True)
+        print("[WS] WebSocket 스레드 시작 중...")
         ws_thread.start()
+        print("[WS] ✅ WebSocket 스레드 시작 완료")
+    else:
+        print("[WS] WebSocket 스레드가 이미 실행 중입니다")
 
 
 # (Flask 3) before_first_request 제거됨. __main__에서 ensure_ws_client()를 호출합니다.
@@ -575,5 +617,14 @@ def health():
 
 
 if __name__ == "__main__":
+    print("=== AI Server HTTP 시작 ===")
+    print(f"중앙 서버 IP: {CENTRAL_IP}")
+    print(f"WebSocket 포트: {WEBSOCKET_PORT}")
+    print(f"WebSocket URL: {CENTRAL_WS_URL}")
+    
+    print("ensure_ws_client() 호출 중...")
     ensure_ws_client()
+    print("ensure_ws_client() 호출 완료")
+    
+    print("Flask 앱 시작 중...")
     app.run(host=AI_HTTP_HOST, port=AI_HTTP_PORT, debug=False) 
