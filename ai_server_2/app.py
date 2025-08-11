@@ -265,11 +265,11 @@ def obstacle_detected():
     if robot_id is None or left_angle is None or right_angle is None:
         return jsonify({"status_code": 400, "error": "invalid_fields"}), 400
 
-    # 각도를 float로 변환
+    # 각도가 이미 float인지 확인하고 변환
     try:
-        left_angle_float = float(left_angle)
-        right_angle_float = float(right_angle)
-    except ValueError:
+        left_angle_float = float(left_angle) if isinstance(left_angle, str) else left_angle
+        right_angle_float = float(right_angle) if isinstance(right_angle, str) else right_angle
+    except (ValueError, TypeError):
         return jsonify({"status_code": 400, "error": "invalid_angle_format"}), 400
 
     # base64 이미지 디코딩
