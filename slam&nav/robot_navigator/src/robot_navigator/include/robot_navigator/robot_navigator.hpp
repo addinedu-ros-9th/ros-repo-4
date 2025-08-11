@@ -70,6 +70,8 @@ private:
     rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr amcl_subscriber_;
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_subscriber_;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr teleop_event_subscriber_;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr teleop_event_subscriber_;
+    rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
     
     // 네비게이션 명령 구독자
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr nav_command_subscriber_;
@@ -92,6 +94,7 @@ private:
     rclcpp::Service<control_interfaces::srv::TrackHandle>::SharedPtr tracking_event_server_;
     rclcpp::Service<control_interfaces::srv::NavigateHandle>::SharedPtr navigate_event_server_;
     rclcpp::Client<control_interfaces::srv::EventHandle>::SharedPtr robot_event_client_;
+    rclcpp::Client<control_interfaces::srv::DetectHandle>::SharedPtr detect_event_client_;
     
     // 타이머
     rclcpp::TimerBase::SharedPtr status_timer_;

@@ -87,6 +87,10 @@ void RobotNavigator::initializeRobotSubscribers()
     teleop_event_subscriber_ = this->create_subscription<std_msgs::msg::String>(
         "/teleop_event", 10,
         std::bind(&RobotNavigator::teleopEventCallback, this, _1));
+
+    scan_sub_ = node_->create_subscription<sensor_msgs::msg::LaserScan>(
+        "/scan_filtered", 10,
+        std::bind(&RobotNavigator::dfjakljdka, this, _1)); //함수 이름 삽입하기
     
     RCLCPP_INFO(this->get_logger(), "Initialized robot subscribers");
 }
@@ -143,6 +147,7 @@ void RobotNavigator::setupServices()
         std::bind(&RobotNavigator::navigateEventHandle, this, std::placeholders::_1, std::placeholders::_2));
 
     robot_event_client_ = this->create_client<control_interfaces::srv::EventHandle>("robot_event");
+    detect_event_client_ = this->create_client<control_interfaces::srv::DetectHandle>("detect_obstacle");
 
     RCLCPP_INFO(this->get_logger(), "✅ Service Servers created: control_event_service, tracking_event_service, navigate_event_service");
 }
