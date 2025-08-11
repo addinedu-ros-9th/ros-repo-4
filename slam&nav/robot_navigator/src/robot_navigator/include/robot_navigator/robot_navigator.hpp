@@ -29,6 +29,7 @@
 #include <memory>
 #include <regex>
 #include <stdexcept>
+#include <cstdio>
 
 struct WaypointInfo {
     std::string name;
@@ -149,7 +150,7 @@ private:
 
     
     // Navigation 관련 함수들
-    bool sendNavigationGoal(const std::string& waypoint_name);
+    bool sendNavigationGoal(const std::string& waypoint_name, bool keep_status = false);
     geometry_msgs::msg::PoseStamped createPoseStamped(double x, double y, double yaw);
     tf2::Quaternion getQuaternionFromYaw(double yaw_degrees);
     
