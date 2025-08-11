@@ -31,13 +31,13 @@ std::string AiRequestHandler::createErrorResponse(const std::string& message) {
 
 // IF-03: /gesture/come
 std::string AiRequestHandler::handleGestureCome(const Json::Value& request) {
-    if (!request.isMember("robot_id") || !request.isMember("left_angle") || !request.isMember("rignt_angle") || !request.isMember("timestamp")) {
-        return createErrorResponse("Missing robot_id, left_angle, rignt_angle, or timestamp");
+    if (!request.isMember("robot_id") || !request.isMember("left_angle") || !request.isMember("right_angle") || !request.isMember("timestamp")) {
+        return createErrorResponse("Missing robot_id, left_angle, right_angle, or timestamp");
     }
 
     int robot_id = request["robot_id"].asInt();
     float left_angle = std::stof(request["left_angle"].asString());
-    float right_angle = std::stof(request["rignt_angle"].asString());
+    float right_angle = std::stof(request["right_angle"].asString());
     long long timestamp = std::stoll(request["timestamp"].asString());
 
     if (!nav_manager_) {

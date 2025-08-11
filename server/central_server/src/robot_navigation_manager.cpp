@@ -542,7 +542,7 @@ bool RobotNavigationManager::sendObstacleDetectedToAI(int robot_id, float left_a
     Json::Value request_data;
     request_data["robot_id"] = robot_id;
     request_data["left_angle"] = std::to_string(left_angle);
-    request_data["rignt_angle"] = std::to_string(right_angle);
+    request_data["right_angle"] = std::to_string(right_angle);
     request_data["timestamp"] = std::to_string(time(nullptr));
     
     Json::StreamWriterBuilder builder;

@@ -3,7 +3,7 @@ import os
 import time
 import requests
 
-CENTRAL_BASE = os.environ.get("CENTRAL_BASE", "http://192.168.0.10:8080")
+CENTRAL_BASE = os.environ.get("CENTRAL_BASE", "http://192.168.0.36:8080")
 ROBOT_ID = int(os.environ.get("ROBOT_ID", "3"))
 
 

@@ -13,8 +13,8 @@ from flask import Flask, request, jsonify
 # YOLO (COCO) - 자동 다운로드 사용
 from ultralytics import YOLO
 
-# 중앙 송신 유틸 (GUI 알림용)
-from sender import send_gesture_come, send_user_disappear, send_user_appear
+# GUI 알림 유틸
+from sender import send_gui_obstacle_alert
 
 app = Flask(__name__)
 
@@ -293,9 +293,16 @@ def obstacle_detected():
     
     app.logger.info(f"[IF-01] YOLO COCO 처리 완료, saved={img_path}, detected_obstacle={detected_obstacle}")
 
-    # TODO: GUI 알림 전송 (GUI_BASE/notify 등)
-    # 여기서 GUI에 장애물 감지 알림을 보낼 수 있습니다
-    
+    # GUI(0.74)로 직접 알림 전송: 사진(base64) + 라벨
+    try:
+        _, buf = cv2.imencode('.jpg', visualized_frame)
+        img_b64 = base64.b64encode(buf).decode('utf-8')
+        label = detected_obstacle['label'] if detected_obstacle else 'unknown'
+        code, resp = send_gui_obstacle_alert(img_b64, label)
+        app.logger.info(f"[GUI-ALERT] sent -> code={code}, resp={resp}")
+    except Exception as e:
+        app.logger.warning(f"[GUI-ALERT] failed: {e}")
+
     return jsonify({
         "status_code": 200,
         "detected_obstacle": detected_obstacle,

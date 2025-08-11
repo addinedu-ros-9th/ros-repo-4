@@ -7,6 +7,7 @@ import base64
 import requests
 from datetime import datetime
 from typing import Optional
+import socket
 
 import numpy as np
 import cv2
@@ -20,6 +21,12 @@ from shared_memory_reader import DualCameraSharedMemoryReader
 # 중앙 송신 유틸
 from sender import send_gesture_come, send_user_disappear, send_user_appear
 
+# 중앙 WebSocket 클라이언트
+try:
+    import websocket  # pip install websocket-client
+except Exception:
+    websocket = None
+
 app = Flask(__name__)
 
 # 환경 설정
@@ -28,9 +35,13 @@ AI_HTTP_PORT = int(os.environ.get("AI_HTTP_PORT", "5006"))
 ROBOT_ID = int(os.environ.get("ROBOT_ID", "3"))
 # 추가: 로컬 타임아웃 워커 사용 여부(기본 비활성)
 USE_TIMEOUT_WORKER = os.environ.get("USE_TIMEOUT_WORKER", "0") == "1"
+# 중앙 WebSocket URL
+CENTRAL_WS_URL = os.environ.get("CENTRAL_WS_URL", "ws://192.168.0.36:3000")
 
 # AI Server 2 설정
 AI_SERVER_2_URL = os.environ.get("AI_SERVER_2_URL", "http://192.168.0.74:5007")
+# 중앙 HTTP BASE (stop_tracking 전송용)
+CENTRAL_HTTP_BASE = os.environ.get("CENTRAL_HTTP_BASE", "http://192.168.0.36:8080")
 
 # 상태 저장
 STATE = {
@@ -40,13 +51,18 @@ STATE = {
     "last_tracking_update": {"visible": False, "ts": 0.0}, # 추적 정보 수신용
     "disappear_sent": False,
     "come_sent_ids": {},
-    "come_gesture_active": False,  # come 제스처가 활성화되어 있는지
-    "last_come_person_id": None,   # 마지막 come 제스처를 보낸 사람 ID
-    "last_come_time": 0.0,         # 마지막 come 제스처 전송 시간
+    "come_gesture_active": False,  # 기존 게이트(남겨두되 사용 안함)
+    "last_come_person_id": None,
+    "last_come_time": 0.0,
     "last_coco_infer": None,
     # 타겟 기반 추적 상태(가장 큰 사람)
     "target_person_id": None,
     "target_visible": False,
+    # 중앙 WS 기반 게이트: alert_idle → True, alert_occupied → False
+    "can_send_come": True,
+    # 트래킹 사라짐 타이머
+    "disappear_deadline_ts": 0.0,
+    "central_stop_sent": False,
 }
 
 # 리소스
@@ -54,6 +70,7 @@ reader = DualCameraSharedMemoryReader()
 
 worker_thread: Optional[threading.Thread] = None
 worker_lock = threading.Lock()
+ws_thread: Optional[threading.Thread] = None
 
 
 def ok():
@@ -78,45 +95,24 @@ def internal_error(_):
 def choose_camera_by_angles(left_angle: float, right_angle: float) -> str:
     """left_angle, right_angle을 기반으로 카메라 선택 (라이다 360도 고려)"""
     # 각도를 0-360도 범위로 정규화
-    def normalize_angle(angle):
+    def normalize_angle(angle: float) -> float:
         return angle % 360.0
-    
     left_norm = normalize_angle(left_angle)
     right_norm = normalize_angle(right_angle)
-    
-    # 각도 범위 계산
-    if left_norm <= right_norm:
-        angle_range = right_norm - left_norm
-    else:
-        # 360도를 넘어가는 경우 (예: 350도 ~ 10도)
-        angle_range = (360.0 - left_norm) + right_norm
-    
-    # 중심 각도 계산
-    center_angle = (left_norm + right_norm) / 2.0
+    center = (left_norm + right_norm) / 2.0
     if left_norm > right_norm:
-        center_angle = (left_norm + right_norm + 360.0) / 2.0
-        center_angle = normalize_angle(center_angle)
-    
-    # 카메라 선택 로직
-    # 전면 카메라: 0도 ~ 180도 (정면 180도)
-    # 후면 카메라: 180도 ~ 360도 (후면 180도)
-    
-    if 0.0 <= center_angle <= 180.0:
-        return 'front'
-    else:
-        return 'back'
+        center = (left_norm + right_norm + 360.0) / 2.0
+        center = normalize_angle(center)
+    # 0~180 전면, 180~360 후면
+    return 'front' if 0.0 <= center <= 180.0 else 'back'
 
 
 def get_latest_frame(camera: str) -> Optional[np.ndarray]:
-    front, back = reader.read_frames()
-    if camera == 'front':
-        return front
-    if camera == 'back':
-        return back
-    return None
+    frame = reader.read_frame(camera)
+    return frame
 
 
-def request_with_retry(url: str, payload: dict, timeout: float = 5.0, retries: int = 3, backoff: float = 0.5) -> Optional[requests.Response]:
+def request_with_retry(url: str, payload: dict, timeout: float = 5.0, retries: int = 2, backoff: float = 0.5):
     """단순 재시도 유틸 (지수 백오프)"""
     attempt = 0
     while attempt <= retries:
@@ -175,6 +171,106 @@ def send_image_to_ai_server2_coco(frame: np.ndarray) -> Optional[dict]:
     except Exception as e:
         app.logger.error(f"/infer/coco 프록시 오류: {e}")
         return None
+
+
+# 중앙 WebSocket 수신 루프: alert_idle / alert_occupied 제어
+_defunct = False
+
+# 로컬 트래킹 중단/초기화
+def _local_stop_tracking():
+    with worker_lock:
+        STATE["tracking"] = False
+        STATE["target_person_id"] = None
+        STATE["target_visible"] = False
+        STATE["disappear_sent"] = False
+        STATE["disappear_deadline_ts"] = 0.0
+        STATE["central_stop_sent"] = False
+    app.logger.info("[TRACK] local stop & reset (by navigating_complete or timeout)")
+
+# 중앙에 stop_tracking 통지 (있으면 사용)
+def _notify_central_stop_tracking():
+    url = f"{CENTRAL_HTTP_BASE}/stop_tracking"
+    payload = {"robot_id": ROBOT_ID}
+    try:
+        resp = requests.post(url, json=payload, timeout=1.5)
+        app.logger.info(f"[IF-STOP] central /stop_tracking -> {resp.status_code}")
+    except Exception as e:
+        app.logger.warning(f"[IF-STOP] central /stop_tracking failed: {e}")
+
+
+def central_ws_loop():
+    if websocket is None:
+        app.logger.warning("websocket-client 미설치: CENTRAL_WS 비활성")
+        return
+    global _defunct
+    # 프록시 환경변수 무시 (직접 접속)
+    for k in ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"]:
+        if os.environ.get(k):
+            os.environ.pop(k, None)
+    while not _defunct:
+        try:
+            app.logger.info(f"[WS] connecting to central: {CENTRAL_WS_URL}")
+            app.logger.info(f"[WS] robot_id: {ROBOT_ID}")
+            
+            ws = websocket.create_connection(
+                CENTRAL_WS_URL,
+                timeout=5,
+                http_proxy_host=None,
+                http_proxy_port=None,
+                enable_multithread=True,
+                sockopt=[(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)]
+            )
+            app.logger.info("[WS] connected to central")
+            
+            # 연결 후 초기 메시지 전송 (중앙 서버가 기대할 수 있음)
+            try:
+                init_msg = {
+                    "type": "ai_connect",
+                    "robot_id": ROBOT_ID,
+                    "timestamp": int(time.time())
+                }
+                ws.send(json.dumps(init_msg))
+                app.logger.info(f"[WS] sent init message: {init_msg}")
+            except Exception as e:
+                app.logger.warning(f"[WS] init message send failed: {e}")
+            
+            while True:
+                msg = ws.recv()
+                if not msg:
+                    break
+                app.logger.info(f"[WS] received: {msg}")
+                try:
+                    data = json.loads(msg)
+                    msg_type = data.get("type", "")
+                    if msg_type == "alert_idle":
+                        with worker_lock:
+                            STATE["can_send_come"] = True
+                        app.logger.info("[WS] alert_idle → can_send_come=True")
+                    elif msg_type == "alert_occupied":
+                        with worker_lock:
+                            STATE["can_send_come"] = False
+                        app.logger.info("[WS] alert_occupied → can_send_come=False")
+                    elif msg_type == "navigating_complete":
+                        # 중앙에서 길안내 완료 알림 → 트래킹 중단 및 초기화
+                        _local_stop_tracking()
+                    else:
+                        app.logger.info(f"[WS] unknown message type: {msg_type}")
+                except Exception as e:
+                    app.logger.warning(f"[WS] parse error: {e}")
+        except Exception as e:
+            app.logger.warning(f"[WS] connection failed: {e}")
+            app.logger.info(f"[WS] 재연결 시도 3초 후...")
+            time.sleep(3.0)
+
+
+def ensure_ws_client():
+    global ws_thread
+    if ws_thread is None:
+        ws_thread = threading.Thread(target=central_ws_loop, daemon=True)
+        ws_thread.start()
+
+
+# (Flask 3) before_first_request 제거됨. __main__에서 ensure_ws_client()를 호출합니다.
 
 
 def tracking_worker():
@@ -318,17 +414,18 @@ def gesture_come_local():
 
     person_id = str(data.get("person_id", "unknown"))
     left_angle = float(data.get("left_angle", 0.0))
-    right_angle = float(data.get("rignt_angle", data.get("right_angle", 0.0)))
+    right_angle = float(data.get("right_angle", data.get("right_angle", 0.0)))
     ts = int(data.get("timestamp", time.time()))
 
     now = time.time()
     
-    # come 제스처가 이미 활성화되어 있는지 확인
-    if STATE["come_gesture_active"]:
-        # return_command가 올 때까지 어떤 사람이든 come 제스처를 중앙에 보내지 않음
-        app.logger.info(f"[IF-03] come 제스처 이미 활성화됨 (person_id={person_id}), return_command 대기 중")
+    # 중앙 WS 게이트: alert_idle → 허용, alert_occupied → 차단
+    with worker_lock:
+        can_send = STATE.get("can_send_come", True)
+    if not can_send:
+        app.logger.info(f"[IF-03] gate=occupied: come 전송 차단 (person_id={person_id})")
         return ok()
-    
+
     # 같은 사람 중복 전송 방지 (5초 이내 중복 금지)
     last = STATE["come_sent_ids"].get(person_id, 0.0)
     if now - last < 5.0:
@@ -339,16 +436,17 @@ def gesture_come_local():
     code, _ = send_gesture_come(left_angle, right_angle, ts)
     app.logger.info(f"[IF-03] gesture/come forwarded person_id={person_id} -> {code}")
     
-    # 상태 업데이트
-    STATE["come_sent_ids"][person_id] = now
-    STATE["come_gesture_active"] = True
-    STATE["last_come_person_id"] = person_id
-    STATE["last_come_time"] = now
+    # 로컬 게이트도 즉시 닫아 과다 전송 방지 (중앙에서 alert_occupied 도착 전까지)
+    with worker_lock:
+        STATE["can_send_come"] = False
+        STATE["come_sent_ids"][person_id] = now
+        STATE["last_come_person_id"] = person_id
+        STATE["last_come_time"] = now
     
     return ok()
 
 
-@app.route("/gesture/return_command", methods=["POST"])  # 기존 유지
+@app.route("/return_command", methods=["POST"])  # 기존 유지
 def gesture_return_command():
     """중앙 서버로부터 return_command를 받아 come 제스처 상태를 리셋"""
     try:
@@ -360,19 +458,16 @@ def gesture_return_command():
     if robot_id is None:
         return jsonify({"status_code": 400, "error": "robot_id_required"}), 400
 
-    # come 제스처 상태 리셋
-    was_active = STATE["come_gesture_active"]
-    last_person = STATE["last_come_person_id"]
+    # 상태 리셋
+    with worker_lock:
+        was_active = STATE["target_visible"]
+        STATE["target_person_id"] = None
+        STATE["target_visible"] = False
+        STATE["disappear_sent"] = False
+        # 중앙에서 alert_idle이 올 때까지는 can_send_come=False 유지 권장
+        # 여기서는 변경하지 않음
     
-    STATE["come_gesture_active"] = False
-    STATE["last_come_person_id"] = None
-    
-    # 트래킹 상태도 함께 리셋 (5번 요구사항)
-    STATE["target_person_id"] = None
-    STATE["target_visible"] = False
-    STATE["disappear_sent"] = False
-    
-    app.logger.info(f"[IF-06] return_command received, come 제스처 및 트래킹 상태 리셋 (was_active={was_active}, person_id={last_person})")
+    app.logger.info(f"[IF-06] return_command received, tracking state reset (was_visible={was_active})")
     
     # dual_camera_system_shared에도 return_command 전달
     try:
@@ -409,6 +504,9 @@ def tracking_update():
         # 기존: 보이면 마지막 업데이트 갱신(중앙 10초 정책 유지를 위해)
         if is_visible:
             STATE["last_tracking_update"] = {"visible": True, "ts": now}
+            # 마지막으로 본 시각 업데이트
+            STATE["disappear_deadline_ts"] = 0.0
+            STATE["central_stop_sent"] = False
         
         # 타겟 미선정 → 보이는 ID를 타겟으로 지정(보고는 안함)
         if STATE["target_person_id"] is None:
@@ -416,6 +514,8 @@ def tracking_update():
                 STATE["target_person_id"] = person_id
                 STATE["target_visible"] = True
                 STATE["disappear_sent"] = False
+                STATE["disappear_deadline_ts"] = 0.0
+                STATE["central_stop_sent"] = False
             return ok()
         
         # 타겟 선정 이후
@@ -427,14 +527,32 @@ def tracking_update():
                 app.logger.info(f"[IF-05] target user_appear sent -> {code}")
             STATE["disappear_sent"] = False
             STATE["target_visible"] = True
+            STATE["disappear_deadline_ts"] = 0.0
+            STATE["central_stop_sent"] = False
         else:
             # 즉시 사라짐(이전에 visible이었다면 한번만 전송)
             if STATE["target_visible"] and not STATE["disappear_sent"]:
                 code, _ = send_user_disappear()
                 app.logger.info(f"[IF-04] target user_disappear sent -> {code}")
                 STATE["disappear_sent"] = True
+                # 10초 타이머 시작
+                STATE["disappear_deadline_ts"] = now + 10.0
+                STATE["central_stop_sent"] = False
             STATE["target_visible"] = False
-    
+
+            # 10초 경과 확인 → 중앙에 stop_tracking 통지 후 로컬 중단
+            deadline = STATE.get("disappear_deadline_ts", 0.0)
+            if deadline > 0.0 and now >= deadline and not STATE.get("central_stop_sent", False):
+                _notify_central_stop_tracking()
+                STATE["central_stop_sent"] = True
+                # 로컬 트래킹 중단 및 초기화
+                # (재입장 시 central alert_idle 필요)
+                # 이 함수는 lock 내부이므로 즉시 상태 갱신만 수행
+                STATE["tracking"] = False
+                STATE["target_person_id"] = None
+                STATE["target_visible"] = False
+                STATE["disappear_deadline_ts"] = 0.0
+ 
     return ok()
 
 
@@ -446,13 +564,16 @@ def health():
         "last_obstacle": STATE["last_obstacle"],
         "worker_running": STATE["worker_running"],
         "come_gesture_active": STATE["come_gesture_active"],
+        "can_send_come": STATE["can_send_come"],
         "last_come_person_id": STATE["last_come_person_id"],
         "last_come_time": STATE["last_come_time"],
         "last_coco_infer": STATE["last_coco_infer"],
         "server_type": "ai_server_1 (communication + image forwarding)",
         "ai_server_2_url": AI_SERVER_2_URL,
+        "central_ws_url": CENTRAL_WS_URL,
     })
 
 
 if __name__ == "__main__":
+    ensure_ws_client()
     app.run(host=AI_HTTP_HOST, port=AI_HTTP_PORT, debug=False) 
