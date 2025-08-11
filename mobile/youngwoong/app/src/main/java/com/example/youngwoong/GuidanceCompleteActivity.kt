@@ -58,7 +58,7 @@ class GuidanceCompleteActivity : AppCompatActivity() {
 
         // ✅ 중앙서버 WebSocket에서 return_command 받으면 자동 이동
         webSocketClient = RobotStatusWebSocketClient(
-            url = "ws://192.168.0.10:3000/?client_type=gui",
+            url = "ws://192.168.0.36:3000/?client_type=gui",
             targetRobotId = "3"
         ) { status ->
             if (status == "return_command") {

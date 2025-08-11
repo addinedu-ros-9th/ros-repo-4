@@ -99,7 +99,7 @@ class MainActivity : AppCompatActivity() {
 
         // WebSocket 연결
         webSocketClient = RobotStatusWebSocketClient(
-            url = "ws://192.168.0.10:3000/?client_type=gui",
+            url = "ws://192.168.0.36:3000/?client_type=gui",
             targetRobotId = "3"
         ) { status -> handleRobotStatusChange(status) }
         webSocketClient.connect()
