@@ -445,8 +445,8 @@ class SingleCameraProcessor:
                         payload = {
                             "robot_id": 3,
                             "person_id": person_id,
-                            "left_angle": f"{left_angle:.1f}",
-                            "right_angle": f"{right_angle:.1f}",
+                            "left_angle": left_angle,  # float 그대로 전송
+                            "right_angle": right_angle,  # float 그대로 전송
                             "timestamp": int(current_time)
                         }
                         # 비동기 전송

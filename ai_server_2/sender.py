@@ -11,8 +11,8 @@ def send_gesture_come(left_angle: float, right_angle: float, ts: int | None = No
     url = f"{CENTRAL_BASE}/gesture/come"
     payload = {
         "robot_id": ROBOT_ID,
-        "left_angle": f"{left_angle:.1f}",
-        "rignt_angle": f"{right_angle:.1f}",
+        "left_angle": left_angle,  # float 그대로 전송
+        "right_angle": right_angle,  # float 그대로 전송
         "timestamp": ts or int(time.time()),
     }
     try:

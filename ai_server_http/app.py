@@ -211,20 +211,20 @@ def obstacle_detected():
     except Exception:
         return jsonify({"status_code": 400, "error": "invalid_json"}), 400
 
-    # 새로운 스키마: { robot_id:int, left_angle:str, rignt_angle:str, timestamp:int }
+    # 새로운 스키마: { robot_id:int, left_angle:float, right_angle:float, timestamp:int }
     robot_id = data.get("robot_id")
     left_angle = data.get("left_angle")
-    right_angle = data.get("rignt_angle")  # 오타 주의: rignt_angle
+    right_angle = data.get("right_angle") 
     ts = data.get("timestamp")
 
     if robot_id is None or left_angle is None or right_angle is None:
         return jsonify({"status_code": 400, "error": "invalid_fields"}), 400
 
-    # 문자열을 float로 변환
+    # 각도가 이미 float인지 확인하고 변환
     try:
-        left_angle_float = float(left_angle)
-        right_angle_float = float(right_angle)
-    except ValueError:
+        left_angle_float = float(left_angle) if isinstance(left_angle, str) else left_angle
+        right_angle_float = float(right_angle) if isinstance(right_angle, str) else right_angle
+    except (ValueError, TypeError):
         return jsonify({"status_code": 400, "error": "invalid_angle_format"}), 400
 
     # 각도를 기반으로 카메라 선택
@@ -367,7 +367,12 @@ def gesture_return_command():
     STATE["come_gesture_active"] = False
     STATE["last_come_person_id"] = None
     
-    app.logger.info(f"[IF-06] return_command received, come 제스처 상태 리셋 (was_active={was_active}, person_id={last_person})")
+    # 트래킹 상태도 함께 리셋 (5번 요구사항)
+    STATE["target_person_id"] = None
+    STATE["target_visible"] = False
+    STATE["disappear_sent"] = False
+    
+    app.logger.info(f"[IF-06] return_command received, come 제스처 및 트래킹 상태 리셋 (was_active={was_active}, person_id={last_person})")
     
     # dual_camera_system_shared에도 return_command 전달
     try:
