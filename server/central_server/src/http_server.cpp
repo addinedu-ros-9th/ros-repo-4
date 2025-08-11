@@ -324,6 +324,11 @@ std::string HttpServer::processRequest(const HttpRequest& request) {
             std::string response = ai_handler_->handleUserAppear(json_request);
             return processHandlerResponse(response);
         }
+        else if (request.path == "/stop_tracking" && request.method == "POST") {
+            Json::Value json_request = parseJson(request.body);
+            std::string response = ai_handler_->handleStopTracking(json_request);
+            return processHandlerResponse(response);
+        }
         else if (request.path == "/ws" && request.method == "GET") {
             // WebSocket 연결 요청은 이미 위에서 처리됨
             return createHttpResponse(400, "text/plain", "WebSocket upgrade failed");

@@ -173,6 +173,7 @@ std::string UserRequestHandler::handleCallWithVoice(const Json::Value& request) 
     // 웹소켓으로 관리자에게 alert_occupied 메시지 전송
     if (websocket_server_) {
         websocket_server_->sendAlertOccupied(robot_id, "admin");
+        websocket_server_->sendAlertOccupied(robot_id, "ai");
         std::cout << "[USER] 관리자에게 alert_occupied 메시지 전송: Robot " << robot_id << std::endl;
     }
 
@@ -216,6 +217,7 @@ std::string UserRequestHandler::handleCallWithScreen(const Json::Value& request)
     // 웹소켓으로 관리자에게 alert_occupied 메시지 전송
     if (websocket_server_) {
         websocket_server_->sendAlertOccupied(robot_id, "admin");
+        websocket_server_->sendAlertOccupied(robot_id, "ai");
         std::cout << "[USER] 관리자에게 alert_occupied 메시지 전송: Robot " << robot_id << std::endl;
     }
 

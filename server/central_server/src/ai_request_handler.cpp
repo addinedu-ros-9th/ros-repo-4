@@ -38,7 +38,6 @@ std::string AiRequestHandler::handleGestureCome(const Json::Value& request) {
     int robot_id = request["robot_id"].asInt();
     float left_angle = std::stof(request["left_angle"].asString());
     float right_angle = std::stof(request["rignt_angle"].asString());
-    long long timestamp = std::stoll(request["timestamp"].asString());
 
     if (!nav_manager_) {
         return createErrorResponse("Navigation manager not available");
@@ -164,6 +163,41 @@ std::string AiRequestHandler::handleUserAppear(const Json::Value& request) {
         }
     }
 
+    return createStatusResponse(200);
+}
+
+// IF-06: /stop_tracking
+std::string AiRequestHandler::handleStopTracking(const Json::Value& request) {
+    if (!request.isMember("robot_id")) {
+        return createErrorResponse("Missing robot_id");
+    }
+
+    int robot_id = request["robot_id"].asInt();
+
+    if (!nav_manager_) {
+        return createErrorResponse("Navigation manager not available");
+    }
+
+    // 1. 로봇에 return_command 이벤트 전송
+    bool sent = nav_manager_->sendControlEvent("return_command");
+    if (!sent) {
+        return createErrorResponse("Failed to send return_command event");
+    }
+
+    // 2. DB 로깅: stop_tracking 이벤트 기록 (patient_id = NULL, 대기장소 dest=8)
+    if (db_manager_) {
+        std::string current_datetime = db_manager_->getCurrentDateTime();
+        if (!current_datetime.empty()) {
+            int* null_patient = nullptr;
+            bool log_ok = db_manager_->insertRobotLogWithType(
+                robot_id, null_patient, current_datetime, 0, 8, "stop_tracking", "");
+            if (!log_ok) {
+                std::cout << "[AI] stop_tracking 로그 저장 실패" << std::endl;
+            }
+        }
+    }
+
+    // 3. 성공 응답 반환
     return createStatusResponse(200);
 }
 

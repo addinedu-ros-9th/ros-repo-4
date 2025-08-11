@@ -255,6 +255,7 @@ void WebSocketServer::sendNavigatingComplete(int robot_id) {
     
     // GUI 클라이언트들에게만 브로드캐스트
     broadcastMessageToType("gui", json_message);
+    broadcastMessageToType("ai", json_message);
     
     std::cout << "[WebSocket] GUI 클라이언트들에게 길안내 완료 알림 전송 완료: Robot " << robot_id << std::endl;
 }

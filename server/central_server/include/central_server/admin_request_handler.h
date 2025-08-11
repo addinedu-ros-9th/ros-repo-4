@@ -6,6 +6,7 @@
 #include <string>
 #include "central_server/database_manager.h"
 #include "central_server/robot_navigation_manager.h"
+#include "central_server/websocket_server.h"
 
 class AdminRequestHandler {
 public:
@@ -32,6 +33,7 @@ public:
 private:
     std::shared_ptr<DatabaseManager> db_manager_;
     std::shared_ptr<RobotNavigationManager> nav_manager_;
+    std::shared_ptr<WebSocketServer> websocket_server_;
 
     // 유틸리티 함수들
     std::string createErrorResponse(const std::string& message);
