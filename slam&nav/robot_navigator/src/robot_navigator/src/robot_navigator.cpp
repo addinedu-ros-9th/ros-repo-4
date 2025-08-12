@@ -43,11 +43,18 @@ RobotNavigator::RobotNavigator() : Node("robot_navigator")
     status_timer_ = this->create_wall_timer(
         1s, std::bind(&RobotNavigator::statusTimerCallback, this));
     
+    // 서비스 클라이언트 초기화 확인
+    checkServiceClients();
+    
     RCLCPP_INFO(this->get_logger(), "Robot Navigator with Nearest Waypoint Start Point initialized");
     publishCommandLog("Robot Navigator started - Start point will be set to nearest waypoint");
     
     // 사용 가능한 waypoint 목록 출력
     publishAvailableWaypoints();
+    
+    // 디버깅: 서비스 클라이언트 상태 출력
+    RCLCPP_INFO(this->get_logger(), "🔧 Debug: detect_event_client_ pointer = %p", 
+               static_cast<void*>(detect_event_client_.get()));
 }
 
 void RobotNavigator::initializeWaypoints()
@@ -161,7 +168,21 @@ void RobotNavigator::setupServices()
     robot_event_client_ = this->create_client<control_interfaces::srv::EventHandle>("/robot_event");
     detect_event_client_ = this->create_client<control_interfaces::srv::DetectHandle>("/detect_obstacle");
 
+    // 서비스 클라이언트 생성 확인
+    if (!robot_event_client_) {
+        RCLCPP_ERROR(this->get_logger(), "❌ Failed to create /robot_event service client");
+    } else {
+        RCLCPP_INFO(this->get_logger(), "✅ /robot_event service client created");
+    }
+    
+    if (!detect_event_client_) {
+        RCLCPP_ERROR(this->get_logger(), "❌ Failed to create /detect_obstacle service client");
+    } else {
+        RCLCPP_INFO(this->get_logger(), "✅ /detect_obstacle service client created");
+    }
+
     RCLCPP_INFO(this->get_logger(), "✅ Service Servers created: control_event_service, tracking_event_service, navigate_event_service");
+    RCLCPP_INFO(this->get_logger(), "✅ Service Clients created: /robot_event, /detect_obstacle");
 }
 
 std::string RobotNavigator::findNearestWaypoint(double x, double y) const
@@ -1156,49 +1177,26 @@ void RobotNavigator::callEventService(const std::string& event_type)
 void RobotNavigator::callDetectObstacle(float left_angle_deg, float right_angle_deg)
 {
     if (!detect_event_client_) {
-        RCLCPP_WARN(this->get_logger(), "Detect service client not initialized");
         return;
     }
-    // 서비스 가용성 대기 (최대 10초/10회 시도)
-    {
-        const std::chrono::seconds max_wait_total(10);
-        const std::chrono::seconds per_attempt_wait(1);
-        auto wait_started_at = std::chrono::steady_clock::now();
-        int attempt_count = 0;
-        while (!detect_event_client_->wait_for_service(per_attempt_wait)) {
-            if (!rclcpp::ok()) {
-                RCLCPP_ERROR(this->get_logger(), "ROS 2 시스템이 중단되었습니다. Detecting Event 전송을 중단합니다.");
-                return;
-            }
-            ++attempt_count;
-            if (std::chrono::steady_clock::now() - wait_started_at >= max_wait_total) {
-                RCLCPP_ERROR(this->get_logger(), "Detecting Event 서비스가 %d초 내에 준비되지 않았습니다 (시도 %d회)",
-                             static_cast<int>(max_wait_total.count()), attempt_count);
-                return;
-            }
-            RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
-                                  "Detect Event 서비스가 사용 불가능합니다. 다시 시도합니다...");
-        }
+
+    if (!detect_event_client_->wait_for_service(std::chrono::seconds(2))) {
+        return;
     }
 
-    try
-    {
+    try {
         auto request = std::make_shared<control_interfaces::srv::DetectHandle::Request>();
         request->left_angle = left_angle_deg;
         request->right_angle = right_angle_deg;
 
         auto future = detect_event_client_->async_send_request(request);
-        auto status = future.wait_for(std::chrono::seconds(10));
+        auto status = future.wait_for(std::chrono::seconds(5));
         if (status == std::future_status::ready) {
             auto response = future.get();
-            RCLCPP_INFO(this->get_logger(), "✅ detect_obstacle 응답 flag: [%s]", response->flag.c_str());
-            return;
+            RCLCPP_INFO(this->get_logger(), "detect_obstacle response: %s", response->flag.c_str());
         }
-        RCLCPP_ERROR(this->get_logger(), "❌ detect_obstacle 응답 실패");
-        return;
     } catch (const std::exception& e) {
-        RCLCPP_ERROR(this->get_logger(), "❌ detect_obstacle 응답 실패: %s", e.what());
-        return;
+        RCLCPP_ERROR(this->get_logger(), "detect_obstacle failed: %s", e.what());
     }
 }
 
@@ -1261,6 +1259,28 @@ void RobotNavigator::publishCommandLog(const std::string& message)
     log_msg.data = ss.str();
     command_log_publisher_->publish(log_msg);
     RCLCPP_INFO(this->get_logger(), "%s", message.c_str());
+}
+
+void RobotNavigator::checkServiceClients()
+{
+    RCLCPP_INFO(this->get_logger(), "🔍 Checking service client connections...");
+    
+    // 서비스 클라이언트 가용성 확인
+    if (!robot_event_client_) {
+        RCLCPP_ERROR(this->get_logger(), "❌ /robot_event service client is null");
+    } else if (robot_event_client_->wait_for_service(std::chrono::seconds(3))) {
+        RCLCPP_INFO(this->get_logger(), "✅ /robot_event 서비스 클라이언트 연결 성공");
+    } else {
+        RCLCPP_WARN(this->get_logger(), "⚠️ /robot_event 서비스 클라이언트 연결 실패 (서비스 서버가 실행 중인지 확인)");
+    }
+    
+    if (!detect_event_client_) {
+        RCLCPP_ERROR(this->get_logger(), "❌ /detect_obstacle service client is null");
+    } else if (detect_event_client_->wait_for_service(std::chrono::seconds(3))) {
+        RCLCPP_INFO(this->get_logger(), "✅ /detect_obstacle 서비스 클라이언트 연결 성공");
+    } else {
+        RCLCPP_WARN(this->get_logger(), "⚠️ /detect_obstacle 서비스 클라이언트 연결 실패 (서비스 서버가 실행 중인지 확인)");
+    }
 }
 
 void RobotNavigator::publishAvailableWaypoints()

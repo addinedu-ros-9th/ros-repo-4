@@ -11,6 +11,7 @@
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/int32.hpp>
 #include <nav2_msgs/action/navigate_to_pose.hpp>
+#include <nav_msgs/msg/path.hpp>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
@@ -78,6 +79,7 @@ private:
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_subscriber_;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr teleop_event_subscriber_;
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
+    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr global_path_sub_;
     
     // 네비게이션 명령 구독자
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr nav_command_subscriber_;
@@ -119,6 +121,9 @@ private:
     bool obstacle_angles_available_ {false};
     rclcpp::Time last_obstacle_time_ {0, 0, RCL_ROS_TIME};
     
+    // Global path 저장
+    nav_msgs::msg::Path current_global_path_;
+    
     // 스캔 토픽명 (파라미터로 변경 가능)
     std::string scan_topic_ {"/scan_filtered"};
     
@@ -137,6 +142,8 @@ private:
     void netLevelCallback();
     void navigationCommandCallback(const std_msgs::msg::String::SharedPtr msg);
     void scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg);
+    void globalPathCallback(const nav_msgs::msg::Path::SharedPtr msg);
+    geometry_msgs::msg::PoseStamped getNextWaypointFromPath(const geometry_msgs::msg::Point& robot_pos);
     
     void statusTimerCallback();
 
@@ -181,6 +188,7 @@ private:
     void publishRobotData();
     void publishCommandLog(const std::string& message);
     void publishAvailableWaypoints();
+    void checkServiceClients();
 
     void callEventService(const std::string& event_type);
     void callDetectObstacle(float left_angle_deg, float right_angle_deg);
