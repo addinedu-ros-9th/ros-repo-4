@@ -53,6 +53,8 @@ RobotNavigator::RobotNavigator() : Node("robot_navigator")
     publishAvailableWaypoints();
     
     // 디버깅: 서비스 클라이언트 상태 출력
+    RCLCPP_INFO(this->get_logger(), "🔧 Debug: robot_event_client_ pointer = %p", 
+               static_cast<void*>(robot_event_client_.get()));
     RCLCPP_INFO(this->get_logger(), "🔧 Debug: detect_event_client_ pointer = %p", 
                static_cast<void*>(detect_event_client_.get()));
 }
@@ -428,9 +430,9 @@ void RobotNavigator::trackEventHandle(
     double left_rad = track_req->left_angle * M_PI / 180.0;
     double right_rad = track_req->right_angle * M_PI / 180.0;
 
-    if (!latest_scan_) {
+    if (!latest_scan_with_tf_.valid) {
         RCLCPP_ERROR(this->get_logger(),
-                "[TrackEvent] tracking failed. No scan");
+                "[TrackEvent] tracking failed. No valid scan with TF data");
         return;
     }
 
@@ -439,8 +441,7 @@ void RobotNavigator::trackEventHandle(
     double yaw_scan_in_base = 0.0;
     geometry_msgs::msg::Point robot_position;
     try {
-        geometry_msgs::msg::TransformStamped map_from_base =
-            tf_buffer_->lookupTransform("map", "base_link", latest_scan_->header.stamp);
+        geometry_msgs::msg::TransformStamped map_from_base = latest_scan_with_tf_.map_from_base;
 
         tf2::Quaternion q_base;
         tf2::fromMsg(map_from_base.transform.rotation, q_base);
@@ -450,8 +451,7 @@ void RobotNavigator::trackEventHandle(
         robot_position.x = map_from_base.transform.translation.x;
         robot_position.y = map_from_base.transform.translation.y;
 
-        geometry_msgs::msg::TransformStamped base_from_scan =
-            tf_buffer_->lookupTransform("base_link", latest_scan_->header.frame_id, latest_scan_->header.stamp);
+        geometry_msgs::msg::TransformStamped base_from_scan = latest_scan_with_tf_.base_from_scan;
 
         tf2::Quaternion q_scan;
         tf2::fromMsg(base_from_scan.transform.rotation, q_scan);
@@ -1069,7 +1069,20 @@ geometry_msgs::msg::PoseStamped RobotNavigator::getNextWaypointFromPath(const ge
 
 void RobotNavigator::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg)
 {
-    latest_scan_ = msg;
+    latest_scan_with_tf_.scan = msg;
+    latest_scan_with_tf_.valid = false;
+
+    try {
+        latest_scan_with_tf_.map_from_base = 
+            tf_buffer_->lookupTransform("map", "base_link", msg->header.stamp);
+        latest_scan_with_tf_.base_from_scan = 
+            tf_buffer_->lookupTransform("base_link", msg->header.frame_id, msg->header.stamp);
+        latest_scan_with_tf_.valid = true;
+    }
+    catch (tf2::TransformException& ex) {
+        RCLCPP_WARN(this->get_logger(), "TF lookup failed in scanCallback: %s", ex.what());
+    }
+
     {
         std::lock_guard<std::mutex> lock(robot_mutex_);
         if (robot_info_->navigation_status != "navigating") return;
@@ -1085,8 +1098,7 @@ void RobotNavigator::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr m
     
     try {
         // 스캔 시점에서의 로봇 방향 계산 (map 기준)
-        geometry_msgs::msg::TransformStamped map_from_base = tf_buffer_->lookupTransform(
-            "map", "base_link", msg->header.stamp);
+        geometry_msgs::msg::TransformStamped map_from_base = latest_scan_with_tf_.map_from_base;
         
         tf2::Quaternion q_base_in_map;
         tf2::fromMsg(map_from_base.transform.rotation, q_base_in_map);
@@ -1095,8 +1107,7 @@ void RobotNavigator::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr m
         m_base_in_map.getRPY(roll_bim, pitch_bim, robot_heading);
         
         // 라이다 프레임의 yaw 오프셋 (base_link 기준)
-        geometry_msgs::msg::TransformStamped base_from_scan = tf_buffer_->lookupTransform(
-            "base_link", msg->header.frame_id, msg->header.stamp);
+        geometry_msgs::msg::TransformStamped base_from_scan = latest_scan_with_tf_.base_from_scan;
         
         tf2::Quaternion q_scan_in_base;
         tf2::fromMsg(base_from_scan.transform.rotation, q_scan_in_base);
@@ -1337,9 +1348,9 @@ void RobotNavigator::callEventService(const std::string& event_type)
     try {
         auto request = std::make_shared<control_interfaces::srv::EventHandle::Request>();
         request->event_type = event_type;
-        auto future = robot_event_client_->async_send_request(request);
 
         RCLCPP_INFO(this->get_logger(), "📡 /robot_event 전송: [%s]", event_type.c_str());
+        auto future = robot_event_client_->async_send_request(request);
         auto status = future.wait_for(std::chrono::seconds(3));
         if (status == std::future_status::ready) {
             auto response = future.get();
