@@ -19,6 +19,15 @@ import sys
 sys.path.append('/home/ckim/ros-repo-4/deeplearning/src')
 from shared_memory_reader import DualCameraSharedMemoryReader
 
+# 듀얼 카메라 시스템 전역 변수 import
+try:
+    from dual_camera_system_shared import BACK_CAMERA_CONTROL, GESTURE_RESET_FLAG
+    DUAL_CAMERA_AVAILABLE = True
+    print("✅ 듀얼 카메라 제어 모듈 로드 성공")
+except ImportError:
+    DUAL_CAMERA_AVAILABLE = False
+    print("⚠️ 듀얼 카메라 제어 모듈 로드 실패")
+
 # 중앙 송신 유틸
 from sender import send_gesture_come, send_user_disappear, send_user_appear
 
@@ -45,11 +54,11 @@ def load_config():
     except Exception as e:
         print(f"config.yaml 로드 실패: {e}")
         # 기본값 반환
-        return "192.168.0.36", 3000, 8080
+        return "192.168.0.10", 3000, 8080
 
 # 환경 설정
 AI_HTTP_HOST = os.environ.get("AI_HTTP_HOST", "0.0.0.0")
-AI_HTTP_PORT = int(os.environ.get("AI_HTTP_PORT", "5006"))
+AI_HTTP_PORT = int(os.environ.get("AI_HTTP_PORT", "8000"))
 ROBOT_ID = int(os.environ.get("ROBOT_ID", "3"))
 # 추가: 로컬 타임아웃 워커 사용 여부(기본 비활성)
 USE_TIMEOUT_WORKER = os.environ.get("USE_TIMEOUT_WORKER", "0") == "1"
@@ -128,8 +137,13 @@ def choose_camera_by_angles(left_angle: float, right_angle: float) -> str:
 
 
 def get_latest_frame(camera: str) -> Optional[np.ndarray]:
-    frame = reader.read_frame(camera)
-    return frame
+    front_frame, back_frame = reader.read_frames()
+    if camera == 'front':
+        return front_frame
+    elif camera == 'back':
+        return back_frame
+    else:
+        return None
 
 
 def request_with_retry(url: str, payload: dict, timeout: float = 5.0, retries: int = 2, backoff: float = 0.5):
@@ -221,9 +235,10 @@ def _notify_central_stop_tracking():
 def central_ws_loop():
     if websocket is None:
         app.logger.warning("websocket-client 미설치: CENTRAL_WS 비활성")
+        print("❌ websocket-client 미설치!")
         return
     
-    # WebSocket 연결 한 번만 시도
+    print(f"🚀 WebSocket 루프 시작됨! URL: {CENTRAL_WS_URL}")
     app.logger.info("=== WebSocket 연결 시작 ===")
     app.logger.info(f"[WS] 설정된 URL: {CENTRAL_WS_URL}")
     app.logger.info(f"[WS] ROBOT_ID: {ROBOT_ID}")
@@ -236,73 +251,117 @@ def central_ws_loop():
             app.logger.info(f"[WS] 프록시 환경변수 제거: {k}")
             os.environ.pop(k, None)
     
-    try:
-        app.logger.info(f"[WS] 1단계: WebSocket 연결 시도 시작")
-        app.logger.info(f"[WS] 연결 대상: {CENTRAL_WS_URL}")
-        app.logger.info(f"[WS] 타임아웃: 5초")
-        
-        # WebSocket 연결 시도
+    while not _defunct:
         try:
-            app.logger.info("[WS] 2단계: websocket.create_connection() 호출")
+            print(f"🔗 WebSocket 연결 시도: {CENTRAL_WS_URL}")
+            app.logger.info(f"[WS] WebSocket 연결 시도: {CENTRAL_WS_URL}")
+            
+            # WebSocket 연결 시도
             ws = websocket.create_connection(
                 CENTRAL_WS_URL,
-                timeout=5,
                 http_proxy_host=None,
                 http_proxy_port=None,
                 enable_multithread=True,
                 sockopt=[(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)]
             )
-            app.logger.info("[WS] ✅ 3단계: create_connection 성공!")
-            app.logger.info(f"[WS] 연결된 소켓 정보: {ws}")
-        except Exception as conn_error:
-            app.logger.error(f"[WS] ❌ 3단계: create_connection 실패")
-            app.logger.error(f"[WS] 오류 타입: {type(conn_error).__name__}")
-            app.logger.error(f"[WS] 오류 메시지: {conn_error}")
-            app.logger.error(f"[WS] 연결 URL: {CENTRAL_WS_URL}")
-            app.logger.info("[WS] WebSocket 연결 실패 - 더 이상 시도하지 않음")
-            return
-        
-        # 연결 후 초기 메시지 전송 (중앙 서버가 기대할 수 있음)
-        try:
-            app.logger.info("[WS] 4단계: 초기 메시지 전송 시도")
-            init_msg = {
-                "type": "ai_connect",
-                "robot_id": ROBOT_ID,
-                "timestamp": int(time.time())
-            }
-            app.logger.info(f"[WS] 전송할 초기 메시지: {init_msg}")
-            ws.send(json.dumps(init_msg))
-            app.logger.info("[WS] ✅ 4단계: 초기 메시지 전송 성공")
-        except Exception as e:
-            app.logger.warning(f"[WS] ⚠️ 4단계: 초기 메시지 전송 실패: {e}")
-        
-        # 연결 성공 확인 후 종료 (중앙 서버가 메시지를 보내지 않으므로)
-        app.logger.info("[WS] ✅ WebSocket 연결 및 초기 메시지 전송 완료")
-        app.logger.info("[WS] 중앙 서버에서 메시지를 보내지 않으므로 연결 종료")
-        
-        # 연결 종료
-        try:
-            ws.close()
-            app.logger.info("[WS] WebSocket 연결 정상 종료")
-        except Exception as e:
-            app.logger.warning(f"[WS] WebSocket 연결 종료 중 오류: {e}")
-        
-        return
+            print("✅ WebSocket 연결 성공!")
+            app.logger.info("[WS] ✅ WebSocket 연결 성공!")
+            
+            # 연결 후 초기 메시지 전송
+            try:
+                init_msg = {
+                    "type": "ai_connect",
+                    "robot_id": ROBOT_ID,
+                    "timestamp": int(time.time())
+                }
+                app.logger.info(f"[WS] 초기 메시지 전송: {init_msg}")
+                ws.send(json.dumps(init_msg))
+                app.logger.info("[WS] ✅ 초기 메시지 전송 성공")
+                print("📤 초기 메시지 전송 완료")
+            except Exception as e:
+                app.logger.warning(f"[WS] ⚠️ 초기 메시지 전송 실패: {e}")
+                print(f"❌ 초기 메시지 전송 실패: {e}")
+            
+            # 메시지 수신 루프 - 중앙 서버의 alert_idle/alert_occupied 대기
+            app.logger.info("[WS] 중앙 서버 메시지 수신 대기 중... (alert_idle/alert_occupied)")
+            print("👂 alert_idle/alert_occupied 대기 중...")
+            while not _defunct:
+                try:
+                    # 블로킹 방식으로 메시지 수신 (타임아웃 없음)
+                    message = ws.recv()
+                    app.logger.info(f"[WS] 메시지 수신: {message}")
+                    print(f"📨 WebSocket 메시지: {message}")
+                    
+                    # JSON 파싱
+                    try:
+                        data = json.loads(message)
+                        msg_type = data.get("type")
+                        
+                        if msg_type == "alert_idle":
+                            with worker_lock:
+                                STATE["can_send_come"] = True
+                            app.logger.info("[WS] alert_idle 수신 -> can_send_come = True")
+                            print("🟢 alert_idle 수신! COME 제스처 활성화")
+                            
+                        elif msg_type == "alert_occupied":
+                            with worker_lock:
+                                STATE["can_send_come"] = False
+                            app.logger.info("[WS] alert_occupied 수신 -> can_send_come = False")
+                            print("🔴 alert_occupied 수신! COME 제스처 비활성화")
+                            
+                        else:
+                            app.logger.info(f"[WS] 기타 메시지 타입: {msg_type}")
+                            print(f"❓ 알 수 없는 메시지: {msg_type}")
+                            
+                    except json.JSONDecodeError as e:
+                        app.logger.warning(f"[WS] JSON 파싱 실패: {e}")
+                        print(f"❌ JSON 파싱 실패: {e}")
+                        
+                except websocket.WebSocketConnectionClosedException:
+                    app.logger.warning("[WS] WebSocket 연결이 닫힘 - 재연결 시도")
+                    print("🔌 연결 끊어짐 - 재연결 시도")
+                    break
+                except Exception as e:
+                    app.logger.error(f"[WS] 메시지 수신 중 오류: {e}")
+                    app.logger.error(f"[WS] 오류 타입: {type(e).__name__}")
+                    print(f"❌ 메시지 수신 오류: {e}")
+                    break
+            
+            # 연결 종료
+            try:
+                ws.close()
+                app.logger.info("[WS] WebSocket 연결 종료")
+            except Exception as e:
+                app.logger.warning(f"[WS] WebSocket 연결 종료 중 오류: {e}")
                 
-    except Exception as e:
-        app.logger.error(f"[WS] ❌ 전체 연결 과정 실패: {e}")
-        app.logger.error(f"[WS] 오류 타입: {type(e).__name__}")
-        app.logger.info("[WS] WebSocket 연결 실패 - 더 이상 시도하지 않음")
+        except Exception as e:
+            app.logger.error(f"[WS] WebSocket 연결 실패: {e}")
+            app.logger.error(f"[WS] 오류 타입: {type(e).__name__}")
+            print(f"❌ WebSocket 연결 실패: {e}")
+        
+        # 재연결 전 대기 (5초)
+        if not _defunct:
+            app.logger.info("[WS] 5초 후 재연결 시도...")
+            print("⏰ 5초 후 재연결...")
+            time.sleep(5)
     
     app.logger.info("=== WebSocket 루프 종료 ===")
+    print("�� WebSocket 루프 종료")
 
 
 def ensure_ws_client():
-    global ws_thread
+    global ws_thread, _defunct
     print("[WS] ensure_ws_client() 호출됨")
     print(f"[WS] 현재 ws_thread 상태: {ws_thread}")
+    print(f"[WS] 현재 _defunct 상태: {_defunct}")
     
-    if ws_thread is None:
+    if ws_thread is None or not ws_thread.is_alive():
+        if ws_thread is not None:
+            print("[WS] 기존 스레드가 종료됨 - 새로운 스레드 생성")
+        
+        # _defunct 플래그 리셋
+        _defunct = False
+        
         print("[WS] WebSocket 스레드 생성 중...")
         ws_thread = threading.Thread(target=central_ws_loop, daemon=True)
         print("[WS] WebSocket 스레드 시작 중...")
@@ -500,36 +559,37 @@ def gesture_return_command():
     if robot_id is None:
         return jsonify({"status_code": 400, "error": "robot_id_required"}), 400
 
-    # 상태 리셋
+    # AI 서버 상태 리셋
     with worker_lock:
         was_active = STATE["target_visible"]
         STATE["target_person_id"] = None
         STATE["target_visible"] = False
         STATE["disappear_sent"] = False
-        # 중앙에서 alert_idle이 올 때까지는 can_send_come=False 유지 권장
-        # 여기서는 변경하지 않음
+        STATE["disappear_deadline_ts"] = 0.0
+        STATE["central_stop_sent"] = False
+        # 트래킹도 초기화
+        STATE["tracking"] = False
     
-    app.logger.info(f"[IF-06] return_command received, tracking state reset (was_visible={was_active})")
+    app.logger.info(f"[IF-06] return_command received, all state reset (was_visible={was_active})")
     
-    # dual_camera_system_shared에도 return_command 전달
-    try:
-        dual_camera_url = "http://localhost:5008"
-        response = requests.post(f"{dual_camera_url}/gesture/return_command", json=data, timeout=1.0)
-        if response.status_code == 200:
-            app.logger.info(f"[IF-06] dual_camera_system_shared에 return_command 전달 성공")
-        else:
-            app.logger.warning(f"[IF-06] dual_camera_system_shared 전달 실패: {response.status_code}")
-    except Exception as e:
-        app.logger.warning(f"[IF-06] dual_camera_system_shared 전달 오류: {e}")
+    # dual_camera_system_shared에 제스처 리셋 요청 (전역 변수 사용)
+    if DUAL_CAMERA_AVAILABLE:
+        global GESTURE_RESET_FLAG
+        GESTURE_RESET_FLAG["reset_requested"] = True
+        app.logger.info(f"[IF-06] 듀얼 카메라 시스템에 제스처 리셋 요청 (전역 변수)")
+    else:
+        app.logger.warning(f"[IF-06] 듀얼 카메라 시스템 제어 불가능")
     
     return ok()
 
 
 @app.route("/tracking/update", methods=["POST"])  # 기존 유지 + 타겟 전환 이벤트 즉시 보고
 def tracking_update():
-    """dual_camera_system_shared.py 로부터 주기적인 추적 상태를 받음
-    - 기존 last_tracking_update 동작 유지
-    - person_id(가장 큰 사람) 기준 타겟 사라짐/재등장 즉시 보고
+    """dual_camera_system_shared.py 후면카메라로부터 추적 상태를 받음
+    - 사람 사라짐 즉시 user_disappear 전송
+    - AI 서버에서 10초 카운트다운 시작
+    - 10초 내 재등장 시 user_appear 전송
+    - 10초 초과 시 return_command를 중앙에 전송하고 트래킹 초기화
     """
     try:
         data = request.get_json(force=True)
@@ -537,20 +597,21 @@ def tracking_update():
         return jsonify({"status_code": 400, "error": "invalid_json"}), 400
     
     is_visible = bool(data.get("person_visible", False))
-    person_id = data.get("person_id")  # dual 측에서 가장 큰 사람의 통합 ID
+    person_id = data.get("person_id")  # 후면카메라에서 가장 큰 사람의 통합 ID
     now = time.time()
 
     with worker_lock:
         if not STATE["tracking"]:
             return ok()
-        # 기존: 보이면 마지막 업데이트 갱신(중앙 10초 정책 유지를 위해)
+            
+        # 기존: 보이면 마지막 업데이트 갱신
         if is_visible:
             STATE["last_tracking_update"] = {"visible": True, "ts": now}
-            # 마지막으로 본 시각 업데이트
+            # 타이머 리셋
             STATE["disappear_deadline_ts"] = 0.0
             STATE["central_stop_sent"] = False
         
-        # 타겟 미선정 → 보이는 ID를 타겟으로 지정(보고는 안함)
+        # 타겟 미선정 → 보이는 ID를 타겟으로 지정
         if STATE["target_person_id"] is None:
             if is_visible and person_id:
                 STATE["target_person_id"] = person_id
@@ -558,49 +619,58 @@ def tracking_update():
                 STATE["disappear_sent"] = False
                 STATE["disappear_deadline_ts"] = 0.0
                 STATE["central_stop_sent"] = False
+                app.logger.info(f"[TRACK] 새로운 타겟 설정: {person_id}")
             return ok()
         
         # 타겟 선정 이후
         target_id = STATE["target_person_id"]
         if is_visible and person_id == target_id:
-            # 재등장(이전이 사라짐 상태였다면 보고)
+            # 재등장 (이전이 사라짐 상태였다면 user_appear 전송)
             if STATE["disappear_sent"]:
                 code, _ = send_user_appear()
                 app.logger.info(f"[IF-05] target user_appear sent -> {code}")
-            STATE["disappear_sent"] = False
+                STATE["disappear_sent"] = False
+                STATE["disappear_deadline_ts"] = 0.0
+                STATE["central_stop_sent"] = False
             STATE["target_visible"] = True
-            STATE["disappear_deadline_ts"] = 0.0
-            STATE["central_stop_sent"] = False
         else:
-            # 즉시 사라짐(이전에 visible이었다면 한번만 전송)
+            # 사라짐 (즉시 user_disappear 전송 + 10초 카운트다운 시작)
             if STATE["target_visible"] and not STATE["disappear_sent"]:
                 code, _ = send_user_disappear()
                 app.logger.info(f"[IF-04] target user_disappear sent -> {code}")
                 STATE["disappear_sent"] = True
-                # 10초 타이머 시작
+                # 10초 카운트다운 시작
                 STATE["disappear_deadline_ts"] = now + 10.0
                 STATE["central_stop_sent"] = False
+                app.logger.info(f"[TRACK] 10초 카운트다운 시작 (deadline: {STATE['disappear_deadline_ts']})")
             STATE["target_visible"] = False
 
-            # 10초 경과 확인 → 중앙에 stop_tracking 통지 후 로컬 중단
+            # 10초 경과 확인 → stop_tracking을 중앙에 전송하고 트래킹 초기화
             deadline = STATE.get("disappear_deadline_ts", 0.0)
             if deadline > 0.0 and now >= deadline and not STATE.get("central_stop_sent", False):
-                _notify_central_stop_tracking()
+                # stop_tracking을 중앙에 전송
+                try:
+                    stop_payload = {"robot_id": ROBOT_ID}
+                    resp = requests.post(f"{CENTRAL_HTTP_BASE}/stop_tracking", json=stop_payload, timeout=2.0)
+                    app.logger.info(f"[IF-07] stop_tracking sent to central -> {resp.status_code}")
+                except Exception as e:
+                    app.logger.warning(f"[IF-07] stop_tracking 전송 실패: {e}")
+                
                 STATE["central_stop_sent"] = True
-                # 로컬 트래킹 중단 및 초기화
-                # (재입장 시 central alert_idle 필요)
-                # 이 함수는 lock 내부이므로 즉시 상태 갱신만 수행
+                # AI 서버에서 트래킹 초기화
                 STATE["tracking"] = False
                 STATE["target_person_id"] = None
                 STATE["target_visible"] = False
+                STATE["disappear_sent"] = False
                 STATE["disappear_deadline_ts"] = 0.0
- 
+                app.logger.info(f"[TRACK] 10초 초과로 트래킹 초기화 및 stop_tracking 전송")
+
     return ok()
 
 
 @app.route("/health", methods=["GET"])  # 간단 헬스체크
 def health():
-    return jsonify({
+    health_data = {
         "status": "ok",
         "tracking": STATE["tracking"],
         "last_obstacle": STATE["last_obstacle"],
@@ -610,10 +680,22 @@ def health():
         "last_come_person_id": STATE["last_come_person_id"],
         "last_come_time": STATE["last_come_time"],
         "last_coco_infer": STATE["last_coco_infer"],
-        "server_type": "ai_server_1 (communication + image forwarding)",
+        "server_type": "ai_server_1 (unified port 5006)",
         "ai_server_2_url": AI_SERVER_2_URL,
         "central_ws_url": CENTRAL_WS_URL,
-    })
+        "dual_camera_available": DUAL_CAMERA_AVAILABLE,
+    }
+    
+    # 듀얼 카메라 시스템 상태 추가
+    if DUAL_CAMERA_AVAILABLE:
+        global BACK_CAMERA_CONTROL, GESTURE_RESET_FLAG
+        health_data.update({
+            "back_camera_tracking_active": BACK_CAMERA_CONTROL["tracking_active"],
+            "back_camera_target_person": BACK_CAMERA_CONTROL["target_person_id"],
+            "gesture_reset_last_time": GESTURE_RESET_FLAG["last_reset_time"]
+        })
+    
+    return jsonify(health_data)
 
 
 if __name__ == "__main__":

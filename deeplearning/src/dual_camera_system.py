@@ -354,10 +354,17 @@ class WebcamStream:
 
 class SingleCameraProcessor:
     """단일 카메라 스트림 처리기"""
-    def __init__(self, name, shared_tracker):
+    def __init__(self, name, shared_tracker, camera_role="both"):
+        """
+        camera_role: 
+        - "front": 전면카메라 (손동작 인식만)
+        - "back": 후면카메라 (중앙서버 트래킹 명령 처리만)  
+        - "both": 기존 방식 (둘 다)
+        """
         print(f"🚀 {name} Processor 초기화")
         self.name = name
         self.shared_tracker = shared_tracker  # 공유 추적기 사용
+        self.camera_role = camera_role  # 카메라 역할 저장
         self.gesture_recognizer = GestureRecognizer()
         
         self.frame_count = 0
@@ -369,12 +376,23 @@ class SingleCameraProcessor:
         
         self.current_gesture = "NORMAL"
         self.current_confidence = 0.5
+
+        # 역할별 기능 활성화 플래그
+        self.gesture_recognition_enabled = (camera_role in ["front", "both"])
+        self.tracking_command_enabled = (camera_role in ["back", "both"])
+        
+        # 트래킹 관련 변수 (후면카메라용)
+        self.tracking_active = False
+        self.target_person_id = None
         
         self.color_palette = [
             (0, 255, 0), (255, 0, 0), (0, 0, 255), (255, 255, 0),
             (255, 0, 255), (0, 255, 255), (128, 0, 128), (255, 165, 0)
         ]
+        
         print(f"✅ {name} Processor 초기화 완료")
+        print(f"   - 손동작 인식: {'✅' if self.gesture_recognition_enabled else '❌'}")
+        print(f"   - 트래킹 명령 처리: {'✅' if self.tracking_command_enabled else '❌'}")
 
     def process_frame(self, frame):
         self.frame_count += 1
@@ -386,33 +404,37 @@ class SingleCameraProcessor:
             self.current_delay = current_time - self.last_frame_time
         self.last_frame_time = current_time
 
-        # AI 모델용으로 프레임 리사이즈 (640x480)
+        # AI 모델용으로 프레임 리사이즈 (640x480) - 모든 카메라에서 사람 추적은 계속
         ai_frame = cv2.resize(frame, (640, 480))
 
-        # 공유 추적기 사용
+        # 공유 추적기 사용 (모든 카메라에서 사람 감지는 계속)
         camera_name = 'front' if 'Front' in self.name else 'back'
         self.shared_tracker.add_frame(ai_frame.copy(), self.frame_count, elapsed_time, camera_name)
         latest_detections = self.shared_tracker.get_latest_detections(camera_name, elapsed_time)
 
-        self.gesture_recognizer.add_frame(ai_frame.copy(), self.frame_count, elapsed_time, latest_detections)
-        gesture_prediction, gesture_confidence, keypoints_detected, current_keypoints = self.gesture_recognizer.get_latest_gesture()
+        # 손동작 인식은 전면카메라에서만
+        keypoints_detected = False
+        current_keypoints = None
+        if self.gesture_recognition_enabled:
+            self.gesture_recognizer.add_frame(ai_frame.copy(), self.frame_count, elapsed_time, latest_detections)
+            gesture_prediction, gesture_confidence, keypoints_detected, current_keypoints = self.gesture_recognizer.get_latest_gesture()
 
-        # 제스처와 confidence 업데이트
-        if keypoints_detected and current_keypoints is not None:
-            # gesture_prediction이 이미 "COME" 또는 "NORMAL" 문자열
-            self.current_gesture = gesture_prediction
-            self.current_confidence = gesture_confidence
-        else:
-            self.current_gesture = "NORMAL"
-            self.current_confidence = 0.0  # keypoints가 없으면 confidence 0
-        
+            # 제스처와 confidence 업데이트
+            if keypoints_detected and current_keypoints is not None:
+                self.current_gesture = gesture_prediction
+                self.current_confidence = gesture_confidence
+            else:
+                self.current_gesture = "NORMAL"
+                self.current_confidence = 0.0
+
         annotated = frame.copy()  # 원본 해상도로 표시
         
+        # 사람 감지 결과 표시 (모든 카메라)
         if latest_detections:
             for i, person in enumerate(latest_detections):
                 # AI 모델 결과를 원본 해상도로 스케일링
                 x1, y1, x2, y2 = map(int, person['bbox'])
-                # 640x480 → 1280x720 스케일링
+                # 640x480 → 원본 해상도 스케일링
                 scale_x = frame.shape[1] / 640
                 scale_y = frame.shape[0] / 480
                 x1 = int(x1 * scale_x)
@@ -425,7 +447,8 @@ class SingleCameraProcessor:
                 cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(annotated, f"ID:{person_id}", (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
 
-        if keypoints_detected and current_keypoints is not None:
+        # 키포인트 시각화는 전면카메라에서만
+        if self.gesture_recognition_enabled and keypoints_detected and current_keypoints is not None:
             # 키포인트도 원본 해상도로 스케일링
             scaled_keypoints = current_keypoints.copy()
             scale_x = frame.shape[1] / 640
@@ -434,13 +457,38 @@ class SingleCameraProcessor:
             scaled_keypoints[:, 1] *= scale_y
             annotated = self.gesture_recognizer.draw_visualization(annotated, scaled_keypoints, self.current_gesture, self.current_confidence)
 
-        # 간단한 정보 표시: 딜레이, 제스처, confidence
+        # 간단한 정보 표시
         cv2.putText(annotated, f"Delay: {self.current_delay*1000:.0f}ms", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
         
-        # 제스처 색상: COME은 빨간색, NORMAL은 초록색
-        gesture_color = (0, 0, 255) if self.current_gesture == "COME" else (0, 255, 0)
-        cv2.putText(annotated, f"Gesture: {self.current_gesture}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, gesture_color, 2)
-        cv2.putText(annotated, f"Conf: {self.current_confidence:.2f}", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.8, gesture_color, 2)
+        # 역할 표시 추가
+        role_text = ""
+        if self.camera_role == "front":
+            role_text = "Role: Gesture Only"
+        elif self.camera_role == "back":
+            role_text = "Role: Tracking Only" 
+        else:
+            role_text = "Role: Both"
+        cv2.putText(annotated, role_text, (10, frame.shape[0] - 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+        
+        # 트래킹 상태 표시 (후면카메라만)
+        if self.tracking_command_enabled:
+            tracking_text = ""
+            tracking_color = (0, 255, 0)  # 기본 초록색
+            
+            if self.tracking_active and self.target_person_id:
+                tracking_text = f"Tracking: {self.target_person_id}"
+                tracking_color = (0, 0, 255)  # 활성 상태는 빨간색
+            else:
+                tracking_text = "Tracking: Standby"
+                tracking_color = (128, 128, 128)  # 대기 상태는 회색
+            
+            cv2.putText(annotated, tracking_text, (10, frame.shape[0] - 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, tracking_color, 2)
+        
+        # 제스처 정보는 전면카메라에서만 표시
+        if self.gesture_recognition_enabled:
+            gesture_color = (0, 0, 255) if self.current_gesture == "COME" else (0, 255, 0)
+            cv2.putText(annotated, f"Gesture: {self.current_gesture}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, gesture_color, 2)
+            cv2.putText(annotated, f"Conf: {self.current_confidence:.2f}", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.8, gesture_color, 2)
 
         return annotated
 
@@ -454,9 +502,9 @@ class DualCameraSystem:
         # 공유 추적기 생성
         self.shared_tracker = SharedPersonTracker()
         
-        # 공유 추적기를 사용하는 프로세서들
-        self.front_processor = SingleCameraProcessor("Front", self.shared_tracker)
-        self.back_processor = SingleCameraProcessor("Back", self.shared_tracker)
+        # 공유 추적기를 사용하는 프로세서들 (역할 분리)
+        self.front_processor = SingleCameraProcessor("Front", self.shared_tracker, "front")  # 손동작 인식만
+        self.back_processor = SingleCameraProcessor("Back", self.shared_tracker, "back")    # 트래킹만
 
     def run_system(self):
         try:

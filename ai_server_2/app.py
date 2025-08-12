@@ -240,8 +240,10 @@ def calculate_iou(box1, box2):
 
 
 def save_jpg(frame: np.ndarray, prefix: str) -> str:
-    ts = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-    out_dir = '/home/ckim/ros-repo-4/ai_server_2/image'
+    ts = datetime.now().strftime('%Y%m%d_%H%M%S')  # 간단하게 로컬 시간 사용
+    # 현재 스크립트 위치 기준으로 image 디렉토리 생성
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    out_dir = os.path.join(script_dir, 'image')
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, f'{prefix}_{ts}.jpg')
     cv2.imwrite(path, frame)

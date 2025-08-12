@@ -11,7 +11,6 @@ from collections import deque
 import sys
 import requests # 추가된 임포트
 import gc # 가비지 컬렉션 추가
-from flask import Flask, request, jsonify  # Flask 추가
 
 # CUDA 메모리 최적화 설정 (디버그 시에만 강제 동기화/캐시 비활성화)
 if os.environ.get('GPU_DEBUG', '0') == '1':
@@ -91,7 +90,7 @@ os.environ['QT_DEBUG_PLUGINS'] = '0'
 os.environ['OPENCV_VIDEOIO_PRIORITY_GSTREAMER'] = '0'
 
 # 로컬 AI 서버 주소
-AI_SERVER_BASE = "http://localhost:5006"
+AI_SERVER_BASE = "http://localhost:8000"
 CAMERA_HFOV_DEGREES = 60.0 # 카메라 수평 화각 (가정치)
 
 # CPU 모드 강제 설정 (CUDA 메모리 문제 해결용)
@@ -283,9 +282,16 @@ class SharedPersonTracker:
 
 class SingleCameraProcessor:
     """단일 카메라 스트림 처리기 (공유 메모리 사용)"""
-    def __init__(self, name, shared_tracker):
+    def __init__(self, name, shared_tracker, camera_role="both"):
+        """
+        camera_role: 
+        - "front": 전면카메라 (손동작 인식만)
+        - "back": 후면카메라 (중앙서버 트래킹 명령 처리만)  
+        - "both": 기존 방식 (둘 다)
+        """
         self.name = name
         self.shared_tracker = shared_tracker
+        self.camera_role = camera_role  # 카메라 역할 저장
         self.gesture_recognizer = GestureRecognizer()
         
         self.frame_count = 0
@@ -316,6 +322,24 @@ class SingleCameraProcessor:
         self.come_gesture_active = False
         self.last_come_gesture_time = 0.0
 
+        # 역할별 기능 활성화 플래그
+        self.gesture_recognition_enabled = (camera_role in ["front", "both"])
+        self.tracking_command_enabled = (camera_role in ["back", "both"])
+        
+        # 트래킹 관련 변수 (후면카메라용)
+        self.tracking_active = False
+        self.target_person_id = None
+        
+        # 상태 캐싱 (HTTP 요청 최소화)
+        self.can_send_come_cache = True
+        self.tracking_active_cache = False
+        self.last_status_check_time = 0.0
+        self.status_check_interval = 5.0  # 5초마다 한 번씩만 체크
+        
+        print(f"🎬 {self.name} 카메라 프로세서 초기화")
+        print(f"   - 손동작 인식: {'✅' if self.gesture_recognition_enabled else '❌'}")
+        print(f"   - 트래킹 명령 처리: {'✅' if self.tracking_command_enabled else '❌'}")
+
     # 비동기 POST 유틸
     def _post_async(self, url, payload, timeout=0.2):
         def _worker():
@@ -325,6 +349,36 @@ class SingleCameraProcessor:
                 pass
         t = threading.Thread(target=_worker, daemon=True)
         t.start()
+
+    def _check_can_send_come(self):
+        """AI 서버에서 can_send_come 상태 확인 (캐싱)"""
+        current_time = time.time()
+        if current_time - self.last_status_check_time > self.status_check_interval:
+            try:
+                response = requests.get(f"{AI_SERVER_BASE}/health", timeout=1.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    self.can_send_come_cache = data.get("can_send_come", False)
+                    self.tracking_active_cache = data.get("tracking", False)
+                    self.last_status_check_time = current_time
+            except Exception:
+                pass  # 캐시된 값 유지
+        return self.can_send_come_cache
+
+    def _check_tracking_active(self):
+        """AI 서버에서 tracking 상태 확인 (캐싱)"""
+        current_time = time.time()
+        if current_time - self.last_status_check_time > self.status_check_interval:
+            try:
+                response = requests.get(f"{AI_SERVER_BASE}/health", timeout=1.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    self.can_send_come_cache = data.get("can_send_come", False)
+                    self.tracking_active_cache = data.get("tracking", False)
+                    self.last_status_check_time = current_time
+            except Exception:
+                pass  # 캐시된 값 유지
+        return self.tracking_active_cache
 
     def process_frame(self, frame):
         if frame is None:
@@ -339,7 +393,7 @@ class SingleCameraProcessor:
             self.current_delay = current_time - self.last_frame_time
         self.last_frame_time = current_time
 
-        # AI 모델용으로 프레임 리사이즈 (640x480)
+        # AI 모델용으로 프레임 리사이즈 (640x480) - 모든 카메라에서 사람 추적은 계속
         ai_frame = cv2.resize(frame, (640, 480))
         camera_name = 'front' if 'Front' in self.name else 'back'
         if self.frame_count % self.person_tracker_skip == 0:
@@ -348,31 +402,36 @@ class SingleCameraProcessor:
         else:
             latest_detections = self.shared_tracker.get_latest_detections(camera_name, elapsed_time)
 
-        # GestureRecognizer: 2프레임마다 실행
-        if self.frame_count % self.gesture_recognizer_skip == 0:
-            self.gesture_recognizer.add_frame(ai_frame.copy(), self.frame_count, elapsed_time, latest_detections)
-            gesture_prediction, gesture_confidence, keypoints_detected, current_keypoints = self.gesture_recognizer.get_latest_gesture()
-            
-            # predict_webcam_realtime.py와 동일: 30프레임 윈도우에서 실제 예측이 나왔을 때만 UI 업데이트
-            # GestureRecognizer 내부에서 30프레임 쌓였을 때만 예측하므로, 그때만 UI 변경
-            if (keypoints_detected and current_keypoints is not None and 
-                gesture_confidence > 0.0 and 
-                (not self.first_prediction_received or gesture_prediction != self.current_gesture)):
-                # predict_webcam_realtime.py와 동일: 제스처가 실제로 변경된 경우에만 업데이트
-                if not self.first_prediction_received:
-                    print(f"[{self.name}] 🎯 첫 제스처 예측: {gesture_prediction} (신뢰도: {gesture_confidence:.3f})")
-                    self.first_prediction_received = True
-                else:
-                    print(f"[{self.name}] 🎯 제스처 변경: {self.current_gesture} → {gesture_prediction} (신뢰도: {gesture_confidence:.3f})")
-                self.current_gesture = gesture_prediction
-                self.current_confidence = gesture_confidence
-                self.last_gesture_update_frame = self.frame_count
-                self.gesture_changed = True
-            # 그 외의 경우: UI 값 변경 없음 (안정적 표시)
-        # 스킵된 프레임에서는 이전 제스처 결과 유지
+        # 손동작 인식은 전면카메라에서만
+        keypoints_detected = False
+        current_keypoints = None
+        if self.gesture_recognition_enabled:
+            # GestureRecognizer: 2프레임마다 실행
+            if self.frame_count % self.gesture_recognizer_skip == 0:
+                self.gesture_recognizer.add_frame(ai_frame.copy(), self.frame_count, elapsed_time, latest_detections)
+                gesture_prediction, gesture_confidence, keypoints_detected, current_keypoints = self.gesture_recognizer.get_latest_gesture()
+                
+                # predict_webcam_realtime.py와 동일: 30프레임 윈도우에서 실제 예측이 나왔을 때만 UI 업데이트
+                # GestureRecognizer 내부에서 30프레임 쌓였을 때만 예측하므로, 그때만 UI 변경
+                if (keypoints_detected and current_keypoints is not None and 
+                    gesture_confidence > 0.0 and 
+                    (not self.first_prediction_received or gesture_prediction != self.current_gesture)):
+                    # predict_webcam_realtime.py와 동일: 제스처가 실제로 변경된 경우에만 업데이트
+                    if not self.first_prediction_received:
+                        print(f"[{self.name}] 🎯 첫 제스처 예측: {gesture_prediction} (신뢰도: {gesture_confidence:.3f})")
+                        self.first_prediction_received = True
+                    else:
+                        print(f"[{self.name}] 🎯 제스처 변경: {self.current_gesture} → {gesture_prediction} (신뢰도: {gesture_confidence:.3f})")
+                    self.current_gesture = gesture_prediction
+                    self.current_confidence = gesture_confidence
+                    self.last_gesture_update_frame = self.frame_count
+                    self.gesture_changed = True
+                # 그 외의 경우: UI 값 변경 없음 (안정적 표시)
+            # 스킵된 프레임에서는 이전 제스처 결과 유지
         
         annotated = frame.copy()
         
+        # 사람 감지 결과 표시 (모든 카메라)
         if latest_detections:
             for i, person in enumerate(latest_detections):
                 # AI 모델 결과를 원본 해상도로 스케일링
@@ -390,7 +449,7 @@ class SingleCameraProcessor:
                 cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(annotated, f"ID:{person_id}", (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
         
-        # 현재 프레임의 가장 큰 사람 ID 계산 (tracking/update용)
+        # 현재 프레임의 가장 큰 사람 ID 계산 
         largest_person_id = None
         if latest_detections:
             largest_area = -1
@@ -400,14 +459,22 @@ class SingleCameraProcessor:
                 if area > largest_area:
                     largest_area = area
                     largest_person_id = det['id']
-        
-        if current_time - self.last_tracking_update_time > 1.0:
+
+        # 트래킹 업데이트는 후면카메라에서만 전송 (중앙서버 명령 처리용)
+        if (self.tracking_command_enabled and 
+            current_time - self.last_tracking_update_time > 1.0 and
+            self._check_tracking_active()):  # AI 서버에서 tracking이 실제로 활성화된 경우에만
             largest_person_visible = bool(largest_person_id is not None)
-            self._post_async(f"{AI_SERVER_BASE}/tracking/update", {"person_visible": largest_person_visible, "person_id": largest_person_id}, timeout=0.2)
+            self._post_async(f"{AI_SERVER_BASE}/tracking/update", {
+                "person_visible": largest_person_visible, 
+                "person_id": largest_person_id
+            }, timeout=0.2)
             self.last_tracking_update_time = current_time
 
-        # 키포인트 시각화 (GestureRecognizer가 실행된 프레임에서만)
-        if self.frame_count % self.gesture_recognizer_skip == 0 and keypoints_detected and current_keypoints is not None:
+        # 키포인트 시각화 및 COME 제스처 처리는 전면카메라에서만
+        if (self.gesture_recognition_enabled and 
+            self.frame_count % self.gesture_recognizer_skip == 0 and 
+            keypoints_detected and current_keypoints is not None):
             # 키포인트도 원본 해상도로 스케일링
             scaled_keypoints = current_keypoints.copy()
             scale_x = frame.shape[1] / 640
@@ -416,12 +483,17 @@ class SingleCameraProcessor:
             scaled_keypoints[:, 1] *= scale_y
             annotated = self.gesture_recognizer.draw_visualization(annotated, scaled_keypoints, self.current_gesture, self.current_confidence)
 
-            # COME 인식 시 각도 계산 및 전송
+            # COME 인식 시 각도 계산 및 전송 (전면카메라에서만)
             if self.current_gesture == "COME" and self.current_confidence >= 0.8:
                 # come 제스처가 이미 활성화되어 있는지 확인
                 if self.come_gesture_active:
                     # return_command가 올 때까지 어떤 사람이든 come 제스처를 중앙에 보내지 않도록 수정하고, continue 오류도 수정합니다.
                     print(f"[{self.name}] come 제스처 이미 활성화됨, return_command 대기 중")
+                    return annotated
+                
+                # can_send_come 상태 체크 (alert_idle/occupied 확인)
+                if not self._check_can_send_come():
+                    print(f"[{self.name}] COME 제스처 차단됨 (alert_occupied 상태)")
                     return annotated
                 
                 # 가장 큰 바운딩 박스를 가진 사람의 ID 사용
@@ -457,18 +529,30 @@ class SingleCameraProcessor:
                         # come 제스처 활성화 상태 설정
                         self.come_gesture_active = True
                         self.last_come_gesture_time = current_time
+                        print(f"[{self.name}] ✅ COME 제스처 감지 및 전송 (Person ID: {person_id})")
 
-        # 간단한 정보 표시: 딜레이, 제스처, confidence
+        # 간단한 정보 표시
         cv2.putText(annotated, f"Delay: {self.current_delay*1000:.0f}ms", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
         
-        # 제스처 색상: COME은 빨간색, NORMAL은 초록색
-        gesture_color = (0, 0, 255) if self.current_gesture == "COME" else (0, 255, 0)
-        cv2.putText(annotated, f"Gesture: {self.current_gesture}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, gesture_color, 2)
-        cv2.putText(annotated, f"Conf: {self.current_confidence:.2f}", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.8, gesture_color, 2)
-
-        # 디버그: 30프레임 예측 상태 표시
-        frames_since_update = self.frame_count - self.last_gesture_update_frame
-        cv2.putText(annotated, f"Last Update: {frames_since_update}f ago", (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+        # 역할 표시 추가
+        role_text = ""
+        if self.camera_role == "front":
+            role_text = "Role: Gesture Only"
+        elif self.camera_role == "back":
+            role_text = "Role: Tracking Only" 
+        else:
+            role_text = "Role: Both"
+        cv2.putText(annotated, role_text, (10, frame.shape[0] - 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+        
+        # 제스처 정보는 전면카메라에서만 표시
+        if self.gesture_recognition_enabled:
+            gesture_color = (0, 0, 255) if self.current_gesture == "COME" else (0, 255, 0)
+            cv2.putText(annotated, f"Gesture: {self.current_gesture}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, gesture_color, 2)
+            cv2.putText(annotated, f"Conf: {self.current_confidence:.2f}", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.8, gesture_color, 2)
+            
+            # 디버그: 30프레임 예측 상태 표시
+            frames_since_update = self.frame_count - self.last_gesture_update_frame
+            cv2.putText(annotated, f"Last Update: {frames_since_update}f ago", (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
         
         return annotated
 
@@ -484,6 +568,19 @@ class SingleCameraProcessor:
         return left_angle, right_angle
 
 
+# 후면카메라 제어를 위한 전역 변수 (ai_server_http와 공유)
+BACK_CAMERA_CONTROL = {
+    "tracking_active": False,
+    "target_person_id": None,
+    "last_command_time": 0.0
+}
+
+# COME 제스처 상태 리셋을 위한 전역 변수
+GESTURE_RESET_FLAG = {
+    "reset_requested": False,
+    "last_reset_time": 0.0
+}
+
 class DualCameraSystemShared:
     def __init__(self):
         # 공유 메모리 리더 초기화
@@ -492,58 +589,32 @@ class DualCameraSystemShared:
         # 공유 추적기 생성
         self.shared_tracker = SharedPersonTracker()
         
-        # 공유 추적기를 사용하는 프로세서들
-        self.front_processor = SingleCameraProcessor("Front", self.shared_tracker)
-        self.back_processor = SingleCameraProcessor("Back", self.shared_tracker)
+        # 공유 추적기를 사용하는 프로세서들 (역할 분리)
+        self.front_processor = SingleCameraProcessor("Front", self.shared_tracker, "front")  # 손동작 인식만
+        self.back_processor = SingleCameraProcessor("Back", self.shared_tracker, "back")    # 트래킹만
         self.latest_angles = {'front': 180.0, 'back': 180.0}
         self.last_come_sent_ts = 0.0
         self.last_come_person_id = None
         
-        # Flask 서버 초기화 (return_command 수신용)
-        self.app = Flask(__name__)
-        self.setup_flask_routes()
-        
-        # Flask 서버를 별도 스레드에서 실행
-        self.flask_thread = threading.Thread(target=self.run_flask_server, daemon=True)
-        self.flask_thread.start()
-        
-    def setup_flask_routes(self):
-        """Flask 라우트 설정"""
-        @self.app.route("/gesture/return_command", methods=["POST"])
-        def gesture_return_command():
-            """return_command 수신 시 come 제스처 상태 리셋"""
-            try:
-                data = request.get_json(force=True)
-            except Exception:
-                return jsonify({"status_code": 400, "error": "invalid_json"}), 400
+        print("✅ 듀얼 카메라 시스템 초기화 완료")
+        print("📌 모든 제어는 ai_server_http/app.py (5006 포트)에서 처리됩니다.")
 
-            robot_id = data.get("robot_id")
-            if robot_id is None:
-                return jsonify({"status_code": 400, "error": "robot_id_required"}), 400
+    def check_gesture_reset(self):
+        """전역 변수를 통해 제스처 리셋 요청 확인"""
+        global GESTURE_RESET_FLAG
+        
+        if GESTURE_RESET_FLAG["reset_requested"]:
+            # 제스처 상태 리셋
             self.front_processor.come_gesture_active = False
             self.front_processor.last_come_person_id = None
             self.back_processor.come_gesture_active = False
             self.back_processor.last_come_person_id = None
-            return jsonify({"status_code": 200})
             
-        @self.app.route("/health", methods=["GET"])
-        def health():
-            """상태 확인"""
-            return jsonify({
-                "status": "ok",
-                "front_come_active": self.front_processor.come_gesture_active,
-                "back_come_active": self.back_processor.come_gesture_active,
-                "front_last_person": self.front_processor.last_come_person_id,
-                "back_last_person": self.back_processor.last_come_person_id,
-                "server_type": "dual_camera_system_shared"
-            })
-    
-    def run_flask_server(self):
-        """Flask 서버 실행"""
-        try:
-            self.app.run(host="0.0.0.0", port=5008, debug=False)
-        except Exception as e:
-            print(f"Flask 서버 실행 실패: {e}")
+            # 플래그 리셋
+            GESTURE_RESET_FLAG["reset_requested"] = False
+            GESTURE_RESET_FLAG["last_reset_time"] = time.time()
+            
+            print("✅ 제스처 상태 리셋 완료")
 
     def run_system(self):
         if not self.shared_memory_reader.is_available():
@@ -561,7 +632,13 @@ class DualCameraSystemShared:
         # 창 크기 설정
         cv2.resizeWindow(window_front, 960, 540)
         cv2.resizeWindow(window_back, 960, 540)
+        
+        frame_count = 0
         while True:
+            # 주기적으로 제스처 리셋 요청 확인 (30프레임마다)
+            if frame_count % 30 == 0:
+                self.check_gesture_reset()
+            
             # 공유 메모리에서 프레임 읽기 (최적화)
             try:
                 front_frame, back_frame = self.shared_memory_reader.read_frames()
@@ -583,6 +660,7 @@ class DualCameraSystemShared:
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
             time.sleep(0.01)
+            frame_count += 1
         self.stop()
 
     def stop(self):
