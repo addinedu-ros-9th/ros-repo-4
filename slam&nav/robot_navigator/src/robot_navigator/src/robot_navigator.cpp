@@ -35,6 +35,9 @@ RobotNavigator::RobotNavigator() : Node("robot_navigator")
     setupPublishers();
     setupNavigationCommandSubscriber();
     setupServices();
+
+    tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+    tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
     
     // 상태 업데이트 타이머
     status_timer_ = this->create_wall_timer(
@@ -151,8 +154,8 @@ void RobotNavigator::setupServices()
         "navigate_event",
         std::bind(&RobotNavigator::navigateEventHandle, this, std::placeholders::_1, std::placeholders::_2));
 
-    robot_event_client_ = this->create_client<control_interfaces::srv::EventHandle>("robot_event");
-    detect_event_client_ = this->create_client<control_interfaces::srv::DetectHandle>("detect_obstacle");
+    robot_event_client_ = this->create_client<control_interfaces::srv::EventHandle>("/robot_event");
+    detect_event_client_ = this->create_client<control_interfaces::srv::DetectHandle>("/detected_obstacle");
 
     RCLCPP_INFO(this->get_logger(), "✅ Service Servers created: control_event_service, tracking_event_service, navigate_event_service");
 }
@@ -867,15 +870,50 @@ void RobotNavigator::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr m
         if (robot_info_->navigation_status != "navigating") return;
     }
 
-    const float front_half_angle_rad = 0.6f; // 약 ±34도
+    const float front_half_angle_rad = 0.428f; // 49도/2 = 24.5도 = 0.428 라디안
     const float block_distance_m = 0.9f;
+
+    // TF2 변환을 통한 로봇 방향 및 라이다 오프셋 계산
+    double robot_heading = 0.0;
+    double yaw_scan_in_base = 0.0;
+    
+    try {
+        // 스캔 시점에서의 로봇 방향 계산 (map 기준)
+        geometry_msgs::msg::TransformStamped map_from_base = tf_buffer_->lookupTransform(
+            "map", "base_link", msg->header.stamp);
+        
+        tf2::Quaternion q_base_in_map;
+        tf2::fromMsg(map_from_base.transform.rotation, q_base_in_map);
+        tf2::Matrix3x3 m_base_in_map(q_base_in_map);
+        double roll_bim, pitch_bim;
+        m_base_in_map.getRPY(roll_bim, pitch_bim, robot_heading);
+        
+        // 라이다 프레임의 yaw 오프셋 (base_link 기준)
+        geometry_msgs::msg::TransformStamped base_from_scan = tf_buffer_->lookupTransform(
+            "base_link", msg->header.frame_id, msg->header.stamp);
+        
+        tf2::Quaternion q_scan_in_base;
+        tf2::fromMsg(base_from_scan.transform.rotation, q_scan_in_base);
+        tf2::Matrix3x3 m_scan_in_base(q_scan_in_base);
+        double roll_sib, pitch_sib;
+        m_scan_in_base.getRPY(roll_sib, pitch_sib, yaw_scan_in_base);
+        
+    } catch (tf2::TransformException& ex) {
+        RCLCPP_WARN(this->get_logger(), "Failed to get transform: %s", ex.what());
+        return;
+    }
 
     const float a_min = msg->angle_min;
     const float a_inc = msg->angle_increment;
     const int n = static_cast<int>(msg->ranges.size());
 
-    int i_start = static_cast<int>(std::ceil(( -front_half_angle_rad - a_min) / a_inc));
-    int i_end   = static_cast<int>(std::floor(( +front_half_angle_rad - a_min) / a_inc));
+    // 로봇의 전방 방향(base_link) 기준으로 스캔 영역 계산
+    // scan_center_angle = 0 (로봇의 전방 방향이 중심)
+    double scan_start_angle = -front_half_angle_rad;
+    double scan_end_angle = +front_half_angle_rad;
+
+    int i_start = static_cast<int>(std::ceil((scan_start_angle - a_min) / a_inc));
+    int i_end   = static_cast<int>(std::floor((scan_end_angle - a_min) / a_inc));
     i_start = std::max(0, std::min(n - 1, i_start));
     i_end   = std::max(0, std::min(n - 1, i_end));
     if (i_start > i_end) std::swap(i_start, i_end);
@@ -888,6 +926,7 @@ void RobotNavigator::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr m
         return std::isfinite(r) && r > msg->range_min && r < std::min(block_distance_m, msg->range_max);
     };
 
+    // 장애물 클러스터 찾기
     for (int i = i_start; i <= i_end; ++i) {
         if (is_block(i)) {
             if (cur_start == -1) cur_start = i;
@@ -912,11 +951,32 @@ void RobotNavigator::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr m
 
     if (best_cluster_start == -1) return;
 
-    const float left_angle_rad = a_min + a_inc * static_cast<float>(best_cluster_end);
-    const float right_angle_rad = a_min + a_inc * static_cast<float>(best_cluster_start);
+    // 글로벌 좌표계 기준 각도 계산
+    const float left_laser_angle_local = a_min + a_inc * static_cast<float>(best_cluster_end);
+    const float right_laser_angle_local = a_min + a_inc * static_cast<float>(best_cluster_start);
+    
+    // 글로벌 각도 계산
+    const float left_global_angle = static_cast<float>(robot_heading + yaw_scan_in_base) + left_laser_angle_local;
+    const float right_global_angle = static_cast<float>(robot_heading + yaw_scan_in_base) + right_laser_angle_local;
+    
+    // 로봇의 전방 방향(robot_heading) 기준으로 상대 각도 계산
+    float left_angle_rad = left_global_angle - static_cast<float>(robot_heading);
+    float right_angle_rad = right_global_angle - static_cast<float>(robot_heading);
+    
+    // 각도 정규화 (-π ~ π)
+    auto normalizeAngle = [](float angle) -> float {
+        while (angle > M_PI) angle -= 2.0f * static_cast<float>(M_PI);
+        while (angle < -M_PI) angle += 2.0f * static_cast<float>(M_PI);
+        return angle;
+    };
+    
+    left_angle_rad = normalizeAngle(left_angle_rad);
+    right_angle_rad = normalizeAngle(right_angle_rad);
+    
     const float left_deg = left_angle_rad * 180.0f / static_cast<float>(M_PI);
     const float right_deg = right_angle_rad * 180.0f / static_cast<float>(M_PI);
 
+    // 중복 감지 방지 로직
     const rclcpp::Time now = this->get_clock()->now();
     if (obstacle_angles_available_) {
         const bool small_change = (std::fabs(left_deg - last_obstacle_left_angle_deg_) < 3.0f) &&
@@ -929,7 +989,7 @@ void RobotNavigator::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr m
     last_obstacle_time_ = now;
     obstacle_angles_available_ = true;
 
-    publishCommandLog("OBSTACLE: left=" + std::to_string(left_deg) + "°, right=" + std::to_string(right_deg) + "°");
+    publishCommandLog("OBSTACLE: left=" + std::to_string(left_deg) + "°, right=" + std::to_string(right_deg) + "° (base_link-relative)");
     callDetectObstacle(left_deg, right_deg);
 }
 
@@ -1049,11 +1109,12 @@ void RobotNavigator::callDetectObstacle(float left_angle_deg, float right_angle_
     request->right_angle = right_angle_deg;
 
     auto future = detect_event_client_->async_send_request(request);
-    try {
+    auto status = future.wait_for(std::chrono::seconds(10));
+    if (status == std::future_status::ready) {
         auto response = future.get();
         RCLCPP_INFO(this->get_logger(), "✅ detect_obstacle 응답 flag: [%s]", response->flag.c_str());
-    } catch (const std::exception& e) {
-        RCLCPP_ERROR(this->get_logger(), "❌ detect_obstacle 응답 실패: %s", e.what());
+    } else {
+        RCLCPP_ERROR(this->get_logger(), "❌ detect_obstacle 응답 실패");
     }
 }
 

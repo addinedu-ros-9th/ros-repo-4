@@ -12,7 +12,10 @@
 #include <std_msgs/msg/int32.hpp>
 #include <nav2_msgs/action/navigate_to_pose.hpp>
 #include <tf2/LinearMath/Quaternion.h>
+#include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 #include "control_interfaces/srv/event_handle.hpp"
 #include "control_interfaces/srv/track_handle.hpp"
 #include "control_interfaces/srv/navigate_handle.hpp"
@@ -98,6 +101,10 @@ private:
     rclcpp::Service<control_interfaces::srv::NavigateHandle>::SharedPtr navigate_event_server_;
     rclcpp::Client<control_interfaces::srv::EventHandle>::SharedPtr robot_event_client_;
     rclcpp::Client<control_interfaces::srv::DetectHandle>::SharedPtr detect_event_client_;
+
+    // TF2 관련 멤버 변수
+    std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+    std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
     
     // 타이머
     rclcpp::TimerBase::SharedPtr status_timer_;

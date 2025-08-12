@@ -410,7 +410,7 @@ private:
         return angle;
     }
     
-        // 전방 경로상의 장애물만 체크
+    // 전방 경로상의 장애물만 체크
     bool isObstacleInForwardPath(const geometry_msgs::msg::PoseStamped& next_waypoint)
     {
         if (!latest_scan_) return false;
