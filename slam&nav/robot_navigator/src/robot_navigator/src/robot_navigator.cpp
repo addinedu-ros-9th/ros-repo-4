@@ -332,8 +332,8 @@ void RobotNavigator::netLevelCallback() {
     int level = 0; // 기본값: 알 수 없음
     if (std::regex_search(iw, m, sigRe) && m.size() >= 2) {
         int rssi = std::stoi(m[1].str());
-        if (rssi >= -50)      level = 4;
-        else if (rssi >= -65) level = 3;
+        if (rssi >= -60)      level = 4;
+        else if (rssi >= -70) level = 3;
         else if (rssi >= -80) level = 2;
         else                  level = 1;
     } else {
@@ -413,9 +413,161 @@ void RobotNavigator::trackEventHandle(
     std::shared_ptr<control_interfaces::srv::TrackHandle::Response> track_res
 )
 {
-    (void)track_req;
-    (void)track_res;
-    // TODO
+    RCLCPP_INFO(this->get_logger(),
+                "[TrackEvent] type=%s, left=%.2f°, right=%.2f°",
+                track_req->event_type.c_str(),
+                track_req->left_angle, track_req->right_angle);
+
+    if (track_req->event_type != "call_with_gesture") {
+        RCLCPP_ERROR(this->get_logger(),
+                "[TrackEvent] tracking failed. Invalid event type");
+        return;
+    }
+
+    // 라디안 변환
+    double left_rad = track_req->left_angle * M_PI / 180.0;
+    double right_rad = track_req->right_angle * M_PI / 180.0;
+
+    if (!latest_scan_) {
+        RCLCPP_ERROR(this->get_logger(),
+                "[TrackEvent] tracking failed. No scan");
+        return;
+    }
+
+    // ---- TF로 로봇의 heading과 라이다 오프셋 구하기 ----
+    double robot_heading = 0.0;
+    double yaw_scan_in_base = 0.0;
+    geometry_msgs::msg::Point robot_position;
+    try {
+        geometry_msgs::msg::TransformStamped map_from_base =
+            tf_buffer_->lookupTransform("map", "base_link", latest_scan_->header.stamp);
+
+        tf2::Quaternion q_base;
+        tf2::fromMsg(map_from_base.transform.rotation, q_base);
+        double roll_bim, pitch_bim;
+        tf2::Matrix3x3(q_base).getRPY(roll_bim, pitch_bim, robot_heading);
+
+        robot_position.x = map_from_base.transform.translation.x;
+        robot_position.y = map_from_base.transform.translation.y;
+
+        geometry_msgs::msg::TransformStamped base_from_scan =
+            tf_buffer_->lookupTransform("base_link", latest_scan_->header.frame_id, latest_scan_->header.stamp);
+
+        tf2::Quaternion q_scan;
+        tf2::fromMsg(base_from_scan.transform.rotation, q_scan);
+        double roll_sib, pitch_sib;
+        tf2::Matrix3x3(q_scan).getRPY(roll_sib, pitch_sib, yaw_scan_in_base);
+    }
+    catch (tf2::TransformException &ex) {
+        RCLCPP_ERROR(this->get_logger(), "TF lookup failed: %s", ex.what());
+        return;
+    }
+
+    // 라이다 스캔 파라미터
+    const float a_min = latest_scan_->angle_min;
+    const float a_inc = latest_scan_->angle_increment;
+    const int n = (int)latest_scan_->ranges.size();
+
+    // 가장 가까운 장애물 찾기
+    double min_distance = std::numeric_limits<double>::infinity();
+    double target_angle_rad = 0.0;
+    double obstacle_x = 0.0, obstacle_y = 0.0;
+
+    for (int i = 0; i < n; ++i) {
+        float r = latest_scan_->ranges[i];
+        if (!std::isfinite(r) || r < latest_scan_->range_min || r > latest_scan_->range_max)
+            continue;
+
+        double laser_angle = a_min + i * a_inc; // 라이다 프레임
+        double global_angle = robot_heading + yaw_scan_in_base + laser_angle;
+        double relative_angle = std::atan2(std::sin(global_angle - robot_heading),
+                                           std::cos(global_angle - robot_heading));
+
+        // 서버에서 받은 각도 범위에 있는지 체크
+        if (relative_angle >= right_rad && relative_angle <= left_rad) {
+            if (r < min_distance) {
+                min_distance = r;
+                target_angle_rad = relative_angle;
+                obstacle_x = robot_position.x + r * std::cos(global_angle);
+                obstacle_y = robot_position.y + r * std::sin(global_angle);
+            }
+        }
+    }
+
+    if (!std::isfinite(min_distance)) {
+        RCLCPP_ERROR(this->get_logger(), "No obstacle found in given angle range");
+        return;
+    }
+
+    RCLCPP_INFO(this->get_logger(), "Closest obstacle: dist=%.2f m, rel_angle=%.2f°, world=(%.2f, %.2f)",
+                min_distance, target_angle_rad * 180.0 / M_PI, obstacle_x, obstacle_y);
+
+    // ---- cmd_vel로 이동 ----
+    auto cmd_vel_pub = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
+    const double goal_tolerance = 0.2; // m
+    const double linear_speed = 0.2;   // m/s
+    const double angular_speed = 0.3;  // rad/s
+    const double timeout_sec = 30.0;   // 최대 이동 시간
+
+    rclcpp::Rate rate(10);
+    rclcpp::Time start_time = this->now();
+
+    while (rclcpp::ok()) {
+        // 현재 로봇 위치 및 heading 갱신
+        try {
+            geometry_msgs::msg::TransformStamped map_from_base =
+                tf_buffer_->lookupTransform("map", "base_link", tf2::TimePointZero);
+            tf2::Quaternion q;
+            tf2::fromMsg(map_from_base.transform.rotation, q);
+            double pitch_h, roll_h;
+            tf2::Matrix3x3(q).getRPY(pitch_h, roll_h, robot_heading);
+            robot_position.x = map_from_base.transform.translation.x;
+            robot_position.y = map_from_base.transform.translation.y;
+        }
+        catch (tf2::TransformException &ex) {
+            RCLCPP_WARN(this->get_logger(), "TF update failed: %s", ex.what());
+            break;
+        }
+
+        // 목표까지의 거리와 방향
+        double dx = obstacle_x - robot_position.x;
+        double dy = obstacle_y - robot_position.y;
+        double dist_to_goal = std::sqrt(dx*dx + dy*dy);
+        double heading_to_goal = std::atan2(dy, dx);
+        double angle_error = heading_to_goal - robot_heading;
+        // -pi~pi 정규화
+        while (angle_error > M_PI)  angle_error -= 2.0*M_PI;
+        while (angle_error < -M_PI) angle_error += 2.0*M_PI;
+
+        if (dist_to_goal <= goal_tolerance) {
+            RCLCPP_INFO(this->get_logger(), "Reached target obstacle position");
+            break;
+        }
+
+        if ((this->now() - start_time).seconds() > timeout_sec) {
+            RCLCPP_WARN(this->get_logger(), "Timeout reached before goal");
+            break;
+        }
+
+        geometry_msgs::msg::Twist twist;
+        if (std::fabs(angle_error) > 0.1) {
+            twist.angular.z = (angle_error > 0) ? angular_speed : -angular_speed;
+        } else {
+            twist.linear.x = linear_speed;
+        }
+        cmd_vel_pub->publish(twist);
+
+        rate.sleep();
+    }
+
+    // 정지
+    geometry_msgs::msg::Twist stop;
+    cmd_vel_pub->publish(stop);
+
+    robot_info_->navigation_status = "waiting_for_navigation";
+    track_res->status = "waiting_for_navigation";
+    track_res->distance = min_distance;
+    callEventService("arrived_to_call");
 }
 
 void RobotNavigator::navigateEventHandle(
@@ -468,7 +620,7 @@ void RobotNavigator::navigateEventHandle(
 
     // 3) 제어 이벤트
     // pause: navigating에서만
-    if (event_type == "pause_request" && command == "pause") {
+    if ((event_type == "pause_request" || event_type == "user_disappear") && command == "pause") {
         {
             std::lock_guard<std::mutex> lock(robot_mutex_);
             if (robot_info_->navigation_status != "navigating") {
@@ -488,7 +640,7 @@ void RobotNavigator::navigateEventHandle(
     }
 
     // resume: pause에서만
-    if (event_type == "restart_navigating") {
+    if (event_type == "restart_navigating" || event_type == "user_appear") {
         {
             std::lock_guard<std::mutex> lock(robot_mutex_);
             if (robot_info_->navigation_status != "pause") {
@@ -917,6 +1069,7 @@ geometry_msgs::msg::PoseStamped RobotNavigator::getNextWaypointFromPath(const ge
 
 void RobotNavigator::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg)
 {
+    latest_scan_ = msg;
     {
         std::lock_guard<std::mutex> lock(robot_mutex_);
         if (robot_info_->navigation_status != "navigating") return;
@@ -1234,8 +1387,7 @@ void RobotNavigator::statusTimerCallback()
     // 30초 timeout 후 lobby_station 복귀 로직
     {
         std::lock_guard<std::mutex> lock(robot_mutex_);
-        if (robot_info_->navigation_status == "idle" &&
-            robot_info_->canceled_time.nanoseconds() != 0) {
+        if (robot_info_->canceled_time.nanoseconds() != 0) {
             rclcpp::Duration elapsed = this->get_clock()->now() - robot_info_->canceled_time;
             if (elapsed.seconds() >= 30.0) {
                 publishCommandLog("TIMEOUT: canceled -> returning to lobby_station");
@@ -1248,7 +1400,7 @@ void RobotNavigator::statusTimerCallback()
     // timeout 로직 실행은 락 밖에서
     // (현재 구현은 바로 sendRobotToLobby() 호출을 안 했는데,
     //  필요하면 위 조건에서 flag를 잡아 여기서 호출하는 형태로 변경)
-    publishRobotData();
+    //publishRobotData();
 }
 
 void RobotNavigator::publishRobotData()

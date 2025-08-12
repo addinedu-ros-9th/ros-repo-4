@@ -116,6 +116,7 @@ private:
     bool is_paused_ {false};
 
     // 장애물 각도 상태
+    sensor_msgs::msg::LaserScan::SharedPtr latest_scan_;
     double last_obstacle_left_angle_deg_ {0.0};
     double last_obstacle_right_angle_deg_ {0.0};
     bool obstacle_angles_available_ {false};
