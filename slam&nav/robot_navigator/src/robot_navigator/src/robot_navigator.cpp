@@ -99,6 +99,10 @@ void RobotNavigator::initializeRobotSubscribers()
     scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
         scan_topic_, 10,
         std::bind(&RobotNavigator::scanCallback, this, _1));
+
+    global_path_sub_ = this->create_subscription<nav_msgs::msg::Path>(
+        "/plan", 10, 
+        std::bind(&RobotNavigator::globalPathCallback, this, _1));
     
     RCLCPP_INFO(this->get_logger(), "Initialized robot subscribers (scan_topic=%s)", scan_topic_.c_str());
 }
@@ -155,7 +159,7 @@ void RobotNavigator::setupServices()
         std::bind(&RobotNavigator::navigateEventHandle, this, std::placeholders::_1, std::placeholders::_2));
 
     robot_event_client_ = this->create_client<control_interfaces::srv::EventHandle>("/robot_event");
-    detect_event_client_ = this->create_client<control_interfaces::srv::DetectHandle>("/detected_obstacle");
+    detect_event_client_ = this->create_client<control_interfaces::srv::DetectHandle>("/detect_obstacle");
 
     RCLCPP_INFO(this->get_logger(), "✅ Service Servers created: control_event_service, tracking_event_service, navigate_event_service");
 }
@@ -593,7 +597,7 @@ void RobotNavigator::navigationCommandCallback(const std_msgs::msg::String::Shar
     std::string command = msg->data;
     RCLCPP_INFO(this->get_logger(), "Received navigation command: '%s'", command.c_str());
 
-    // 1) call_with_* : (로컬 디버그용) 상태 전이만 수행. 센터로는 절대 보내지 않음.
+    // 1) call_with_* : idle일 때만
     if (command == "call_with_screen" || command == "call_with_voice" || command == "control_by_admin") {
         {
             std::lock_guard<std::mutex> lock(robot_mutex_);
@@ -604,15 +608,9 @@ void RobotNavigator::navigationCommandCallback(const std_msgs::msg::String::Shar
             robot_info_->navigation_status = "waiting_for_navigating";
             robot_info_->current_target = "waiting_for_user";
         }
-        // 로컬에서만 상태 전이했음을 명확히 표기
-        publishCommandLog("CALL(local): " + command + " → 상태 전이 [waiting_for_navigating]");
-
-        // UI/센터 구독 토픽과 동기화 위해 nav_status 즉시 퍼블리시
-        std_msgs::msg::String s;
-        s.data = "waiting_for_navigating";
-        nav_status_publisher_->publish(s);
-
-        return; // 여기서 종료. 중앙서버로 /robot_event 송신하지 않음
+        publishCommandLog("CALL: " + command + " → 상태 전이 [waiting_for_navigating]");
+        callEventService(command);
+        return;
     }
     
     // 2) 복귀/특수
@@ -645,11 +643,6 @@ void RobotNavigator::navigationCommandCallback(const std_msgs::msg::String::Shar
             robot_info_->navigation_status = "moving_to_station";
             robot_info_->current_target = "canceled";
             publishCommandLog(std::string("CANCEL: ") + command + " → moving_to_station");
-
-            // 상태 브로드캐스트(일관성)
-            std_msgs::msg::String s;
-            s.data = "moving_to_station";
-            nav_status_publisher_->publish(s);
         } else {
             publishCommandLog(std::string("ERROR: ") + command + " failed");
         }
@@ -683,7 +676,6 @@ void RobotNavigator::navigationCommandCallback(const std_msgs::msg::String::Shar
         publishAvailableWaypoints();
     }
 }
-
 
 bool RobotNavigator::sendNavigationGoal(const std::string& waypoint_name, bool keep_status)
 {
@@ -863,6 +855,41 @@ void RobotNavigator::feedbackCallback(const GoalHandleNavigate::SharedPtr,
         "Navigation feedback: distance remaining %.2fm", feedback->distance_remaining);
 }
 
+void RobotNavigator::globalPathCallback(const nav_msgs::msg::Path::SharedPtr msg)
+{
+    current_global_path_ = *msg;
+}
+
+geometry_msgs::msg::PoseStamped RobotNavigator::getNextWaypointFromPath(const geometry_msgs::msg::Point& robot_pos)
+{
+    geometry_msgs::msg::PoseStamped next_waypoint;
+    
+    if (current_global_path_.poses.empty()) {
+        return next_waypoint; // 빈 waypoint 반환
+    }
+    
+    // 로봇과 가장 가까운 path point 찾기
+    double min_dist = 0.20;
+    size_t closest_idx = 0;
+    
+    for (size_t i = 0; i < current_global_path_.poses.size(); ++i) {
+        double dx = current_global_path_.poses[i].pose.position.x - robot_pos.x;
+        double dy = current_global_path_.poses[i].pose.position.y - robot_pos.y;
+        double dist = std::sqrt(dx * dx + dy * dy);
+        
+        if (dist < min_dist) {
+            min_dist = dist;
+            closest_idx = i;
+        }
+    }
+    
+    // 앞쪽 몇 개 점을 다음 waypoint로 사용 (예: 10개 점 앞)
+    size_t next_idx = std::min(closest_idx + 1, current_global_path_.poses.size() - 1);
+    next_waypoint = current_global_path_.poses[next_idx];
+    
+    return next_waypoint;
+}
+
 void RobotNavigator::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg)
 {
     {
@@ -876,6 +903,7 @@ void RobotNavigator::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr m
     // TF2 변환을 통한 로봇 방향 및 라이다 오프셋 계산
     double robot_heading = 0.0;
     double yaw_scan_in_base = 0.0;
+    double waypoint_direction = 0.0;
     
     try {
         // 스캔 시점에서의 로봇 방향 계산 (map 기준)
@@ -898,6 +926,26 @@ void RobotNavigator::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr m
         double roll_sib, pitch_sib;
         m_scan_in_base.getRPY(roll_sib, pitch_sib, yaw_scan_in_base);
         
+        // Global planner가 바라보는 방향 계산 (next waypoint 방향)
+        geometry_msgs::msg::Point robot_position;
+        robot_position.x = map_from_base.transform.translation.x;
+        robot_position.y = map_from_base.transform.translation.y;
+
+        geometry_msgs::msg::PoseStamped next_waypoint = getNextWaypointFromPath(robot_position);
+        if (next_waypoint.pose.position.x == 0.0 && next_waypoint.pose.position.y == 0.0) {
+            // 다음 웨이포인트가 없으면 로봇의 현재 방향 사용
+            waypoint_direction = robot_heading;
+        } else {
+            // 현재 로봇 위치에서 다음 웨이포인트로의 방향 계산
+            geometry_msgs::msg::PoseStamped current_pose;
+            current_pose.pose.position.x = map_from_base.transform.translation.x;
+            current_pose.pose.position.y = map_from_base.transform.translation.y;
+            
+            double dx = next_waypoint.pose.position.x - current_pose.pose.position.x;
+            double dy = next_waypoint.pose.position.y - current_pose.pose.position.y;
+            waypoint_direction = std::atan2(dy, dx);
+        }
+        
     } catch (tf2::TransformException& ex) {
         RCLCPP_WARN(this->get_logger(), "Failed to get transform: %s", ex.what());
         return;
@@ -907,16 +955,33 @@ void RobotNavigator::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr m
     const float a_inc = msg->angle_increment;
     const int n = static_cast<int>(msg->ranges.size());
 
-    // 로봇의 전방 방향(base_link) 기준으로 스캔 영역 계산
-    // scan_center_angle = 0 (로봇의 전방 방향이 중심)
-    double scan_start_angle = -front_half_angle_rad;
-    double scan_end_angle = +front_half_angle_rad;
+    // Global planner 방향 기준으로 스캔 영역 계산
+    double scan_center_angle = waypoint_direction - robot_heading - yaw_scan_in_base;
+    
+    // 각도 정규화
+    auto normalizeAngle = [](double angle) -> double {
+        while (angle > M_PI) angle -= 2.0 * M_PI;
+        while (angle < -M_PI) angle += 2.0 * M_PI;
+        return angle;
+    };
+    scan_center_angle = normalizeAngle(scan_center_angle);
+
+    // 스캔 범위 계산 (waypoint 방향 중심으로 ±24.5도)
+    double scan_start_angle = scan_center_angle - front_half_angle_rad;
+    double scan_end_angle = scan_center_angle + front_half_angle_rad;
 
     int i_start = static_cast<int>(std::ceil((scan_start_angle - a_min) / a_inc));
     int i_end   = static_cast<int>(std::floor((scan_end_angle - a_min) / a_inc));
     i_start = std::max(0, std::min(n - 1, i_start));
     i_end   = std::max(0, std::min(n - 1, i_end));
-    if (i_start > i_end) std::swap(i_start, i_end);
+    
+    // 범위가 뒤바뀐 경우 (각도가 ±π 경계를 넘나드는 경우) 처리
+    if (i_start > i_end) {
+        // 두 개의 구간으로 나누어 처리: [0, i_end] + [i_start, n-1]
+        // 간단히 전체 범위로 확장 (더 정교한 처리가 필요하다면 별도 구현)
+        i_start = 0;
+        i_end = n - 1;
+    }
 
     int best_cluster_start = -1, best_cluster_end = -1;
     int cur_start = -1;
@@ -959,19 +1024,13 @@ void RobotNavigator::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr m
     const float left_global_angle = static_cast<float>(robot_heading + yaw_scan_in_base) + left_laser_angle_local;
     const float right_global_angle = static_cast<float>(robot_heading + yaw_scan_in_base) + right_laser_angle_local;
     
-    // 로봇의 전방 방향(robot_heading) 기준으로 상대 각도 계산
-    float left_angle_rad = left_global_angle - static_cast<float>(robot_heading);
-    float right_angle_rad = right_global_angle - static_cast<float>(robot_heading);
+    // Waypoint 방향 기준으로 상대 각도 계산 (Global planner와 동일한 기준)
+    float left_angle_rad = left_global_angle - static_cast<float>(waypoint_direction);
+    float right_angle_rad = right_global_angle - static_cast<float>(waypoint_direction);
     
     // 각도 정규화 (-π ~ π)
-    auto normalizeAngle = [](float angle) -> float {
-        while (angle > M_PI) angle -= 2.0f * static_cast<float>(M_PI);
-        while (angle < -M_PI) angle += 2.0f * static_cast<float>(M_PI);
-        return angle;
-    };
-    
-    left_angle_rad = normalizeAngle(left_angle_rad);
-    right_angle_rad = normalizeAngle(right_angle_rad);
+    left_angle_rad = static_cast<float>(normalizeAngle(left_angle_rad));
+    right_angle_rad = static_cast<float>(normalizeAngle(right_angle_rad));
     
     const float left_deg = left_angle_rad * 180.0f / static_cast<float>(M_PI);
     const float right_deg = right_angle_rad * 180.0f / static_cast<float>(M_PI);
@@ -989,7 +1048,7 @@ void RobotNavigator::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr m
     last_obstacle_time_ = now;
     obstacle_angles_available_ = true;
 
-    publishCommandLog("OBSTACLE: left=" + std::to_string(left_deg) + "°, right=" + std::to_string(right_deg) + "° (base_link-relative)");
+    publishCommandLog("OBSTACLE: left=" + std::to_string(left_deg) + "°, right=" + std::to_string(right_deg) + "° (waypoint-relative)");
     callDetectObstacle(left_deg, right_deg);
 }
 
@@ -1022,6 +1081,7 @@ void RobotNavigator::resultCallback(const GoalHandleNavigate::WrappedResult& res
                     publishCommandLog("AUTO_START: Start point updated to " + robot_info_->start_point_name);
 
                     event_to_call = "navigating_complete";
+                    robot_info_->canceled_time = this->get_clock()->now();
                 }
                 break;
 
@@ -1099,22 +1159,46 @@ void RobotNavigator::callDetectObstacle(float left_angle_deg, float right_angle_
         RCLCPP_WARN(this->get_logger(), "Detect service client not initialized");
         return;
     }
-    if (!detect_event_client_->wait_for_service(500ms)) {
-        RCLCPP_WARN(this->get_logger(), "❗ detect_obstacle 서비스가 준비되지 않음");
-        return;
+    // 서비스 가용성 대기 (최대 10초/10회 시도)
+    {
+        const std::chrono::seconds max_wait_total(10);
+        const std::chrono::seconds per_attempt_wait(1);
+        auto wait_started_at = std::chrono::steady_clock::now();
+        int attempt_count = 0;
+        while (!detect_event_client_->wait_for_service(per_attempt_wait)) {
+            if (!rclcpp::ok()) {
+                RCLCPP_ERROR(this->get_logger(), "ROS 2 시스템이 중단되었습니다. Detecting Event 전송을 중단합니다.");
+                return;
+            }
+            ++attempt_count;
+            if (std::chrono::steady_clock::now() - wait_started_at >= max_wait_total) {
+                RCLCPP_ERROR(this->get_logger(), "Detecting Event 서비스가 %d초 내에 준비되지 않았습니다 (시도 %d회)",
+                             static_cast<int>(max_wait_total.count()), attempt_count);
+                return;
+            }
+            RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                                  "Detect Event 서비스가 사용 불가능합니다. 다시 시도합니다...");
+        }
     }
 
-    auto request = std::make_shared<control_interfaces::srv::DetectHandle::Request>();
-    request->left_angle = left_angle_deg;
-    request->right_angle = right_angle_deg;
+    try
+    {
+        auto request = std::make_shared<control_interfaces::srv::DetectHandle::Request>();
+        request->left_angle = left_angle_deg;
+        request->right_angle = right_angle_deg;
 
-    auto future = detect_event_client_->async_send_request(request);
-    auto status = future.wait_for(std::chrono::seconds(10));
-    if (status == std::future_status::ready) {
-        auto response = future.get();
-        RCLCPP_INFO(this->get_logger(), "✅ detect_obstacle 응답 flag: [%s]", response->flag.c_str());
-    } else {
+        auto future = detect_event_client_->async_send_request(request);
+        auto status = future.wait_for(std::chrono::seconds(10));
+        if (status == std::future_status::ready) {
+            auto response = future.get();
+            RCLCPP_INFO(this->get_logger(), "✅ detect_obstacle 응답 flag: [%s]", response->flag.c_str());
+            return;
+        }
         RCLCPP_ERROR(this->get_logger(), "❌ detect_obstacle 응답 실패");
+        return;
+    } catch (const std::exception& e) {
+        RCLCPP_ERROR(this->get_logger(), "❌ detect_obstacle 응답 실패: %s", e.what());
+        return;
     }
 }
 
