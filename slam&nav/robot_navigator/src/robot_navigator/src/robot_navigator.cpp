@@ -590,7 +590,7 @@ void RobotNavigator::navigationCommandCallback(const std_msgs::msg::String::Shar
     std::string command = msg->data;
     RCLCPP_INFO(this->get_logger(), "Received navigation command: '%s'", command.c_str());
 
-    // 1) call_with_* : idle일 때만
+    // 1) call_with_* : (로컬 디버그용) 상태 전이만 수행. 센터로는 절대 보내지 않음.
     if (command == "call_with_screen" || command == "call_with_voice" || command == "control_by_admin") {
         {
             std::lock_guard<std::mutex> lock(robot_mutex_);
@@ -601,9 +601,15 @@ void RobotNavigator::navigationCommandCallback(const std_msgs::msg::String::Shar
             robot_info_->navigation_status = "waiting_for_navigating";
             robot_info_->current_target = "waiting_for_user";
         }
-        publishCommandLog("CALL: " + command + " → 상태 전이 [waiting_for_navigating]");
-        callEventService(command);
-        return;
+        // 로컬에서만 상태 전이했음을 명확히 표기
+        publishCommandLog("CALL(local): " + command + " → 상태 전이 [waiting_for_navigating]");
+
+        // UI/센터 구독 토픽과 동기화 위해 nav_status 즉시 퍼블리시
+        std_msgs::msg::String s;
+        s.data = "waiting_for_navigating";
+        nav_status_publisher_->publish(s);
+
+        return; // 여기서 종료. 중앙서버로 /robot_event 송신하지 않음
     }
     
     // 2) 복귀/특수
@@ -636,6 +642,11 @@ void RobotNavigator::navigationCommandCallback(const std_msgs::msg::String::Shar
             robot_info_->navigation_status = "moving_to_station";
             robot_info_->current_target = "canceled";
             publishCommandLog(std::string("CANCEL: ") + command + " → moving_to_station");
+
+            // 상태 브로드캐스트(일관성)
+            std_msgs::msg::String s;
+            s.data = "moving_to_station";
+            nav_status_publisher_->publish(s);
         } else {
             publishCommandLog(std::string("ERROR: ") + command + " failed");
         }
@@ -669,6 +680,7 @@ void RobotNavigator::navigationCommandCallback(const std_msgs::msg::String::Shar
         publishAvailableWaypoints();
     }
 }
+
 
 bool RobotNavigator::sendNavigationGoal(const std::string& waypoint_name, bool keep_status)
 {

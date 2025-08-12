@@ -44,8 +44,8 @@ std::string AiRequestHandler::handleGestureCome(const Json::Value& request) {
         return createErrorResponse("Navigation manager not available");
     }
 
-    // 로봇에 call_wtih_gesture 이벤트 전송 (angles 포함)
-    bool sent = nav_manager_->sendTrackingEvent("call_wtih_gesture", left_angle, right_angle);
+    // 로봇에 call_with_gesture 이벤트 전송 (angles 포함)
+    bool sent = nav_manager_->sendTrackingEvent("call_with_gesture", left_angle, right_angle);
     if (!sent) {
         return createErrorResponse("Failed to send tracking event");
     }
@@ -61,9 +61,9 @@ std::string AiRequestHandler::handleGestureCome(const Json::Value& request) {
         if (!current_datetime.empty()) {
             int* null_patient = nullptr;
             bool log_ok = db_manager_->insertRobotLogWithType(
-                robot_id, null_patient, current_datetime, 0, 0, "call_wtih_gesture", "");
+                robot_id, null_patient, current_datetime, 0, 0, "call_with_gesture", "");
             if (!log_ok) {
-                std::cout << "[AI] call_wtih_gesture 로그 저장 실패" << std::endl;
+                std::cout << "[AI] call_with_gesture 로그 저장 실패" << std::endl;
             }
         }
     }

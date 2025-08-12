@@ -106,7 +106,7 @@ INSERT INTO `series` (`series_id`, `department_id`, `dttm`, `status`, `patient_i
 -- 로봇 로그 샘플 데이터 (새로운 구조에 맞게 수정)
 INSERT INTO `robot_log` (`robot_id`, `patient_id`, `dttm`, `type`, `admin_id`) VALUES
 -- 손동작 호출
-(3, 10011001, '2025-01-25 08:45:00', 'call_wtih_gesture', NULL),
+(3, 10011001, '2025-01-25 08:45:00', 'call_with_gesture', NULL),
 (3, NULL, '2025-01-25 08:50:00', 'arrived_to_call', NULL),
 
 -- 환자 길안내
