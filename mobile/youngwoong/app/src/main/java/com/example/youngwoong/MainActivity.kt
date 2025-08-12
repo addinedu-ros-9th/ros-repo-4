@@ -99,9 +99,11 @@ class MainActivity : AppCompatActivity() {
 
         // WebSocket 연결
         webSocketClient = RobotStatusWebSocketClient(
-            url = "ws://192.168.0.36:3000/?client_type=gui",
+            url = NetworkConfig.getGuiWebSocketUrl(),
             targetRobotId = "3"
         ) { status -> handleRobotStatusChange(status) }
+
+        // RobotStatusWebSocketClient가 자동 연결이 아니라면 유지, 자동이면 제거하세요.
         webSocketClient.connect()
     }
 
@@ -205,12 +207,22 @@ class MainActivity : AppCompatActivity() {
                     tapPrompt.setImageResource(R.drawable.tap_to_start)
                     startPromptBlink()
                 }
-                "arrived_to_call" -> {            // ✅ 호출 지점 도착 → 메인메뉴로 이동
+                "arrived_to_call" -> {
                     safeGoToMainMenu()
+                }
+
+                // ✅ 여기 추가: stop_tracking / return_command → 복귀중 상태 표시
+                "stop_tracking", "return_command" -> {
+                    isBlocked = true
+                    tapPrompt.setImageResource(R.drawable.robot_returning_notice)
+                    stopPromptBlink()
+                    // (선택) 메인 화면으로 강제 이동하고 싶다면:
+                    // if (!hasNavigatedToMenu) safeGoToMainMenu()
                 }
             }
         }
     }
+
 
     private fun startPromptBlink() {
         if (blinkHandler != null) return

@@ -23,6 +23,10 @@ import android.text.style.ForegroundColorSpan
 class GuidanceResumeActivity : AppCompatActivity() {
 
     private val robotLocationUrl = NetworkConfig.getRobotLocationUrl()
+    private var hasNavigatedToMain = false
+    private var webSocketClient: RobotStatusWebSocketClient? = null
+    private var hasResumedByWS = false
+
 
     private val rosCoords = mapOf(
         "초음파 검사실" to Pair(-4.9f, -1.96f),
@@ -142,14 +146,17 @@ class GuidanceResumeActivity : AppCompatActivity() {
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
                     View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
                     View.SYSTEM_UI_FLAG_FULLSCREEN
+        startWebSocket()
         resetTimeoutTimer()
     }
 
     override fun onPause() {
         super.onPause()
+        stopWebSocket()
         timeoutHandler.removeCallbacks(timeoutRunnable)
     }
     override fun onDestroy() {
+        stopWebSocket()
         super.onDestroy()
         timeoutHandler.removeCallbacks(timeoutRunnable)
     }
@@ -242,7 +249,7 @@ class GuidanceResumeActivity : AppCompatActivity() {
                     ?.takeIf { it.isNotBlank() } ?: "unknown"
 
                 val json = JSONObject().apply {
-                    put("robot_id", "3")
+                    put("robot_id", 3)
                     put("patient_id", safePatientId)  // ✅ 항상 포함
                 }
 
@@ -265,6 +272,65 @@ class GuidanceResumeActivity : AppCompatActivity() {
             }
         }
     }
+
+    private fun startWebSocket() {
+        webSocketClient = RobotStatusWebSocketClient(
+            url = NetworkConfig.getGuiWebSocketUrl(),
+            targetRobotId = "3"
+        ) { status ->
+            Log.d("ResumeWS", "📩 상태 수신: $status")
+
+            when (status) {
+                "stop_tracking", "return_command" -> {
+                    if (!hasNavigatedToMain) {
+                        runOnUiThread {
+                            hasNavigatedToMain = true
+                            val intent = Intent(this, MainActivity::class.java).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                                putExtra("from_timeout", true) // 메인에서 '복귀중입니다' 표시
+                            }
+                            startActivity(intent)
+                            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+                            finish()
+                        }
+                    }
+                }
+
+                // ✅ 사용자가 다시 나타남 → 안내 자동 재개
+                "user_appear" -> {
+                    if (!hasResumedByWS) {
+                        hasResumedByWS = true
+                        runOnUiThread {
+                            // 1) 중앙서버에 재개 명령(IF-08)
+                            sendRestartNavigationRequest()
+
+                            // 2) Waiting 화면으로 이동(기존 버튼 동작과 동일하게 인텐트 구성)
+                            val selectedText  = intent.getStringExtra("selected_text") ?: ""
+                            val isFromCheckin = intent.getBooleanExtra("isFromCheckin", false)
+                            val patientId     = intent.getStringExtra("patient_id") ?: "unknown"
+
+                            val intent = Intent(this, GuidanceWaitingActivity::class.java).apply {
+                                putExtra("selected_text", selectedText)
+                                putExtra("isFromCheckin", isFromCheckin)
+                                putExtra("patient_id", patientId)
+                            }
+                            startActivity(intent)
+                            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+                            finish()
+                        }
+                    }
+                }
+            }
+        }
+        webSocketClient?.connect()
+    }
+
+
+    private fun stopWebSocket() {
+        try { webSocketClient?.disconnect() } catch (_: Exception) {}
+        webSocketClient = null
+    }
+
 
     /** 로봇 위치 받아와서 마커 표시 */
     private fun fetchRobotPosition(robotMarker: ImageView, mapView: ImageView) {
