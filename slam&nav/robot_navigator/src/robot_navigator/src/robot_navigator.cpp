@@ -1176,11 +1176,24 @@ void RobotNavigator::callEventService(const std::string& event_type)
 
 void RobotNavigator::callDetectObstacle(float left_angle_deg, float right_angle_deg)
 {
-    if (!detect_event_client_) {
-        return;
+    static bool service_checked = false;
+    static bool service_available = false;
+    
+    // 서비스 가용성 한 번만 확인
+    if (!service_checked) {
+        if (!detect_event_client_) {
+            RCLCPP_WARN(this->get_logger(), "detect_obstacle client not initialized");
+            return;
+        }
+        service_available = detect_event_client_->wait_for_service(std::chrono::seconds(1));
+        service_checked = true;
+        if (!service_available) {
+            RCLCPP_WARN(this->get_logger(), "detect_obstacle service not available");
+            return;
+        }
     }
-
-    if (!detect_event_client_->wait_for_service(std::chrono::seconds(2))) {
+    
+    if (!service_available) {
         return;
     }
 
@@ -1190,7 +1203,7 @@ void RobotNavigator::callDetectObstacle(float left_angle_deg, float right_angle_
         request->right_angle = right_angle_deg;
 
         auto future = detect_event_client_->async_send_request(request);
-        auto status = future.wait_for(std::chrono::seconds(5));
+        auto status = future.wait_for(std::chrono::seconds(3));
         if (status == std::future_status::ready) {
             auto response = future.get();
             RCLCPP_INFO(this->get_logger(), "detect_obstacle response: %s", response->flag.c_str());
