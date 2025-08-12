@@ -708,6 +708,10 @@ bool RobotNavigator::sendNavigationGoal(const std::string& waypoint_name, bool k
         RCLCPP_ERROR(this->get_logger(), "Waypoint '%s' not found", waypoint_name.c_str());
         return false;
     }
+    if (robot_info_->start_point_set) {
+        RCLCPP_ERROR(this->get_logger(), "Already in start point");
+        return false;
+    }
     if (!nav_client_) {
         RCLCPP_ERROR(this->get_logger(), "No navigation client found");
         return false;
@@ -1156,9 +1160,21 @@ void RobotNavigator::resultCallback(const GoalHandleNavigate::WrappedResult& res
 
 void RobotNavigator::callEventService(const std::string& event_type)
 {
-    if (!robot_event_client_ || !robot_event_client_->wait_for_service(1s)) {
-        RCLCPP_WARN(this->get_logger(), "❗ /robot_event 서비스 연결 실패");
-        return;
+    static bool service_checked = false;
+    static bool service_available = false;
+    
+    // 서비스 가용성 한 번만 확인
+    if (!service_checked) {
+        if (!robot_event_client_) {
+            RCLCPP_WARN(this->get_logger(), "detect_obstacle client not initialized");
+            return;
+        }
+        service_available = robot_event_client_->wait_for_service(std::chrono::seconds(1));
+        service_checked = true;
+        if (!service_available) {
+            RCLCPP_WARN(this->get_logger(), "detect_obstacle service not available");
+            return;
+        }
     }
 
     auto request = std::make_shared<control_interfaces::srv::EventHandle::Request>();
