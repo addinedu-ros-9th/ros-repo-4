@@ -1330,14 +1330,21 @@ void RobotNavigator::callEventService(const std::string& event_type)
         }
     }
 
-    auto request = std::make_shared<control_interfaces::srv::EventHandle::Request>();
-    request->event_type = event_type;
-    auto future = robot_event_client_->async_send_request(request);
+    if (!service_available) {
+        return;
+    }
 
-    RCLCPP_INFO(this->get_logger(), "📡 /robot_event 전송: [%s]", event_type.c_str());
     try {
-        auto response = future.get();
-        RCLCPP_INFO(this->get_logger(), "✅ /robot_event 응답: [%s]", response->status.c_str());
+        auto request = std::make_shared<control_interfaces::srv::EventHandle::Request>();
+        request->event_type = event_type;
+        auto future = robot_event_client_->async_send_request(request);
+
+        RCLCPP_INFO(this->get_logger(), "📡 /robot_event 전송: [%s]", event_type.c_str());
+        auto status = future.wait_for(std::chrono::seconds(3));
+        if (status == std::future_status::ready) {
+            auto response = future.get();
+            RCLCPP_INFO(this->get_logger(), "✅ /robot_event 응답: [%s]", response->status.c_str());
+        }
     } catch (const std::exception& e) {
         RCLCPP_ERROR(this->get_logger(), "❌ 응답 수신 실패: %s", e.what());
     }
