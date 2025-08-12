@@ -185,7 +185,19 @@ std::string AiRequestHandler::handleStopTracking(const Json::Value& request) {
         return createErrorResponse("Failed to send return_command event");
     }
 
-    // 2. DB 로깅: stop_tracking 이벤트 기록 (patient_id = NULL, 대기장소 dest=8)
+    // 2. 웹소켓으로 GUI에게 stop_tracking 이벤트 전송
+    if (websocket_server_) {
+        Json::Value message;
+        message["type"] = "stop_tracking";
+        message["robot_id"] = robot_id;
+        message["timestamp"] = std::to_string(time(nullptr));
+
+        Json::StreamWriterBuilder builder;
+        std::string json_message = Json::writeString(builder, message);
+        websocket_server_->broadcastMessageToType("gui", json_message);
+    }
+
+    // 3. DB 로깅: stop_tracking 이벤트 기록 (patient_id = NULL, 대기장소 dest=8)
     if (db_manager_) {
         std::string current_datetime = db_manager_->getCurrentDateTime();
         if (!current_datetime.empty()) {
