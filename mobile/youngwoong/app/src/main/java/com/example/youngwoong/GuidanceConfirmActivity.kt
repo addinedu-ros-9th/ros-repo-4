@@ -179,6 +179,24 @@ class GuidanceConfirmActivity : AppCompatActivity() {
                 val centerName = selectedText ?: department ?: "해당 센터"
                 val stationId = stationNameToId(centerName)
                 if (stationId != null) {
+                    val url = if (isFromCheckin)
+                        NetworkConfig.getAuthDirectionUrl()
+                    else
+                        NetworkConfig.getWithoutAuthDirectionUrl()
+
+                    val safePatientId = patientId.takeIf { it.isNotBlank() } ?: "unknown"
+
+                    val jsonPreview = JSONObject().apply {
+                        put("robot_id", 3)
+                        put("department_id", stationId)
+                        put("patient_id", safePatientId)
+                    }
+
+                    Log.d(
+                        "DirectionAPI",
+                        "📤 중앙서버 안내 요청 준비 → URL: $url, Body: $jsonPreview"
+                    )
+
                     sendDirectionRequest(patientId, stationId)
                 } else {
                     Log.e("DirectionAPI", "❌ 목적지 매핑 실패: $centerName")
@@ -194,6 +212,7 @@ class GuidanceConfirmActivity : AppCompatActivity() {
                 finish()
             }, 100)
         }
+
         resetTimeoutTimer()
     }
 
@@ -306,14 +325,15 @@ class GuidanceConfirmActivity : AppCompatActivity() {
     }
 
     private fun stationNameToId(name: String?): Int? = when (name) {
+        "CT 검사실" -> 0
         "초음파 검사실" -> 1
-        "CT 검사실" -> 2
-        "X-ray 검사실" -> 3
-        "대장암 센터" -> 4
-        "위암 센터" -> 5
-        "폐암 센터" -> 6
+        "X-ray 검사실" -> 2
+        "대장암 센터" -> 3
+        "위암 센터" -> 4
+        "폐암 센터" -> 5
+        "뇌종양 센터" -> 6
         "유방암 센터" -> 7
-        "뇌종양 센터" -> 8
+        "병원 로비" -> 8
         else -> null
     }
 

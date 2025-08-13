@@ -57,6 +57,13 @@ struct RobotInfo {
     int net_signal_level;
 };
 
+struct ScanWithTF {
+    sensor_msgs::msg::LaserScan::SharedPtr scan;
+    geometry_msgs::msg::TransformStamped map_from_base;
+    geometry_msgs::msg::TransformStamped base_from_scan;
+    bool valid;
+};
+
 class RobotNavigator : public rclcpp::Node
 {
 public:
@@ -116,6 +123,7 @@ private:
     bool is_paused_ {false};
 
     // 장애물 각도 상태
+    ScanWithTF latest_scan_with_tf_;
     double last_obstacle_left_angle_deg_ {0.0};
     double last_obstacle_right_angle_deg_ {0.0};
     bool obstacle_angles_available_ {false};

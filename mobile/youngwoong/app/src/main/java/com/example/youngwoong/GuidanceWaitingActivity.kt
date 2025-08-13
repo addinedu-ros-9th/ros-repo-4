@@ -188,21 +188,51 @@ class GuidanceWaitingActivity : AppCompatActivity() {
 
     private fun startWebSocket() {
         webSocketClient = RobotStatusWebSocketClient(
-            url = "ws://192.168.0.10:3000/?client_type=gui",
+            url = NetworkConfig.getGuiWebSocketUrl(),
             targetRobotId = "3"
         ) { status ->
             Log.d("WS", "📩 상태 수신: $status")
-            if (status == "navigating_complete" && !isCompleted) {
-                runOnUiThread {
-                    isCompleted = true
-                    navigateToComplete()
+
+            when (status) {
+                "navigating_complete" -> {
+                    // ✅ 중앙서버 수신 로그
+                    Log.i(
+                        "DirectionAPI",
+                        "✅ 안내 완료 수신 ← WebSocket\n" +
+                                "URL: ${NetworkConfig.getGuiWebSocketUrl()}\n" +
+                                "Body: {\"robot_id\":3,\"event\":\"navigating_complete\",\"timestamp\":\"${System.currentTimeMillis()/1000}\"}"
+                    )
+
+                    if (!isCompleted) {
+                        runOnUiThread {
+                            isCompleted = true
+                            navigateToComplete()
+                        }
+                    }
+                }
+
+                "user_disappear" -> {
+                    runOnUiThread {
+                        Log.d("WS", "👤 사용자 사라짐 감지 → Resume로 이동")
+                        val intent = Intent(this, GuidanceResumeActivity::class.java).apply {
+                            putExtra("selected_text", selectedText ?: "")
+                            putExtra("isFromCheckin", isFromCheckin)
+                            putExtra("patient_id", patientId ?: "")
+                        }
+                        startActivity(intent)
+                        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+                        finish()
+                    }
                 }
             }
         }
         webSocketClient?.connect()
     }
 
+
+
     private fun stopWebSocket() {
+        Log.d("WS", "🔌 stopWebSocket() called by ${this::class.java.simpleName}")
         webSocketClient?.disconnect()
         webSocketClient = null
     }
@@ -221,7 +251,6 @@ class GuidanceWaitingActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        stopWebSocket()
     }
 
     override fun onDestroy() {
