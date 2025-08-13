@@ -7,8 +7,7 @@
 #include <functional>
 #include <cmath>
 #include <algorithm>
-#include <sstream>
-#include <iomanip>
+
 
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
@@ -25,7 +24,7 @@
 #include "nav2_core/global_planner.hpp"
 #include "pluginlib/class_list_macros.hpp"
 #include "builtin_interfaces/msg/time.hpp"
-#include "std_msgs/msg/string.hpp"
+
 
 // Forward declaration to avoid including heavy costmap header
 namespace nav2_costmap_2d { class Costmap2DROS; }
@@ -58,8 +57,7 @@ public:
         tf_ = tf;
         costmap_ros_ = costmap_ros;
         
-        // Debug 토픽 퍼블리셔
-        debug_pub_ = node_->create_publisher<std_msgs::msg::String>("/graph_planner/debug", 10);
+
         
         // LaserScan 구독자 설정
         scan_sub_ = node_->create_subscription<sensor_msgs::msg::LaserScan>(
@@ -69,7 +67,7 @@ public:
         // 파라미터 설정
         // 제거된 파라미터(lookahead_distance, obstacle_threshold)는 선언 생략
         node_->declare_parameter("waypoint_radius", 0.12);
-        node_->declare_parameter("forward_detection_angle", 30.0);  // 전방 감지 각도 (도)
+        node_->declare_parameter("forward_detection_angle", 20.0);  // 전방 감지 각도 (도)
         node_->declare_parameter("path_tolerance", 0.15);           // 경로 허용 반경
         node_->declare_parameter("node_block_radius", 0.25);        // 노드 차단 판정 반경
         node_->declare_parameter("edge_block_tolerance", 0.20);     // 엣지(노드-노드 선분) 차단 허용 반경
@@ -136,13 +134,7 @@ public:
                 current_node_index_ = closest_idx;
                 last_path_index_ = current_node_index_;
                 
-                // 디버그 출력
-                std_msgs::msg::String msg;
-                std::ostringstream oss;
-                oss << "KEEP_PATH: nodes=" << current_path_.poses.size()
-                    << ", updated_idx=" << current_node_index_;
-                msg.data = oss.str();
-                debug_pub_->publish(msg);
+
             }
             return current_path_;
         }
@@ -163,15 +155,7 @@ public:
             current_node_index_ = findClosestPathIndex();
             last_path_index_ = current_node_index_;
             
-            // 디버그 출력
-            std_msgs::msg::String msg;
-            std::ostringstream oss;
-            oss << "NEW_PATH: nodes=" << current_path_.poses.size()
-                << ", current_idx=" << current_node_index_
-                << ", start=(" << start.pose.position.x << "," << start.pose.position.y << ")"
-                << ", goal=(" << goal.pose.position.x << "," << goal.pose.position.y << ")";
-            msg.data = oss.str();
-            debug_pub_->publish(msg);
+
         }
         
         return path;
@@ -410,7 +394,7 @@ private:
         return angle;
     }
     
-    // 전방 경로상의 장애물만 체크
+        // 전방 경로상의 장애물만 체크
     bool isObstacleInForwardPath(const geometry_msgs::msg::PoseStamped& next_waypoint)
     {
         if (!latest_scan_) return false;
@@ -572,14 +556,7 @@ private:
         // 경로 차단 여부 확인
         bool path_blocked = isPathBlocked();
         
-        // 디버그 정보 출력
-        std_msgs::msg::String msg;
-        std::ostringstream oss;
-        oss << std::fixed << std::setprecision(2)
-            << "path_blocked=" << (path_blocked ? 1 : 0) 
-            << ", node_idx=" << current_node_index_ << "/" << current_path_.poses.size()-1;
-        msg.data = std::string("MONITOR: ") + oss.str();
-        debug_pub_->publish(msg);
+
         
         // 경로가 차단되면 즉시 재계획 트리거
         if (path_blocked) {
@@ -799,29 +776,29 @@ private:
 
 
         // 예: gateway_a_entrance
-        add_node("gateway_a_entrance", 0, 4.03, {"gateway_a_corridor_1", "gateway_bridge_1"});
-        add_node("gateway_b_entrance", -5.58, 4.03, {"gateway_bridge_6"});
+        add_node("gateway_a_entrance", 0.3, 4.13, {"gateway_a_corridor_1", "gateway_bridge_1"});
+        add_node("gateway_b_entrance", -5.58, 4.13, {"gateway_bridge_6"});
         add_node("colon_cancer_entrance", 0.79, -2.17, {"colon_approach"});
         add_node("stomach_cancer_entrance", 3.65, -2.17, {"stomach_approach"});
         add_node("lung_cancer_entrance", 5.07, -2.17,{"lung_approach"});
         add_node("breast_cancer_entrance", 7.67, 1.12, {"breast_approach"});
         add_node("brain_tumor_entrance", 6.1, 1.12, {"brain_approach"});
-        add_node("lobby_entrance", 9, -2.17, {"main_horizontal_corridor_9", "lobby_corridor_1"});
-        add_node("gateway_a_corridor_1", 0, 3, {"gateway_a_corridor_2"});
-        add_node("gateway_a_corridor_2", 0, 2, {"main_junction_north"});
-        add_node("main_junction_north", 0, 1.12, {"upper_horizontal_corridor_6", "gateway_a_corridor_4"});
-        add_node("gateway_a_corridor_4", 0, 0, {"gateway_a_corridor_5"});
-        add_node("gateway_a_corridor_5", 0, -1, {"colon_approach"});
-        add_node("colon_approach", 0, -2.17, {"main_horizontal_corridor_1"});
+        add_node("lobby_entrance", 9.26, -1.5, {"main_horizontal_corridor_9", "lobby_corridor_1"});
+        add_node("gateway_a_corridor_1", 0.3, 3, {"gateway_a_corridor_2"});
+        add_node("gateway_a_corridor_2", 0.3, 2, {"main_junction_north"});
+        add_node("main_junction_north", 0.3, 1.12, {"upper_horizontal_corridor_6", "gateway_a_corridor_4"});
+        add_node("gateway_a_corridor_4", 0.3, 0, {"gateway_a_corridor_5"});
+        add_node("gateway_a_corridor_5", 0.3, -1, {"colon_approach"});
+        add_node("colon_approach", 0.3, -2.17, {"main_horizontal_corridor_1"});
         add_node("main_horizontal_corridor_1", 1, -2.17,{"main_horizontal_corridor_2"});
         add_node("main_horizontal_corridor_2", 2, -2.17, {"main_horizontal_corridor_3"});
         add_node("main_horizontal_corridor_3", 3.11, -2.17, {"stomach_approach", "vertical_connector_1_mid", "main_horizontal_corridor_4"});
         add_node("main_horizontal_corridor_4", 4, -2.17, {"main_horizontal_corridor_5"});
         add_node("main_horizontal_corridor_5", 5, -2.17, {"main_horizontal_corridor_6"});
-        add_node("main_horizontal_corridor_6", 5.87, -2.17, {"lung_approach", "vertical_connector_2_mid", "main_horizontal_corridor_7"});
-        add_node("main_horizontal_corridor_7", 7, -2.17, {"main_horizontal_corridor_8"});
-        add_node("main_horizontal_corridor_8", 8, -2.17, {"main_horizontal_corridor_9"});
-        add_node("main_horizontal_corridor_9", 9, -2.17, {"lobby_entrance"});
+        add_node("main_horizontal_corridor_6", 5.87, -1.5, {"lung_approach", "vertical_connector_2_mid", "main_horizontal_corridor_7"});
+        add_node("main_horizontal_corridor_7", 7, -1.5, {"main_horizontal_corridor_8"});
+        add_node("main_horizontal_corridor_8", 8, -1.5, {"main_horizontal_corridor_9"});
+        add_node("main_horizontal_corridor_9", 9, -1.5, {"lobby_entrance"});
         add_node("lobby_corridor_1", 9.26, -2, {"lobby_corridor_2"});
         add_node("lobby_corridor_2", 9.26, -1, {"lobby_corridor_3"});
         add_node("lobby_corridor_3", 9.26, 0, {"lobby_corridor_4"});
@@ -840,14 +817,14 @@ private:
         add_node("stomach_approach", 3.65, -2.17, {"main_horizontal_corridor_3"});
         add_node("lung_approach", 5.07, -2.17, {"main_horizontal_corridor_6"});
         add_node("brain_approach", 6.1, 1.12, {"upper_horizontal_corridor_1"});
-        add_node("xray_entrance", -6, 4.03, {"gateway_bridge_6"});
+        add_node("xray_entrance", -6, 4.13, {"gateway_bridge_6"});
         add_node("ct_echo_entrance", -5.58, -1.88, {"gateway_bridge_11"});
-        add_node("gateway_bridge_1", -1, 4.03, {"gateway_bridge_2"});
-        add_node("gateway_bridge_2", -2, 4.03, {"gateway_bridge_3"});
-        add_node("gateway_bridge_3", -3, 4.03, {"gateway_bridge_4"});
-        add_node("gateway_bridge_4", -4, 4.03, {"gateway_bridge_5"});
-        add_node("gateway_bridge_5", -5, 4.03, {"gateway_bridge_6"});
-        add_node("gateway_bridge_6", -5.58, 4.03, {"xray_entrance", "gateway_bridge_7"});
+        add_node("gateway_bridge_1", -1, 4.13, {"gateway_bridge_2"});
+        add_node("gateway_bridge_2", -2, 4.13, {"gateway_bridge_3"});
+        add_node("gateway_bridge_3", -3, 4.13, {"gateway_bridge_4"});
+        add_node("gateway_bridge_4", -4, 4.13, {"gateway_bridge_5"});
+        add_node("gateway_bridge_5", -5, 4.13, {"gateway_bridge_6"});
+        add_node("gateway_bridge_6", -5.58, 4.13, {"xray_entrance", "gateway_bridge_7"});
         add_node("gateway_bridge_7", -5.58, 3, {"gateway_bridge_8"});
         add_node("gateway_bridge_8", -5.58, 2, {"gateway_bridge_9"});
         add_node("gateway_bridge_9", -5.58, 1, {"gateway_bridge_10"});
@@ -892,7 +869,6 @@ private:
     // 새로 추가된 멤버 변수들
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
     sensor_msgs::msg::LaserScan::SharedPtr latest_scan_;
-    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr debug_pub_;
 
     nav_msgs::msg::Path current_path_;
     geometry_msgs::msg::PoseStamped current_robot_pose_;
