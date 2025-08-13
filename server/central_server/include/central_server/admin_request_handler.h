@@ -11,7 +11,8 @@
 class AdminRequestHandler {
 public:
     AdminRequestHandler(std::shared_ptr<DatabaseManager> db_manager, 
-                       std::shared_ptr<RobotNavigationManager> nav_manager);
+                       std::shared_ptr<RobotNavigationManager> nav_manager,
+                       std::shared_ptr<WebSocketServer> websocket_server);
     ~AdminRequestHandler() = default;
 
     // Admin GUI API 핸들러들

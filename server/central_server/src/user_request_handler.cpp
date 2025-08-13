@@ -226,10 +226,13 @@ std::string UserRequestHandler::handleCallWithScreen(const Json::Value& request)
     }
 
     // 웹소켓으로 관리자에게 alert_occupied 메시지 전송
+    std::cout << "[USER] websocket_server_ 포인터 확인: " << (websocket_server_ ? "유효" : "nullptr") << std::endl;
     if (websocket_server_) {
         websocket_server_->sendAlertOccupied(robot_id, "admin");
         websocket_server_->sendAlertOccupied(robot_id, "ai");
         std::cout << "[USER] 관리자에게 alert_occupied 메시지 전송: Robot " << robot_id << std::endl;
+    } else {
+        std::cout << "[USER] 웹소켓 서버가 설정되지 않아 알림을 전송할 수 없음" << std::endl;
     }
 
     // robot_log에 이벤트 저장
