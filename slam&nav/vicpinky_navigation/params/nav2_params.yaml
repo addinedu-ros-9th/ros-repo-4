@@ -83,8 +83,8 @@ controller_server:
     # Progress checker parameters
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
-      required_movement_radius: 0.5
-      movement_time_allowance: 10.0
+      required_movement_radius: 0.4  # 0.3에서 0.4로 증가 - 적당한 진행도 체크
+      movement_time_allowance: 12.0  # 15.0에서 12.0으로 감소 - 적당한 시간 허용
     # Goal checker parameters
     #precise_goal_checker:
     #  plugin: "nav2_controller::SimpleGoalChecker"
@@ -94,8 +94,8 @@ controller_server:
     general_goal_checker:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.25
-      yaw_goal_tolerance: 0.1
+      xy_goal_tolerance: 0.3  # 0.2에서 0.3으로 증가 - 목표 도달 허용 범위 확대
+      yaw_goal_tolerance: 0.2  # 0.15에서 0.2로 증가 - 방향 허용 범위 확대
     # DWB parameters
     #FollowPath:
     #  plugin: "dwb_core::DWBLocalPlanner"
@@ -138,33 +138,33 @@ controller_server:
     #  RotateToGoal.lookahead_time: -1.0
     FollowPath:
       plugin: "vector_pursuit_controller::VectorPursuitController"
-      # 제어 게인 - 웨이포인트 정확도 향상
-      k: 2.2  # 1.5에서 2.2로 증가 - 웨이포인트 추종 정확도 향상
+      # 제어 게인 - 경로 추종 강화
+      k: 2.5  # 2.0에서 2.5로 증가 - 적당한 경로 추종 강도
       
-      # 속도 - 더 안정적인 속도로 조정
-      desired_linear_vel: 0.4  # 0.45에서 0.4로 감소 - 더 안정적인 직진 속도
+      # 속도 - 코너 회전 최적화
+      desired_linear_vel: 0.35  # 0.4에서 0.35로 감소 - 코너에서 더 안정적인 속도
       min_linear_velocity: 0.06  # 0.08에서 0.06으로 감소 - 더 낮은 최소 속도
-      min_approach_linear_velocity: 0.1  # 0.12에서 0.1로 감소 - 더 낮은 접근 속도
+      min_approach_linear_velocity: 0.08  # 0.1에서 0.08로 감소 - 코너 접근 시 더 낮은 속도
       
-      # Lookahead - 직선 경로 추종 최적화
-      lookahead_dist: 1.1  # 0.9에서 1.1로 증가 - 더 부드러운 직선 추종
-      min_lookahead_dist: 0.7  # 0.6에서 0.7로 증가 - 부드러운 최소 거리
-      max_lookahead_dist: 1.5  # 1.3에서 1.5로 증가 - 부드러운 최대 거리
+      # Lookahead - 코너 회전 최적화
+      lookahead_dist: 0.9  # 1.0에서 0.9로 감소 - 코너에서 적당한 경로 추종
+      min_lookahead_dist: 0.55  # 0.6에서 0.55로 감소 - 급커브에서 적당한 거리
+      max_lookahead_dist: 1.3  # 1.4에서 1.3으로 감소 - 적당한 최대 거리
       use_velocity_scaled_lookahead_dist: true  # 속도 기반 거리 조절 유지
       
-      # 회전 - 불필요한 회전 최소화
-      rotate_to_heading_angular_vel: 0.4  # 0.6에서 0.4로 감소 - 더 부드러운 회전
-      rotate_to_heading_min_angle: 0.6  # 0.4에서 0.6으로 증가 - 작은 각도 무시로 불필요한 회전 방지
+      # 회전 - 코너 회전 성능 유지
+      rotate_to_heading_angular_vel: 0.7  # 0.6에서 0.7로 증가 - 적당한 회전 속도
+      rotate_to_heading_min_angle: 0.4  # 0.5에서 0.4로 감소 - 적당한 회전 민감도
       use_rotate_to_heading: true
       allow_reversing: false
       
-      # 가속도 - 안정적인 가속도로 조정
-      max_angular_accel: 1.0  # 1.2에서 1.0으로 감소 - 더 안정적인 각가속도
+      # 가속도 - 코너 회전 성능 유지
+      max_angular_accel: 1.8  # 1.5에서 1.8로 증가 - 적당한 각가속도
       max_linear_accel: 1.3  # 1.6에서 1.3으로 감소 - 안정적인 선가속도
       max_lateral_accel: 0.15  # 0.2에서 0.15로 감소 - 측면 가속도 최소화로 안정성 향상
       
-      # 기하학적 제약 - 적당한 제약
-      min_turning_radius: 0.3  # 0.4에서 0.3으로 감소 - 더 작은 회전 반경
+      # 기하학적 제약 - 코너 회전 최적화
+      min_turning_radius: 0.2  # 0.3에서 0.2로 감소 - 더 작은 회전 반경으로 급커브 대응
       
       # 시간 - 적당한 시간
       lookahead_time: 1.5  # 2.0에서 1.5로 감소 - 적당한 계획 시간
@@ -351,12 +351,12 @@ velocity_smoother:
     smoothing_frequency: 20.0
     scale_velocities: False
     feedback: "CLOSED_LOOP"
-    # 속도 제한 - 적당한 속도
-    max_velocity: [0.5, 0.0, 1.0]  # 선속도 0.4→0.5, 각속도 0.8→1.0
-    min_velocity: [-0.5, 0.0, -1.0]  # 선속도 -0.4→-0.5, 각속도 -0.8→-1.0
-    # 가속도 제한 - 적당한 가속도
-    max_accel: [1.5, 0.0, 1.8]  # 선가속도 1.2→1.5, 각가속도 1.5→1.8
-    max_decel: [-1.5, 0.0, -1.8]  # 선감속도 -1.2→-1.5, 각감속도 -1.5→-1.8
+    # 속도 제한 - 코너 회전 성능 유지
+    max_velocity: [0.5, 0.0, 1.3]  # 선속도 0.5 유지, 각속도 1.2→1.3으로 증가
+    min_velocity: [-0.5, 0.0, -1.3]  # 선속도 -0.5 유지, 각속도 -1.2→-1.3으로 증가
+    # 가속도 제한 - 코너 회전 성능 유지
+    max_accel: [1.5, 0.0, 2.2]  # 선가속도 1.5 유지, 각가속도 2.0→2.2로 증가
+    max_decel: [-1.5, 0.0, -2.2]  # 선감속도 -1.5 유지, 각감속도 -2.0→-2.2로 증가
     odom_topic: "odom"
     odom_duration: 0.1
     deadband_velocity: [0.0, 0.0, 0.0]

@@ -765,7 +765,6 @@ void LogWidget::get_robot_log_data()
             
             QByteArray responseData = reply->readAll();
             qDebug() << "[로그 데이터] 응답 데이터 길이:" << responseData.length();
-            qDebug() << "[로그 데이터] 응답 데이터 일부:" << responseData.left(500);
             
             if (statusCode == 200) {
                 if (responseData.isEmpty()) {

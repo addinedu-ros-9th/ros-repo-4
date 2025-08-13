@@ -115,7 +115,17 @@ void HttpServer::serverLoop() {
             
             // HTTP 요청 처리
             std::string response = processRequest(request);
-            write(client_fd, response.c_str(), response.length());
+            // 응답 전체가 전송될 때까지 반복 전송
+            size_t total_sent = 0;
+            const char* resp_data = response.c_str();
+            const size_t resp_size = response.size();
+            while (total_sent < resp_size) {
+                ssize_t sent = write(client_fd, resp_data + total_sent, resp_size - total_sent);
+                if (sent <= 0) {
+                    break;
+                }
+                total_sent += static_cast<size_t>(sent);
+            }
             close(client_fd);
         } else {
             close(client_fd);
@@ -127,6 +137,7 @@ void HttpServer::serverLoop() {
 
 std::string HttpServer::processRequest(const HttpRequest& request) {
     std::cout << "[HTTP] 요청 처리: " << request.method << " " << request.path << std::endl;
+    std::cout << "[HTTP] 요청 바디: '" << request.body << "'" << std::endl;
     
     // CORS 헤더 추가
     std::string cors_headers = "Access-Control-Allow-Origin: *\r\n"
@@ -146,12 +157,16 @@ std::string HttpServer::processRequest(const HttpRequest& request) {
             
             try {
                 Json::Value res_json = parseJson(response);
-                if (res_json.isMember("status_code") && res_json["status_code"].isInt()) {
-                    status_code = res_json["status_code"].asInt();
-                } else if (res_json.isMember("error")) {
-                    status_code = 400; // 클라이언트 에러
+                
+                // JSON 객체인 경우에만 isMember() 사용
+                if (res_json.isObject()) {
+                    if (res_json.isMember("status_code") && res_json["status_code"].isInt()) {
+                        status_code = res_json["status_code"].asInt();
+                    } else if (res_json.isMember("error")) {
+                        status_code = 400; // 클라이언트 에러
+                    }
                 }
-            } catch (...) {
+            } catch (const std::exception& e) {
                 // JSON 파싱 실패 시 숫자 문자열인지 확인
                 try {
                     status_code = std::stoi(response);
@@ -356,9 +371,14 @@ Json::Value HttpServer::parseJson(const std::string& jsonStr) {
     Json::CharReaderBuilder builder;
     std::string errors;
     
+    // 빈 문자열이면 빈 오브젝트로 처리 (옵션 파라미터 허용 엔드포인트 호환)
+    if (jsonStr.empty()) {
+        return Json::Value(Json::objectValue);
+    }
+    
     std::istringstream stream(jsonStr);
     if (!Json::parseFromStream(builder, stream, &root, &errors)) {
-        throw std::runtime_error("JSON 파싱 실패: " + errors);
+        throw std::runtime_error("JSON 파싱 실패: " + errors + " (입력: '" + jsonStr + "')");
     }
     
     return root;
@@ -408,16 +428,21 @@ HttpServer::HttpRequest HttpServer::parseHttpRequest(const std::string& request)
     }
     
     // 헤더들 파싱
-    while (std::getline(stream, line) && line != "\r" && !line.empty()) {
+    while (std::getline(stream, line)) {
+        // \r 제거
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+        
+        // 빈 줄이면 헤더 끝, 바디 시작
+        if (line.empty()) {
+            break;
+        }
+        
         size_t colon_pos = line.find(':');
         if (colon_pos != std::string::npos) {
             std::string header_name = line.substr(0, colon_pos);
             std::string header_value = line.substr(colon_pos + 2); // ": " 건너뛰기
-            
-            // \r 제거
-            if (!header_value.empty() && header_value.back() == '\r') {
-                header_value.pop_back();
-            }
             
             http_request.headers[header_name] = header_value;
         }
@@ -427,6 +452,10 @@ HttpServer::HttpRequest HttpServer::parseHttpRequest(const std::string& request)
     std::string body;
     std::string body_line;
     while (std::getline(stream, body_line)) {
+        // \r 제거
+        if (!body_line.empty() && body_line.back() == '\r') {
+            body_line.pop_back();
+        }
         body += body_line;
     }
     http_request.body = body;

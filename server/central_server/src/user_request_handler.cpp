@@ -85,9 +85,20 @@ std::string UserRequestHandler::handleRobotReturn(const Json::Value& request) {
     
     int robot_id = request["robot_id"].asInt();
     std::string patient_id_str = request["patient_id"].asString();
-    int patient_id = std::stoi(patient_id_str);
     
-    return sendReturnCommand(robot_id, &patient_id, "patient_return");
+    // patient_id가 "unknown"이면 nullptr 전달, 아니면 정수로 변환
+    int* patient_id_ptr = nullptr;
+    if (patient_id_str != "unknown") {
+        try {
+            int patient_id = std::stoi(patient_id_str);
+            patient_id_ptr = &patient_id;
+        } catch (const std::exception& e) {
+            std::cout << "[ERROR] 환자 복귀 요청 처리 중 patient_id 변환 실패: " << patient_id_str << " - " << e.what() << std::endl;
+            return createErrorResponse("Invalid patient_id format");
+        }
+    }
+    
+    return sendReturnCommand(robot_id, patient_id_ptr, "patient_return");
 }
 
 std::string UserRequestHandler::handleWithoutAuthDirection(const Json::Value& request) {
@@ -243,10 +254,21 @@ std::string UserRequestHandler::handleAlertTimeout(const Json::Value& request) {
     
     int robot_id = request["robot_id"].asInt();
     std::string patient_id_str = request["patient_id"].asString();
-    int patient_id = std::stoi(patient_id_str);
+    
+    // patient_id가 "unknown"이면 nullptr 전달, 아니면 정수로 변환
+    int* patient_id_ptr = nullptr;
+    if (patient_id_str != "unknown") {
+        try {
+            int patient_id = std::stoi(patient_id_str);
+            patient_id_ptr = &patient_id;
+        } catch (const std::exception& e) {
+            std::cout << "[ERROR] 30초 타임아웃 알림 처리 중 patient_id 변환 실패: " << patient_id_str << " - " << e.what() << std::endl;
+            return "400"; // Bad Request
+        }
+    }
     
     // 30초 타임아웃 발생 시 return_command 메시지를 서비스를 통해 전송
-    return sendReturnCommand(robot_id, &patient_id, "return_command");
+    return sendReturnCommand(robot_id, patient_id_ptr, "return_command");
 }
 
 std::string UserRequestHandler::handlePauseRequest(const Json::Value& request) {
@@ -258,9 +280,20 @@ std::string UserRequestHandler::handlePauseRequest(const Json::Value& request) {
     
     int robot_id = request["robot_id"].asInt();
     std::string patient_id_str = request["patient_id"].asString();
-    int patient_id = std::stoi(patient_id_str);
     
-    return sendReturnCommand(robot_id, &patient_id, "pause_request");
+    // patient_id가 "unknown"이면 nullptr 전달, 아니면 정수로 변환
+    int* patient_id_ptr = nullptr;
+    if (patient_id_str != "unknown") {
+        try {
+            int patient_id = std::stoi(patient_id_str);
+            patient_id_ptr = &patient_id;
+        } catch (const std::exception& e) {
+            std::cout << "[ERROR] 일시정지 요청 처리 중 patient_id 변환 실패: " << patient_id_str << " - " << e.what() << std::endl;
+            return "400"; // Bad Request
+        }
+    }
+    
+    return sendReturnCommand(robot_id, patient_id_ptr, "pause_request");
 }
 
 std::string UserRequestHandler::handleRestartNavigation(const Json::Value& request) {
@@ -272,9 +305,20 @@ std::string UserRequestHandler::handleRestartNavigation(const Json::Value& reque
     
     int robot_id = request["robot_id"].asInt();
     std::string patient_id_str = request["patient_id"].asString();
-    int patient_id = std::stoi(patient_id_str);
     
-    return sendReturnCommand(robot_id, &patient_id, "restart_navigation");
+    // patient_id가 "unknown"이면 nullptr 전달, 아니면 정수로 변환
+    int* patient_id_ptr = nullptr;
+    if (patient_id_str != "unknown") {
+        try {
+            int patient_id = std::stoi(patient_id_str);
+            patient_id_ptr = &patient_id;
+        } catch (const std::exception& e) {
+            std::cout << "[ERROR] 길안내 재개 요청 처리 중 patient_id 변환 실패: " << patient_id_str << " - " << e.what() << std::endl;
+            return "400"; // Bad Request
+        }
+    }
+    
+    return sendReturnCommand(robot_id, patient_id_ptr, "restart_navigation");
 }
 
 std::string UserRequestHandler::handleStopNavigating(const Json::Value& request) {
@@ -286,9 +330,20 @@ std::string UserRequestHandler::handleStopNavigating(const Json::Value& request)
     
     int robot_id = request["robot_id"].asInt();
     std::string patient_id_str = request["patient_id"].asString();
-    int patient_id = std::stoi(patient_id_str);
     
-    return sendReturnCommand(robot_id, &patient_id, "stop_navigating");
+    // patient_id가 "unknown"이면 nullptr 전달, 아니면 정수로 변환
+    int* patient_id_ptr = nullptr;
+    if (patient_id_str != "unknown") {
+        try {
+            int patient_id = std::stoi(patient_id_str);
+            patient_id_ptr = &patient_id;
+        } catch (const std::exception& e) {
+            std::cout << "[ERROR] 길안내 중지 요청 처리 중 patient_id 변환 실패: " << patient_id_str << " - " << e.what() << std::endl;
+            return "400"; // Bad Request
+        }
+    }
+    
+    return sendReturnCommand(robot_id, patient_id_ptr, "stop_navigating");
 }
 
 // 공통 인증 로직

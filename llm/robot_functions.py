@@ -91,11 +91,11 @@ class RobotFunctions:
                 "X-ray": {"exists": True, "area": "X-ray", "location": "왼쪽 상단", "description": "X-ray 검사실"},
                 "CT": {"exists": True, "area": "CT", "location": "왼쪽 중앙", "description": "CT 검사실"},
                 "초음파": {"exists": True, "area": "초음파", "location": "왼쪽 하단", "description": "초음파 검사실"},
-                "뇌종양": {"exists": True, "area": "뇌종양", "location": "오른쪽 상단", "description": "뇌종양 전문 치료"},
-                "유방암": {"exists": True, "area": "유방암", "location": "오른쪽 상단", "description": "유방암 전문 치료"},
-                "대장암": {"exists": True, "area": "대장암", "location": "오른쪽 하단", "description": "대장암 전문 치료"},
-                "위암": {"exists": True, "area": "위암", "location": "오른쪽 하단", "description": "위암 전문 치료"},
-                "폐암": {"exists": True, "area": "폐암", "location": "오른쪽 하단", "description": "폐암 전문 치료"},
+                "뇌종양 센터": {"exists": True, "area": "뇌종양 센터", "location": "오른쪽 상단", "description": "뇌종양 전문 치료"},
+                "유방암 센터": {"exists": True, "area": "유방암 센터", "location": "오른쪽 상단", "description": "유방암 전문 치료"},
+                "대장암 센터": {"exists": True, "area": "대장암 센터", "location": "오른쪽 하단", "description": "대장암 전문 치료"},
+                "위암 센터": {"exists": True, "area": "위암 센터", "location": "오른쪽 하단", "description": "위암 전문 치료"},
+                "폐암 센터": {"exists": True, "area": "폐암 센터", "location": "오른쪽 하단", "description": "폐암 전문 치료"},
             }, RobotConfig.HTTP_STATUS_CODES['SERVICE_UNAVAILABLE']
         finally:
             # 리소스 정리
@@ -128,25 +128,25 @@ class RobotFunctions:
             "초음파실": "초음파",
             
             # 암센터 - 다양한 표현
-            "대장암과": "대장암",
-            "위암과": "위암", 
-            "폐암과": "폐암",
-            "유방암과": "유방암",
-            "뇌종양과": "뇌종양",
+            "대장암과": "대장암 센터",
+            "위암과": "위암 센터", 
+            "폐암과": "폐암 센터",
+            "유방암과": "유방암 센터",
+            "뇌종양과": "뇌종양 센터",
             
             # 센터 접미사 처리
-            "대장암센터": "대장암",
-            "위암센터": "위암",
-            "폐암센터": "폐암",
-            "유방암센터": "유방암",
-            "뇌종양센터": "뇌종양",
+            "대장암센터": "대장암 센터",
+            "위암센터": "위암 센터",
+            "폐암센터": "폐암 센터",
+            "유방암센터": "유방암 센터",
+            "뇌종양센터": "뇌종양 센터",
             
             # 실 접미사 처리
-            "대장암실": "대장암",
-            "위암실": "위암",
-            "폐암실": "폐암",
-            "유방암실": "유방암",
-            "뇌종양실": "뇌종양",
+            "대장암실": "대장암 센터",
+            "위암실": "위암 센터",
+            "폐암실": "폐암 센터",
+            "유방암실": "유방암 센터",
+            "뇌종양실": "뇌종양 센터",
         }
         
         # 동의어 변환 (대소문자 무관)
@@ -215,13 +215,15 @@ class RobotFunctions:
         if matched_facility:
             location = facilities[matched_facility]["location"]
             area = facilities[matched_facility]["area"]
+            department_id = facilities[matched_facility].get("department_id", 0)
             result = f"{location} ({area})"
             print(f"✅ 매칭됨: {target} → {matched_facility} - {result}")
             return {
                 "function": "query_facility",
                 "facility": target,
                 "status_code": RobotConfig.HTTP_STATUS_CODES['SUCCESS'],
-                "result": result
+                "result": result,
+                "department_id": department_id
             }
         
         # 매칭 실패 시
@@ -258,19 +260,47 @@ class RobotFunctions:
                 "result": facility_result.get("result", {"error": "not_found", "message": RobotConfig.ERROR_MESSAGES[404]})
             }
         
-        # 이동 시작 (실제로는 로봇 모터 제어)
-        self.robot_status["is_moving"] = True
+        # 실제 로봇 제어 API 호출
         destination_location = facility_result["result"]
+        department_id = facility_result.get("department_id", 0)
         
         print(f"🎯 목적지: {target} ({destination_location})")
-        print("🤖 이동 중...")
+        print(f"🏥 부서 ID: {department_id}")
+        print("🤖 로봇 제어 API 호출 중...")
         
-        # 시뮬레이션 (실제로는 실제 이동)
-        time.sleep(RobotConfig.NAVIGATION["simulation_delay"])
-        
-        # 도착
-        self.robot_status["current_location"] = f"{target} 앞"
-        self.robot_status["is_moving"] = False
+        try:
+            # 중앙 서버의 로봇 제어 API 호출 (사용자용 엔드포인트 사용)
+            response = requests.post(
+                f"{RobotConfig.CENTRAL_SERVER_URL}/without_auth/direction",
+                json={
+                    "robot_id": 3,  # 로봇 ID
+                    "department_id": department_id,  # 목적지 부서 ID
+                    "patient_id": 0  # 인증 없는 사용자
+                },
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                print("✅ 로봇 제어 명령 전송 성공")
+                print(f"📡 응답: {response.text}")
+                self.robot_status["is_moving"] = True
+                self.robot_status["current_location"] = f"{target}로 이동 중"
+            else:
+                print(f"❌ 로봇 제어 명령 실패: {response.status_code}")
+                print(f"📡 응답: {response.text}")
+                self.robot_status["is_moving"] = False
+                
+        except requests.RequestException as e:
+            print(f"❌ 로봇 제어 API 호출 실패: {e}")
+            self.robot_status["is_moving"] = False
+            # API 호출 실패 시에도 사용자에게 안내 메시지 제공
+            result_message = f"{target}로 안내를 시도했지만 연결에 실패했습니다. 잠시 후 다시 시도해주세요."
+            return {
+                "function": "navigate",
+                "target": target,
+                "status_code": RobotConfig.HTTP_STATUS_CODES['SERVICE_UNAVAILABLE'],
+                "result": result_message
+            }
         
         result_message = f"{target}({destination_location})로 안내해드리겠습니다. 따라오세요!"
         return {

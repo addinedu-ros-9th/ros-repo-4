@@ -62,4 +62,4 @@ class RobotConfig:
     }
     
     # 센트럴 서버 설정
-    CENTRAL_SERVER_URL = os.getenv('CENTRAL_SERVER_URL', 'http://localhost:8080')
+    CENTRAL_SERVER_URL = os.getenv('CENTRAL_SERVER_URL', 'http://192.168.0.36:8080')
