@@ -52,7 +52,7 @@ INSERT INTO `department` (`department_id`, `department_name`, `location_x`, `loc
 -- 로그 타입 데이터 (새로운 이벤트 로그 타입들 추가)
 INSERT INTO `log_type` (`type`, `description`) VALUES
 -- 호출 관련
-('call_wtih_gesture', '손동작 호출'),
+('call_with_gesture', '손동작 호출'),
 ('call_with_voice', '음성 호출'),
 ('call_with_screen', '스크린터치로 호출'),
 ('control_by_admin', '관리자 원격제어 호출'),
@@ -75,7 +75,7 @@ INSERT INTO `log_type` (`type`, `description`) VALUES
 
 -- 반환 관련
 ('patient_return', '환자 반환 요청'),
-('unknow_return', '알 수 없는 사용자 반환 요청'),
+('unknown_return', '알 수 없는 사용자 반환 요청'),
 ('admin_return', '관리자 반환 요청'),
 ('return_by_patient', '환자 요청 반환'),
 ('return_by_unknown', '알 수 없는 사용자 요청 반환'),
@@ -92,7 +92,7 @@ INSERT INTO `reservations` (`patient_id`, `reservation_date`) VALUES
 (10021002, '2025-01-25'),
 (10031003, '2025-01-25'),
 (10041004, '2025-01-25'),
-(10011001, '2025-08-01');
+(10011001, '2025-08-13');
 
 -- 시리즈 데이터 (status를 VARCHAR로 수정)
 INSERT INTO `series` (`series_id`, `department_id`, `dttm`, `status`, `patient_id`, `reservation_date`) VALUES
@@ -101,7 +101,7 @@ INSERT INTO `series` (`series_id`, `department_id`, `dttm`, `status`, `patient_i
 (2, 3, '2025-01-25 11:00:00', '접수', 10021002, '2025-01-25'),  -- 이환자: 대장암센터
 (3, 1, '2025-01-25 14:00:00', '완료', 10031003, '2025-01-25'),  -- 박환자: 초음파
 (4, 2, '2025-01-25 15:30:00', '접수', 10041004, '2025-01-25'),  -- 최환자: X-ray
-(5, 0, '2025-08-01 09:00:00', '예약', 10011001, '2025-08-01');  -- 김환자: CT
+(5, 0, '2025-08-01 09:00:00', '예약', 10011001, '2025-08-13');  -- 김환자: CT
 
 -- 로봇 로그 샘플 데이터 (새로운 구조에 맞게 수정)
 INSERT INTO `robot_log` (`robot_id`, `patient_id`, `dttm`, `type`, `admin_id`) VALUES

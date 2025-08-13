@@ -22,7 +22,7 @@ HttpServer::HttpServer(std::shared_ptr<DatabaseManager> db_manager, int port)
     current_robot_position_.valid = false;
     
     // 요청 핸들러들 초기화 (nav_manager_는 나중에 setRobotNavigationManager에서 설정)
-    admin_handler_ = std::make_unique<AdminRequestHandler>(db_manager_, nullptr);
+    admin_handler_ = std::make_unique<AdminRequestHandler>(db_manager_, nullptr, nullptr);
     user_handler_ = std::make_unique<UserRequestHandler>(db_manager_, nullptr, nullptr);
     ai_handler_ = std::make_unique<AiRequestHandler>(db_manager_, nullptr);
 }
@@ -515,8 +515,8 @@ void HttpServer::setRobotNavigationManager(std::shared_ptr<RobotNavigationManage
         });
         
         // 모든 핸들러에 nav_manager 설정
-        admin_handler_ = std::make_unique<AdminRequestHandler>(db_manager_, nav_manager);
-        user_handler_ = std::make_unique<UserRequestHandler>(db_manager_, nav_manager, nullptr);
+        admin_handler_ = std::make_unique<AdminRequestHandler>(db_manager_, nav_manager, websocket_server_);
+        user_handler_ = std::make_unique<UserRequestHandler>(db_manager_, nav_manager, websocket_server_);
         ai_handler_ = std::make_unique<AiRequestHandler>(db_manager_, nav_manager, websocket_server_);
         
         std::cout << "[HTTP] 로봇 네비게이션 관리자 설정 완료" << std::endl;
@@ -525,7 +525,14 @@ void HttpServer::setRobotNavigationManager(std::shared_ptr<RobotNavigationManage
 
 void HttpServer::setWebSocketServer(std::shared_ptr<WebSocketServer> websocket_server) {
     websocket_server_ = websocket_server;
+    
+    // 모든 핸들러에 websocket_server 설정
     if (ai_handler_) {
         ai_handler_->setWebSocketServer(websocket_server_);
+    }
+    
+    // UserRequestHandler도 websocket_server로 다시 생성
+    if (nav_manager_ && db_manager_) {
+        user_handler_ = std::make_unique<UserRequestHandler>(db_manager_, nav_manager_, websocket_server_);
     }
 }
