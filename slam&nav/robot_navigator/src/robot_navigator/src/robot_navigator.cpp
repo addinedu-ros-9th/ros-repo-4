@@ -70,7 +70,7 @@ void RobotNavigator::initializeWaypoints()
     waypoints_["colon_cancer"] = {"Colon Cancer Center", 0.79, -2.17, 0.0, "대장암 센터"};
     //waypoints_["gateway_a"] = {"Gateway A", 0.0, 4.03, 180.0, "통로 A"};
     //waypoints_["gateway_b"] = {"Gateway B", -5.58, 4.03, 0.0, "통로 B"};
-    waypoints_["x_ray"] = {"X-ray", -6, 4.03, 180.0, "X-ray 검사실"};
+    waypoints_["x_ray"] = {"X-ray", -6, 4.13, 180.0, "X-ray 검사실"};
     waypoints_["ct"] = {"CT", -5.58, -1.88, 90.0, "CT 검사실"};
     waypoints_["echography"] = {"Echography", -5.58, -1.88, 90.0, "초음파 검사실"};
     
@@ -250,10 +250,12 @@ bool RobotNavigator::sendRobotToLobby()
 
 void RobotNavigator::amclCallback(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg)
 {
-    std::lock_guard<std::mutex> lock(robot_mutex_);
-    robot_info_->current_pose = msg->pose.pose;
-    robot_info_->is_online = true;
-    robot_info_->last_update = this->get_clock()->now();
+    {
+        std::lock_guard<std::mutex> lock(robot_mutex_);
+        robot_info_->current_pose = msg->pose.pose;
+        robot_info_->is_online = true;
+        robot_info_->last_update = this->get_clock()->now();
+    }
     
     // 첫 위치 수신 시 현재 위치에서 가장 가까운 waypoint를 시작점으로 설정
     if (!robot_info_->start_point_set) {
@@ -267,7 +269,8 @@ void RobotNavigator::amclCallback(const geometry_msgs::msg::PoseWithCovarianceSt
         const auto& wp = waypoints_[nearest_wp];
         RCLCPP_INFO(this->get_logger(), "Auto-set start point: '%s' (%.2f, %.2f) - nearest to current position (%.2f, %.2f)", 
                    nearest_wp.c_str(), wp.x, wp.y,
-                   msg->pose.pose.position.x, msg->pose.pose.position.y);
+                   //msg->pose.pose.position.x, msg->pose.pose.position.y);
+                   robot_info_->current_pose.position.x, robot_info_->current_pose.position.y);
         publishCommandLog("AUTO: Start point set -> " + nearest_wp + " (nearest to current position)");
     }
 }
@@ -464,9 +467,9 @@ void RobotNavigator::trackEventHandle(
     }
 
     // 라이다 스캔 파라미터
-    const float a_min = latest_scan_->angle_min;
-    const float a_inc = latest_scan_->angle_increment;
-    const int n = (int)latest_scan_->ranges.size();
+    const float a_min = latest_scan_with_tf_.scan->angle_min;
+    const float a_inc = latest_scan_with_tf_.scan->angle_increment;
+    const int n = (int)latest_scan_with_tf_.scan->ranges.size();
 
     // 가장 가까운 장애물 찾기
     double min_distance = std::numeric_limits<double>::infinity();
@@ -474,8 +477,8 @@ void RobotNavigator::trackEventHandle(
     double obstacle_x = 0.0, obstacle_y = 0.0;
 
     for (int i = 0; i < n; ++i) {
-        float r = latest_scan_->ranges[i];
-        if (!std::isfinite(r) || r < latest_scan_->range_min || r > latest_scan_->range_max)
+        float r = latest_scan_with_tf_.scan->ranges[i];
+        if (!std::isfinite(r) || r < latest_scan_with_tf_.scan->range_min || r > latest_scan_with_tf_.scan->range_max)
             continue;
 
         double laser_angle = a_min + i * a_inc; // 라이다 프레임
@@ -860,10 +863,12 @@ bool RobotNavigator::sendNavigationGoal(const std::string& waypoint_name, bool k
         RCLCPP_ERROR(this->get_logger(), "Waypoint '%s' not found", waypoint_name.c_str());
         return false;
     }
+    /*
     if (robot_info_->start_point_set) {
         RCLCPP_ERROR(this->get_logger(), "Already in start point");
         return false;
     }
+    */
     if (!nav_client_) {
         RCLCPP_ERROR(this->get_logger(), "No navigation client found");
         return false;
@@ -1074,9 +1079,9 @@ void RobotNavigator::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr m
 
     try {
         latest_scan_with_tf_.map_from_base = 
-            tf_buffer_->lookupTransform("map", "base_link", msg->header.stamp);
+            tf_buffer_->lookupTransform("map", "base_link", latest_scan_with_tf_.scan->header.stamp);
         latest_scan_with_tf_.base_from_scan = 
-            tf_buffer_->lookupTransform("base_link", msg->header.frame_id, msg->header.stamp);
+            tf_buffer_->lookupTransform("base_link", latest_scan_with_tf_.scan->header.frame_id, latest_scan_with_tf_.scan->header.stamp);
         latest_scan_with_tf_.valid = true;
     }
     catch (tf2::TransformException& ex) {
@@ -1140,9 +1145,9 @@ void RobotNavigator::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr m
         return;
     }
 
-    const float a_min = msg->angle_min;
-    const float a_inc = msg->angle_increment;
-    const int n = static_cast<int>(msg->ranges.size());
+    const float a_min = latest_scan_with_tf_.scan->angle_min;
+    const float a_inc = latest_scan_with_tf_.scan->angle_increment;
+    const int n = static_cast<int>(latest_scan_with_tf_.scan->ranges.size());
 
     // Global planner 방향 기준으로 스캔 영역 계산
     double scan_center_angle = waypoint_direction - robot_heading - yaw_scan_in_base;
@@ -1176,8 +1181,8 @@ void RobotNavigator::scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr m
     int cur_start = -1;
 
     auto is_block = [&](int idx) -> bool {
-        float r = msg->ranges[idx];
-        return std::isfinite(r) && r > msg->range_min && r < std::min(block_distance_m, msg->range_max);
+        float r = latest_scan_with_tf_.scan->ranges[idx];
+        return std::isfinite(r) && r > latest_scan_with_tf_.scan->range_min && r < std::min(block_distance_m, latest_scan_with_tf_.scan->range_max);
     };
 
     // 장애물 클러스터 찾기
@@ -1402,6 +1407,13 @@ void RobotNavigator::callDetectObstacle(float left_angle_deg, float right_angle_
 
 void RobotNavigator::statusTimerCallback()
 {
+    publishRobotData();
+    
+    if (robot_info_->navigation_status == "moving_to_station")
+    {
+        publishCommandLog("Already in return progress");
+        return;
+    }
     // 30초 timeout 후 lobby_station 복귀 로직
     {
         std::lock_guard<std::mutex> lock(robot_mutex_);

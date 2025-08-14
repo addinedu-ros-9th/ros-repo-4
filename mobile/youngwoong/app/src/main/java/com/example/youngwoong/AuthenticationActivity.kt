@@ -184,24 +184,45 @@ class AuthenticationActivity : AppCompatActivity() {
     private fun pollUidFromESP32() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val client = OkHttpClient()
-                val request = Request.Builder().url(esp32Url).build()
-                val response = client.newCall(request).execute()
-                val body = response.body?.string()
+                val request = Request.Builder()
+                    .url(esp32Url)
+                    .get()
+                    .build()
 
-                if (!body.isNullOrEmpty()) {
-                    val uid = JSONObject(body).optString("uid")
+                // 응답/바디를 확실히 닫아주기 위해 use 사용
+                OkHttpClient().newCall(request).execute().use { resp ->
+                    if (!resp.isSuccessful) {
+                        Log.w("ESP32_UID", "⚠️ UID 요청 실패 code=${resp.code}")
+                        return@use
+                    }
+
+                    val body = resp.body?.string().orEmpty()
+                    if (body.isBlank()) return@use
+
+                    val uid = try {
+                        JSONObject(body).optString("uid")
+                    } catch (e: Exception) {
+                        Log.e("ESP32_UID", "❌ JSON 파싱 실패: ${e.message}")
+                        return@use
+                    }
+
                     if (uid.isNotBlank() && uid != lastUid) {
                         lastUid = uid
-                        Log.d("ESP32_UID", "\uD83D\uDCE5 UID 수신: $uid")
+                        Log.d("ESP32_UID", "📥 UID 수신: $uid")
+
+                        // 🔸 RFID 상호작용으로 간주 → 타임아웃 리셋 (메인 스레드)
+                        withContext(Dispatchers.Main) { resetTimeoutTimer() }
+
+                        // 서버 검증 요청
                         verifyRFIDWithServer(uid)
                     }
                 }
             } catch (e: Exception) {
-                Log.e("ESP32_UID", "❌ UID 요청 실패: ${e.message}")
+                Log.e("ESP32_UID", "❌ UID 요청 실패: ${e.message}", e)
             }
         }
     }
+
 
     private fun verifyRFIDWithServer(rfid: String) {
         CoroutineScope(Dispatchers.IO).launch {
@@ -233,6 +254,7 @@ class AuthenticationActivity : AppCompatActivity() {
 
                     if (name.isNotBlank() && department.isNotBlank()) {
                         withContext(Dispatchers.Main) {
+                            resetTimeoutTimer()
                             showUidPopup(name, department, reservationTime, status, patientId)  // 🔥 전달
                         }
                     } else {
@@ -415,14 +437,13 @@ class AuthenticationActivity : AppCompatActivity() {
 
     private fun goToIdleMainActivity() {
         val intent = Intent(this, MainActivity::class.java).apply {
+            putExtra("from_timeout", true) // ✅ 타임아웃 플래그 전달
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         }
         startActivity(intent)
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
         finish()
     }
-
-
 
     private fun showUidPopup(
         userName: String,
@@ -431,12 +452,16 @@ class AuthenticationActivity : AppCompatActivity() {
         status: String,
         patientId: String  // 🔼 파라미터 추가
     ) {
+        timeoutHandler.removeCallbacks(timeoutRunnable)
+
         val popup = CheckinPopupDialog(
             userName = userName,
             department = department,
             reservationTime = reservationTime,
             status = status,
             onConfirm = {
+                resetTimeoutTimer()
+
                 val intent = Intent(this, GuidanceConfirmActivity::class.java).apply {
                     putExtra("user_name", userName)
                     putExtra("department", department)

@@ -32,7 +32,12 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 import java.util.*
 
-data class LLMResult(val reply: String, val functionName: String)
+data class LLMResult(
+    val reply: String,
+    val functionName: String,
+    val selectedText: String?,   // ← 여기 담아줄 것
+    val statusCode: Int          // ← 200 체크용
+)
 
 class VoiceGuideActivity : AppCompatActivity() {
 
@@ -47,6 +52,8 @@ class VoiceGuideActivity : AppCompatActivity() {
     private var blinkAnimation: AlphaAnimation? = null
     private var loadingJob: Job? = null
     private lateinit var streamer: AndroidStreamer
+    private var pendingSelectedText: String? = null
+    private var pendingStatusCode: Int? = null
 
     private val timeoutHandler = Handler(Looper.getMainLooper())
     private val timeoutRunnable = Runnable {
@@ -377,18 +384,36 @@ class VoiceGuideActivity : AppCompatActivity() {
             override fun onStart(utteranceId: String?) {}
             override fun onDone(utteranceId: String?) {
                 runOnUiThread {
-                    resetTimeoutTimer()
-                    voiceButton.isEnabled = true // ✅ TTS 끝나면 다시 버튼 활성화
+                    voiceButton.isEnabled = true
+                    val patientId = intent.getStringExtra("patient_id") ?: "unknown"
 
-                    // 👉 appointment_service 함수일 경우 다음 화면으로 이동
-                    if (pendingFunctionName == "appointment_service") {
-                        val intent = Intent(this@VoiceGuideActivity, AuthenticationActivity::class.java)
-                        startActivity(intent)
-                        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
-                        finish()
+                    when (pendingFunctionName) {
+                        "appointment_service" -> {
+                            startActivity(Intent(this@VoiceGuideActivity, AuthenticationActivity::class.java))
+                            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+                            finish()
+                        }
+                        "navigate" -> {
+                            if (pendingStatusCode == 200) {
+                                val dest = (pendingSelectedText?.takeIf { it.isNotBlank() }) ?: "병원 로비"
+                                val i = Intent(this@VoiceGuideActivity, GuidanceWaitingActivity::class.java).apply {
+                                    putExtra("selected_text", dest)
+                                    putExtra("isFromCheckin", false)
+                                    putExtra("patient_id", patientId)
+                                }
+                                startActivity(i)
+                                overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+                                finish()
+                            } else {
+                                Log.w(TAG, "navigate 실패(status=$pendingStatusCode) → 화면 이동 안 함")
+                                // 필요하면 Toast 표시:
+                                // Toast.makeText(this@VoiceGuideActivity, "목적지를 다시 말씀해 주세요.", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     }
-
-                    pendingFunctionName = null // ✅ 재사용 방지
+                    pendingFunctionName = null
+                    pendingSelectedText = null
+                    pendingStatusCode = null
                 }
             }
             override fun onError(utteranceId: String?) {}
@@ -399,42 +424,46 @@ class VoiceGuideActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 val result = sendMessageToServer(message)
-                runOnUiThread {
+
+                withContext(Dispatchers.Main) {
                     stopLoadingDots()
-                    textBotMessage.text = result.reply
+
+                    // 빈 응답 대비
+                    val replyText = result.reply.ifBlank { "응답이 없습니다." }
+                    textBotMessage.text = replyText
                     textPrompt.text = "터치로 대화를 시작합니다"
-                    pendingFunctionName = result.functionName
-                    speakResponse(result.reply)
 
-                    // ✅ navigate 호출이면 GuidanceWaitingActivity로 이동
-                    if (result.functionName == "navigate") {
-                        Log.d(TAG, "🧭 navigate 호출 → GuidanceWaitingActivity로 이동")
-                        // TTS 끝난 후 이동하도록 딜레이
-                        textToSpeech.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                            override fun onDone(utteranceId: String?) {
-                                runOnUiThread {
-                                    val intent = Intent(this@VoiceGuideActivity, GuidanceWaitingActivity::class.java)
-                                    startActivity(intent)
-                                    finish()
-                                }
-                            }
+                    // 다음 화면 분기를 위한 상태 보관
+                    pendingFunctionName = result.functionName.ifBlank { null }
+                    pendingSelectedText = result.selectedText
+                        ?.takeIf { it.isNotBlank() }
+                        ?: textUserMessage.text?.toString()?.takeIf { it.isNotBlank() }
 
-                            override fun onStart(utteranceId: String?) {}
-                            override fun onError(utteranceId: String?) {}
-                        })
-                    }
+                    // (옵션) 상태코드 보관 → onDone에서 200 체크용
+                    pendingStatusCode = result.statusCode
+
+                    // 화면 전환은 오직 TTS onDone에서 처리
+                    speakResponse(replyText)
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "LLM 오류: ${e.message}")
-                runOnUiThread {
+                Log.e(TAG, "LLM 오류: ${e.message}", e)
+                withContext(Dispatchers.Main) {
                     stopLoadingDots()
-                    textBotMessage.text = "죄송합니다. 서버 연결에 문제가 있습니다."
+                    val err = "죄송합니다. 서버 연결에 문제가 있습니다."
+                    textBotMessage.text = err
                     textPrompt.text = "터치로 대화를 시작합니다"
-                    speakResponse("죄송합니다. 서버 연결에 문제가 있습니다.")
+
+                    // 실패 시 네비게이션 차단
+                    pendingFunctionName = null
+                    pendingSelectedText = null
+                    pendingStatusCode = null
+
+                    speakResponse(err)
                 }
             }
         }
     }
+
 
 
     private suspend fun sendMessageToServer(message: String): LLMResult = withContext(Dispatchers.IO) {
@@ -452,62 +481,53 @@ class VoiceGuideActivity : AppCompatActivity() {
             try {
                 val json = JSONObject(bodyString)
 
-                val reply = json.optString("response", "응답이 없습니다.")
-                val functionName = json.optString("function_name", "")
-                val functionResult = json.opt("function_result")
+                val functionName = json.optString("function_name",
+                    json.optString("function", ""))
 
-                Log.d(TAG, "🧠 LLM 응답: $reply")
-                Log.d(TAG, "🔧 함수 이름: $functionName")
-                Log.d(TAG, "📦 함수 결과: $functionResult")
+                // 기본값(루트 기준)
+                var statusCode = json.optInt("status_code", response.code)
+                var selectedText: String? = json.optString("target", null)
+                var reply = json.optString("response", "")
 
-                return@withContext LLMResult(reply, functionName)
-            } catch (e: Exception) {
-                Log.e(TAG, "❌ JSON 파싱 오류: ${e.message}")
-                return@withContext LLMResult("응답 파싱 오류", "")
-            }
-        } else {
-            Log.e(TAG, "❌ 서버 응답 오류: ${response.code}")
-            return@withContext LLMResult("서버 오류가 발생했습니다.", "")
-        }
-    }
+                // ✅ function_result 우선 반영
+                val fnRes = json.opt("function_result")
+                if (fnRes is JSONObject) {
+                    statusCode = fnRes.optInt("status_code", statusCode)
+                    selectedText = fnRes.optString("selected_text", null)
+                        ?: fnRes.optString("target", null)
+                                ?: fnRes.optString("destination", null)
+                                ?: selectedText
 
-
-    private fun speakResponse(text: String) {
-        if (::textToSpeech.isInitialized) {
-            resetTimeoutTimer()
-
-            // ✅ 항상 리스너 설정
-            textToSpeech.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onDone(utteranceId: String?) {
-                    runOnUiThread {
-                        voiceButton.isEnabled = true
-
-                        when (pendingFunctionName) {
-                            "appointment_service" -> {
-                                val intent = Intent(this@VoiceGuideActivity, AuthenticationActivity::class.java)
-                                startActivity(intent)
-                                overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
-                                finish()
-                            }
-                            "navigate" -> {
-                                val intent = Intent(this@VoiceGuideActivity, GuidanceWaitingActivity::class.java)
-                                startActivity(intent)
-                                overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
-                                finish()
-                            }
-                            // 추가적인 functionName도 여기서 분기 가능
+                    val resultField = fnRes.opt("result")
+                    when (resultField) {
+                        is String -> if (statusCode != 200 || reply.isBlank()) reply = resultField
+                        is JSONObject -> {
+                            val msg = resultField.optString("message", "")
+                            if (msg.isNotBlank() && (statusCode != 200 || reply.isBlank())) reply = msg
                         }
-
-                        pendingFunctionName = null
                     }
                 }
 
-                override fun onStart(utteranceId: String?) {}
-                override fun onError(utteranceId: String?) {}
-            })
+                if (reply.isBlank()) reply = "응답이 없습니다."
+                return@withContext LLMResult(reply, functionName, selectedText, statusCode)
 
-            textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "response_utterance")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ JSON 파싱 오류: ${e.message}")
+                return@withContext LLMResult("응답 파싱 오류", "", null, response.code)
+            }
+        } else {
+            Log.e(TAG, "❌ 서버 응답 오류: ${response.code}")
+            return@withContext LLMResult("서버 오류가 발생했습니다.", "", null, response.code)
         }
+    }
+
+    private fun speakResponse(text: String) {
+        if (!::textToSpeech.isInitialized) return
+        resetTimeoutTimer()
+        // 리스너는 setupTTS()에서만 설정합니다.
+        // (원한다면 여기서 버튼만 잠깐 비활성화)
+        // voiceButton.isEnabled = false
+        textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "response_utterance")
     }
 
 

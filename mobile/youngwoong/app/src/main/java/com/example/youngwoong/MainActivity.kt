@@ -27,8 +27,9 @@ import android.util.Log
 import android.view.View
 import androidx.activity.OnBackPressedCallback
 
-
+private const val TAG = "MainActivity"
 class MainActivity : AppCompatActivity() {
+
 
     private lateinit var leftEye: ImageView
     private lateinit var rightEye: ImageView
@@ -195,29 +196,41 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleRobotStatusChange(status: String) {
+        // WS 스레드에서 수신 로그
+        Log.d(TAG, "🔔 WebSocket status received: $status (isBlocked=$isBlocked, hasNavigatedToMenu=$hasNavigatedToMenu)")
+
         runOnUiThread {
+            val prevBlocked = isBlocked
             when (status) {
                 "occupied" -> {
                     isBlocked = true
                     tapPrompt.setImageResource(R.drawable.admin_control_notice)
                     stopPromptBlink()
+                    Log.i(TAG, "🛑 status=occupied → UI 잠금. isBlocked: $prevBlocked → $isBlocked, prompt=admin_control_notice, blink=STOP")
                 }
+
                 "idle" -> {
                     isBlocked = false
                     tapPrompt.setImageResource(R.drawable.tap_to_start)
                     startPromptBlink()
+                    Log.i(TAG, "✅ status=idle → UI 해제. isBlocked: $prevBlocked → $isBlocked, prompt=tap_to_start, blink=START")
                 }
+
                 "arrived_to_call" -> {
+                    Log.i(TAG, "🚪 status=arrived_to_call → safeGoToMainMenu() 호출")
                     safeGoToMainMenu()
                 }
 
-                // ✅ 여기 추가: stop_tracking / return_command → 복귀중 상태 표시
                 "stop_tracking", "return_command" -> {
                     isBlocked = true
                     tapPrompt.setImageResource(R.drawable.robot_returning_notice)
                     stopPromptBlink()
-                    // (선택) 메인 화면으로 강제 이동하고 싶다면:
+                    Log.i(TAG, "↩️ status=$status → 복귀중 표시. isBlocked: $prevBlocked → $isBlocked, prompt=robot_returning_notice, blink=STOP")
                     // if (!hasNavigatedToMenu) safeGoToMainMenu()
+                }
+
+                else -> {
+                    Log.w(TAG, "❓ 알 수 없는 status 수신: '$status' → 무시")
                 }
             }
         }

@@ -5,8 +5,9 @@
 #include <json/json.h>
 
 AdminRequestHandler::AdminRequestHandler(std::shared_ptr<DatabaseManager> db_manager, 
-                                       std::shared_ptr<RobotNavigationManager> nav_manager)
-    : db_manager_(db_manager), nav_manager_(nav_manager) {
+                                       std::shared_ptr<RobotNavigationManager> nav_manager,
+                                       std::shared_ptr<WebSocketServer> websocket_server)
+    : db_manager_(db_manager), nav_manager_(nav_manager), websocket_server_(websocket_server) {
 }
 
 // Admin GUI API 핸들러들
@@ -81,7 +82,12 @@ std::string AdminRequestHandler::handleGetRobotLocation(const Json::Value& reque
     
     int robot_id;
     if (request["robot_id"].isString()) {
-        robot_id = std::stoi(request["robot_id"].asString());
+        try {
+            robot_id = std::stoi(request["robot_id"].asString());
+        } catch (const std::exception& e) {
+            std::cout << "[ADMIN] robot_id 변환 실패: " << request["robot_id"].asString() << " - " << e.what() << std::endl;
+            return createErrorResponse("Invalid robot_id format");
+        }
     } else if (request["robot_id"].isInt()) {
         robot_id = request["robot_id"].asInt();
     } else {
@@ -131,8 +137,10 @@ std::string AdminRequestHandler::handleGetRobotStatus(const Json::Value& request
     // IF-04 명세에 따라 응답
     Json::Value response;
     response["status"] = nav_status.empty() ? "unknown" : nav_status;
-    response["orig"] = start_point.empty() ? -1 : std::stoi(start_point);  // 출발지 정보
-    response["dest"] = target.empty() ? -1 : std::stoi(target);  // 목적지 정보
+    
+    // 문자열 그대로 사용 (정수 변환하지 않음)
+    response["orig"] = start_point.empty() ? "none" : start_point;  // 출발지 정보
+    response["dest"] = target.empty() ? "none" : target;  // 목적지 정보
     response["battery"] = battery;  // 실제 배터리 정보
     response["network"] = network_level;   // 실제 네트워크 정보
     
@@ -153,7 +161,12 @@ std::string AdminRequestHandler::handleGetPatientInfo(const Json::Value& request
     
     int robot_id;
     if (request["robot_id"].isString()) {
-        robot_id = std::stoi(request["robot_id"].asString());
+        try {
+            robot_id = std::stoi(request["robot_id"].asString());
+        } catch (const std::exception& e) {
+            std::cout << "[ADMIN] robot_id 변환 실패: " << request["robot_id"].asString() << " - " << e.what() << std::endl;
+            return createErrorResponse("Invalid robot_id format");
+        }
     } else if (request["robot_id"].isInt()) {
         robot_id = request["robot_id"].asInt();
     } else {
@@ -202,10 +215,11 @@ std::string AdminRequestHandler::handleControlByAdmin(const Json::Value& request
     std::string admin_id = request["admin_id"].asString();
 
 
-    // 웹소켓으로 gui 클라이언트에게 alert_occupied 메시지 전송
+    // 웹소켓으로 관리자에게 alert_occupied 메시지 전송
     if (websocket_server_) {
-        websocket_server_->sendAlertOccupied(robot_id, "gui");
-        std::cout << "[ADMIN] gui 클라이언트에게 alert_occupied 메시지 전송: Robot " << robot_id << std::endl;
+        websocket_server_->sendAlertOccupied(robot_id, "admin");
+        websocket_server_->sendAlertOccupied(robot_id, "ai");
+        std::cout << "[ADMIN] 관리자에게 alert_occupied 메시지 전송: Robot " << robot_id << std::endl;
     }
 
 
@@ -431,8 +445,22 @@ std::string AdminRequestHandler::handleGetLogData(const Json::Value& request) {
     for (const auto& log_entry : log_data) {
         Json::Value json_entry;
         json_entry["patient_id"] = log_entry.at("patient_id");  // 문자열로 유지
-        json_entry["orig"] = std::stoi(log_entry.at("orig"));
-        json_entry["dest"] = std::stoi(log_entry.at("dest"));
+        
+        // 안전한 문자열을 정수로 변환
+        try {
+            json_entry["orig"] = std::stoi(log_entry.at("orig"));
+        } catch (const std::exception& e) {
+            std::cout << "[ADMIN] orig 변환 실패: " << log_entry.at("orig") << " - " << e.what() << std::endl;
+            json_entry["orig"] = 0;
+        }
+        
+        try {
+            json_entry["dest"] = std::stoi(log_entry.at("dest"));
+        } catch (const std::exception& e) {
+            std::cout << "[ADMIN] dest 변환 실패: " << log_entry.at("dest") << " - " << e.what() << std::endl;
+            json_entry["dest"] = 0;
+        }
+        
         json_entry["datetime"] = log_entry.at("date");  // 올바른 필드명 사용
         
         response.append(json_entry);

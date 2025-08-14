@@ -16,11 +16,17 @@ import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
+import java.util.Locale
 
 class GuidanceCompleteActivity : AppCompatActivity() {
 
     private lateinit var webSocketClient: RobotStatusWebSocketClient
     private var hasNavigated = false
+    private lateinit var tts: TextToSpeech
+    private var ttsReady = false
+    private var hasSpoken = false
 
     // ✅ 로봇 위치 조회 URL
     private val robotLocationUrl = NetworkConfig.getRobotLocationUrl()
@@ -51,6 +57,7 @@ class GuidanceCompleteActivity : AppCompatActivity() {
 
         val selectedText = intent.getStringExtra("selected_text") ?: "해당 센터"
         val message = "${selectedText}에 도착했습니다.\n확인을 누르면 영웅이가 복귀합니다."
+        initTTSAndSpeak(message)
 
         // ✅ 강조 색 적용
         val spannable = SpannableString(message)
@@ -85,6 +92,7 @@ class GuidanceCompleteActivity : AppCompatActivity() {
 
         // ✅ 확인 버튼 클릭 → 복귀 명령 전송 후 메인으로
         confirmButton.setOnClickListener {
+            if (ttsReady) tts.stop()
             sendRobotReturnCommand()
             safeNavigateToMain()
         }
@@ -99,6 +107,7 @@ class GuidanceCompleteActivity : AppCompatActivity() {
                 runOnUiThread { navigateToMain(fromTimeout = true) }
             }
         }
+        webSocketClient.connect()
     }
 
     override fun onResume() {
@@ -111,9 +120,12 @@ class GuidanceCompleteActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        try {
-            if (this::webSocketClient.isInitialized) webSocketClient.disconnect()
-        } catch (_: Exception) {}
+        try { if (this::webSocketClient.isInitialized) webSocketClient.disconnect() } catch (_: Exception) {}
+
+        if (this::tts.isInitialized) {
+            tts.stop()
+            tts.shutdown()
+        }
     }
 
     private fun safeNavigateToMain() {
@@ -193,6 +205,33 @@ class GuidanceCompleteActivity : AppCompatActivity() {
             }
         }
     }
+    private fun initTTSAndSpeak(text: String) {
+        tts = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                tts.language = Locale.KOREA
+                tts.setSpeechRate(0.95f)
+                tts.setPitch(1.0f)
+                ttsReady = true
+                speakOnce(text)
+            } else {
+                Log.e("GuidanceComplete", "❌ TTS 초기화 실패: status=$status")
+            }
+        }
+
+        // (선택) 발화 진행 상태가 필요하면 리스너 사용
+        tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) {}
+            override fun onDone(utteranceId: String?) { /* 필요 시 버튼 활성화 등 처리 */ }
+            override fun onError(utteranceId: String?) {}
+        })
+    }
+
+    private fun speakOnce(text: String) {
+        if (!ttsReady || hasSpoken) return
+        hasSpoken = true
+        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "gc_arrival_message")
+    }
+
 
     // ======================
     // 복귀 API
