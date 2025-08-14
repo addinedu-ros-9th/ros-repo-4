@@ -484,16 +484,22 @@ class SingleCameraProcessor:
             annotated = self.gesture_recognizer.draw_visualization(annotated, scaled_keypoints, self.current_gesture, self.current_confidence)
 
             # COME 인식 시 각도 계산 및 전송 (전면카메라에서만)
-            if self.current_gesture == "COME" and self.current_confidence >= 0.8:
+            if self.current_gesture == "COME" and self.current_confidence >= 0.5:
+                print(f"[{self.name}] 🔍 COME 제스처 감지됨 (신뢰도: {self.current_confidence:.3f})")
+                
                 # come 제스처가 이미 활성화되어 있는지 확인
                 if self.come_gesture_active:
-                    # return_command가 올 때까지 어떤 사람이든 come 제스처를 중앙에 보내지 않도록 수정하고, continue 오류도 수정합니다.
                     print(f"[{self.name}] come 제스처 이미 활성화됨, return_command 대기 중")
                     return annotated
                 
                 # can_send_come 상태 체크 (alert_idle/occupied 확인)
-                if not self._check_can_send_come():
-                    print(f"[{self.name}] COME 제스처 차단됨 (alert_occupied 상태)")
+                can_send = self._check_can_send_come()
+                print(f"[{self.name}] 🔍 can_send_come 상태: {can_send}")
+                
+                if not can_send:
+                    print(f"[{self.name}] 🔴 COME 제스처 차단됨 (alert_occupied 상태)")
+                    # 웹소켓 상태 표시
+                    cv2.putText(annotated, "WS: OCCUPIED", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
                     return annotated
                 
                 # 가장 큰 바운딩 박스를 가진 사람의 ID 사용
@@ -521,8 +527,10 @@ class SingleCameraProcessor:
                             "right_angle": right_angle,  # float 그대로 전송
                             "timestamp": int(current_time)
                         }
+                        print(f"[{self.name}] 📤 AI 서버로 전송할 payload: {payload}")
+                        
                         # 비동기 전송
-                        self._post_async(f"{AI_SERVER_BASE}/gesture/come_local", payload, timeout=0.2)
+                        self._post_async(f"{AI_SERVER_BASE}/gesture/come", payload, timeout=0.2)
                         self.last_come_sent_ts = current_time
                         self.last_come_person_id = person_id
                         
@@ -530,6 +538,8 @@ class SingleCameraProcessor:
                         self.come_gesture_active = True
                         self.last_come_gesture_time = current_time
                         print(f"[{self.name}] ✅ COME 제스처 감지 및 전송 (Person ID: {person_id})")
+                        # 웹소켓 상태 표시
+                        cv2.putText(annotated, "WS: IDLE", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
         # 간단한 정보 표시
         cv2.putText(annotated, f"Delay: {self.current_delay*1000:.0f}ms", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)

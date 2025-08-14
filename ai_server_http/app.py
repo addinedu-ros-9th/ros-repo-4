@@ -54,7 +54,7 @@ def load_config():
     except Exception as e:
         print(f"config.yaml 로드 실패: {e}")
         # 기본값 반환
-        return "192.168.0.10", 3000, 8080
+        return "192.168.0.36", 3000, 8080
 
 # 환경 설정
 AI_HTTP_HOST = os.environ.get("AI_HTTP_HOST", "0.0.0.0")
@@ -506,8 +506,8 @@ def stop_tracking():
     return ok()
 
 
-@app.route("/gesture/come_local", methods=["POST"])  # dual가 로컬로 전달하면 중앙으로 포워드
-def gesture_come_local():
+@app.route("/gesture/come", methods=["POST"])  # dual_camera_system_shared에서 직접 호출
+def gesture_come():
     try:
         data = request.get_json(force=True)
     except Exception:
@@ -515,7 +515,7 @@ def gesture_come_local():
 
     person_id = str(data.get("person_id", "unknown"))
     left_angle = float(data.get("left_angle", 0.0))
-    right_angle = float(data.get("right_angle", data.get("right_angle", 0.0)))
+    right_angle = float(data.get("right_angle", 0.0))
     ts = int(data.get("timestamp", time.time()))
 
     now = time.time()
@@ -535,7 +535,7 @@ def gesture_come_local():
 
     # come 제스처 전송
     code, _ = send_gesture_come(left_angle, right_angle, ts)
-    app.logger.info(f"[IF-03] gesture/come forwarded person_id={person_id} -> {code}")
+    app.logger.info(f"[IF-03] gesture/come sent person_id={person_id} -> {code}")
     
     # 로컬 게이트도 즉시 닫아 과다 전송 방지 (중앙에서 alert_occupied 도착 전까지)
     with worker_lock:
@@ -668,34 +668,17 @@ def tracking_update():
     return ok()
 
 
-@app.route("/health", methods=["GET"])  # 간단 헬스체크
+@app.route("/health", methods=["GET"])
 def health():
-    health_data = {
-        "status": "ok",
-        "tracking": STATE["tracking"],
-        "last_obstacle": STATE["last_obstacle"],
-        "worker_running": STATE["worker_running"],
-        "come_gesture_active": STATE["come_gesture_active"],
-        "can_send_come": STATE["can_send_come"],
-        "last_come_person_id": STATE["last_come_person_id"],
-        "last_come_time": STATE["last_come_time"],
-        "last_coco_infer": STATE["last_coco_infer"],
-        "server_type": "ai_server_1 (unified port 5006)",
-        "ai_server_2_url": AI_SERVER_2_URL,
-        "central_ws_url": CENTRAL_WS_URL,
-        "dual_camera_available": DUAL_CAMERA_AVAILABLE,
-    }
-    
-    # 듀얼 카메라 시스템 상태 추가
-    if DUAL_CAMERA_AVAILABLE:
-        global BACK_CAMERA_CONTROL, GESTURE_RESET_FLAG
-        health_data.update({
-            "back_camera_tracking_active": BACK_CAMERA_CONTROL["tracking_active"],
-            "back_camera_target_person": BACK_CAMERA_CONTROL["target_person_id"],
-            "gesture_reset_last_time": GESTURE_RESET_FLAG["last_reset_time"]
+    """AI 서버 상태 및 웹소켓 상태 반환"""
+    with worker_lock:
+        return jsonify({
+            "status": "ok",
+            "can_send_come": STATE.get("can_send_come", True),
+            "tracking": STATE.get("tracking", False),
+            "robot_id": ROBOT_ID,
+            "timestamp": int(time.time())
         })
-    
-    return jsonify(health_data)
 
 
 if __name__ == "__main__":
