@@ -105,12 +105,62 @@ void HttpServer::serverLoop() {
             continue;
         }
         
-        // HTTP 요청 읽기
+        // HTTP 요청 읽기 (Content-Length 기반)
+        std::string request_str;
         char buffer[4096] = {0};
-        ssize_t bytes_read = read(client_fd, buffer, sizeof(buffer) - 1);
+        ssize_t total_bytes_read = 0;
         
+        // 첫 번째 읽기로 헤더 부분 확인
+        ssize_t bytes_read = read(client_fd, buffer, sizeof(buffer) - 1);
         if (bytes_read > 0) {
-            std::string request_str(buffer, bytes_read);
+            request_str.append(buffer, bytes_read);
+            total_bytes_read += bytes_read;
+            
+            // Content-Length 찾기
+            size_t content_length_pos = request_str.find("Content-Length:");
+            if (content_length_pos != std::string::npos) {
+                size_t cl_start = content_length_pos + 15; // "Content-Length:" 길이
+                size_t cl_end = request_str.find('\r', cl_start);
+                if (cl_end == std::string::npos) cl_end = request_str.find('\n', cl_start);
+                
+                if (cl_end != std::string::npos) {
+                    std::string cl_str = request_str.substr(cl_start, cl_end - cl_start);
+                    // 공백 제거
+                    cl_str.erase(0, cl_str.find_first_not_of(" \t"));
+                    cl_str.erase(cl_str.find_last_not_of(" \t") + 1);
+                    
+                    try {
+                        int content_length = std::stoi(cl_str);
+
+                        
+                        // 헤더 끝 찾기
+                        size_t header_end = request_str.find("\r\n\r\n");
+                        if (header_end == std::string::npos) {
+                            header_end = request_str.find("\n\n");
+                        }
+                        
+                        if (header_end != std::string::npos) {
+                            size_t body_start = header_end + 4; // "\r\n\r\n" 또는 "\n\n" 건너뛰기
+                            size_t body_received = request_str.length() - body_start;
+                            
+                            // 바디가 완전히 받아지지 않았다면 추가로 읽기
+                            while (body_received < static_cast<size_t>(content_length)) {
+                                bytes_read = read(client_fd, buffer, sizeof(buffer) - 1);
+                                if (bytes_read <= 0) break;
+                                
+                                request_str.append(buffer, bytes_read);
+                                total_bytes_read += bytes_read;
+                                body_received = request_str.length() - body_start;
+                            }
+                        }
+                    } catch (const std::exception& e) {
+                        std::cout << "[HTTP] Content-Length 파싱 실패: " << e.what() << std::endl;
+                    }
+                }
+            }
+            
+
+            
             HttpRequest request = parseHttpRequest(request_str);
             
             // HTTP 요청 처리
@@ -136,8 +186,7 @@ void HttpServer::serverLoop() {
 }
 
 std::string HttpServer::processRequest(const HttpRequest& request) {
-    std::cout << "[HTTP] 요청 처리: " << request.method << " " << request.path << std::endl;
-    std::cout << "[HTTP] 요청 바디: '" << request.body << "'" << std::endl;
+                std::cout << "[HTTP] 요청 처리: " << request.method << " " << request.path << std::endl;
     
     // CORS 헤더 추가
     std::string cors_headers = "Access-Control-Allow-Origin: *\r\n"
@@ -372,7 +421,16 @@ Json::Value HttpServer::parseJson(const std::string& jsonStr) {
     std::string errors;
     
     // 빈 문자열이면 빈 오브젝트로 처리 (옵션 파라미터 허용 엔드포인트 호환)
-    if (jsonStr.empty()) {
+    if (jsonStr.empty() || jsonStr == "''") {
+        return Json::Value(Json::objectValue);
+    }
+    
+    // 공백만 있는 경우도 빈 오브젝트로 처리
+    std::string trimmed = jsonStr;
+    trimmed.erase(0, trimmed.find_first_not_of(" \t\r\n"));
+    trimmed.erase(trimmed.find_last_not_of(" \t\r\n") + 1);
+    
+    if (trimmed.empty()) {
         return Json::Value(Json::objectValue);
     }
     
@@ -418,47 +476,48 @@ std::string HttpServer::createStatusResponse(int status_code) {
 
 HttpServer::HttpRequest HttpServer::parseHttpRequest(const std::string& request) {
     HttpRequest http_request;
-    std::istringstream stream(request);
-    std::string line;
     
-    // 첫 번째 줄: Method Path HTTP/1.1
-    if (std::getline(stream, line)) {
-        std::istringstream first_line(line);
-        first_line >> http_request.method >> http_request.path;
+    // 간단한 파싱: 첫 줄에서 method와 path 추출
+    size_t first_newline = request.find('\n');
+    if (first_newline != std::string::npos) {
+        std::string first_line = request.substr(0, first_newline);
+        // \r 제거
+        if (!first_line.empty() && first_line.back() == '\r') {
+            first_line.pop_back();
+        }
+        
+        std::istringstream first_line_stream(first_line);
+        first_line_stream >> http_request.method >> http_request.path;
     }
     
-    // 헤더들 파싱
-    while (std::getline(stream, line)) {
-        // \r 제거
-        if (!line.empty() && line.back() == '\r') {
-            line.pop_back();
-        }
+    // 헤더와 바디 분리 (빈 줄 찾기)
+    size_t header_end = request.find("\r\n\r\n");
+    if (header_end == std::string::npos) {
+        header_end = request.find("\n\n");
+    }
+    
+    if (header_end != std::string::npos) {
+        // 헤더 파싱
+        std::string headers_str = request.substr(first_newline + 1, header_end - first_newline - 1);
+        std::istringstream headers_stream(headers_str);
+        std::string header_line;
         
-        // 빈 줄이면 헤더 끝, 바디 시작
-        if (line.empty()) {
-            break;
-        }
-        
-        size_t colon_pos = line.find(':');
-        if (colon_pos != std::string::npos) {
-            std::string header_name = line.substr(0, colon_pos);
-            std::string header_value = line.substr(colon_pos + 2); // ": " 건너뛰기
+        while (std::getline(headers_stream, header_line)) {
+            if (!header_line.empty() && header_line.back() == '\r') {
+                header_line.pop_back();
+            }
             
-            http_request.headers[header_name] = header_value;
+            size_t colon_pos = header_line.find(':');
+            if (colon_pos != std::string::npos) {
+                std::string header_name = header_line.substr(0, colon_pos);
+                std::string header_value = header_line.substr(colon_pos + 2); // ": " 건너뛰기
+                http_request.headers[header_name] = header_value;
+            }
         }
+        
+        // 바디 추출 (헤더 끝 이후부터)
+        http_request.body = request.substr(header_end + 4); // "\r\n\r\n" 또는 "\n\n" 건너뛰기
     }
-    
-    // 바디 읽기
-    std::string body;
-    std::string body_line;
-    while (std::getline(stream, body_line)) {
-        // \r 제거
-        if (!body_line.empty() && body_line.back() == '\r') {
-            body_line.pop_back();
-        }
-        body += body_line;
-    }
-    http_request.body = body;
     
     return http_request;
 }
