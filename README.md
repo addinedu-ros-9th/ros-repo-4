@@ -1,8 +1,17 @@
-[![표지]()](https://docs.google.com/presentation/d/1FakMHUjW8QSYNp0pCkSbHC8iK0WQIAL3S_snXaCv-xs/edit?slide=id.g369f27ec0ea_3_0#slide=id.g369f27ec0ea_3_0)
+[![표지](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%91%9C%EC%A7%80.png?raw=true)](https://docs.google.com/presentation/d/1FakMHUjW8QSYNp0pCkSbHC8iK0WQIAL3S_snXaCv-xs/edit?slide=id.g369f27ec0ea_3_0#slide=id.g369f27ec0ea_3_0)
 [ㄴ 클릭시 PPT 이동](https://docs.google.com/presentation/d/1FakMHUjW8QSYNp0pCkSbHC8iK0WQIAL3S_snXaCv-xs/edit?slide=id.g369f27ec0ea_3_0#slide=id.g369f27ec0ea_3_0)
 
-![예시 이미지]()
 ## 주제 : 대형병원 안내 로봇 시스템 [ROS2 프로젝트]
+![예시 이미지](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EC%98%88%EC%8B%9C%20%EC%9D%B4%EB%AF%B8%EC%A7%80.png?raw=true)
+
+### 프로젝트 기간
+**25.7.09 ~ 25.8.13 약 5주간 진행** <br/>
+**Sprint1** : 기획 및 요구사항 정의 <br/>
+**Sprint2** : 설계 및 기술조사  <br/>
+**Sprint3** : 구현 및 1차 연동테스트 <br/>
+**Sprint4** : 구현 및 2차 연동테스트 <br/>
+**Sprint5** : 구현 및 3차 연동테스트 <br/>
+**Sprint6** : 안정화 및 발표
 
 ### 활용 기술
 |분류|기술|
@@ -15,13 +24,7 @@
 |**자율주행**| <img src="https://img.shields.io/badge/ROS2-225?style=for-the-badge&logo=ROS2&logoColor=white" alt="ROS2"/> <img src="https://img.shields.io/badge/Slam&Nav-595?style=for-the-badge&logo=Slam&Nav&logoColor=white" alt="ST-GCN"/>|
 |**협업**|<img src="https://img.shields.io/badge/Git-F05032?style=for-the-badge&logo=git&logoColor=white"/> <img src="https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white"/> <img src="https://img.shields.io/badge/SLACK-4A154B?style=for-the-badge&logo=slack&logoColor=white"/> <img src="https://img.shields.io/badge/Confluence-172B4D?style=for-the-badge&logo=confluence&logoColor=white"/> <img src="https://img.shields.io/badge/JIRA-0052CC?style=for-the-badge&logo=jira&logoColor=white"/> |
 
-**25.7.09 ~ 25.8.13 약 5주간 진행** <br/>
-**Sprint1** : 기획 및 요구사항 정의 <br/>
-**Sprint2** : 설계 및 기술조사  <br/>
-**Sprint3** : 구현 및 1차 연동테스트 <br/>
-**Sprint4** : 구현 및 2차 연동테스트 <br/>
-**Sprint5** : 구현 및 3차 연동테스트 <br/>
-**Sprint6** : 안정화 및 발표
+
 
 ### 목차
 **01** 프로젝트 소개 <br/>
@@ -34,7 +37,7 @@
 
 # 01. 프로젝트 소개
 ### 주제 선정 배경
-![주제 선정 배경]()
+![주제 선정 배경](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EC%A3%BC%EC%A0%9C%20%EC%84%A0%EC%A0%95%20%EB%B0%B0%EA%B2%BD.png?raw=true)
 
 대형병원 안내 로봇을 주제로 선정한 이유 <br/>
 - 복잡한 대형병원 <br/>
@@ -63,7 +66,7 @@
 | 12 | 야간에도 병원 내 이상 상황을 탐지할 수 있도록 순찰한다. |
 
 [ **요약** ] <br/>
-![사용자 요구사항]()
+![사용자 요구사항](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EC%82%AC%EC%9A%A9%EC%9E%90%20%EC%9A%94%EA%B5%AC%EC%82%AC%ED%95%AD.png?raw=true)
 
 사용자 요구사항을 크게 3가지로 요약하면, <br/>
 '사용자 인터페이스 / 관리자 GUI / 자율주행' 이렇게 3가지로 요약할 수 있습니다.
@@ -98,19 +101,19 @@
 | SR_22 | 데이터 통계 및 분석 | 응대 수 통계 | 안내, 동행 등 기능별 응대한 사용자 수 기록을 지원합니다. | O |
 | SR_23 | 데이터 통계 및 분석 | 사용자 만족도 수집 | 안내 후 만족도 조사 제공, 간단한 평점 또는 선택형 질문을 통해 만족도 통계를 수집합니다. | O |
 
-![System Requirements]()
+![System Requirements](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/System%20Requirements.png?raw=true)
 
 기능 리스트를 요약하면 크게 3가지로 나눌 수 있습니다. <br/>
 자율주랳ㅇ 및 길안내 / 사용자 인터페이스 / 관리자 GUI
 
 ### 서비스 흐름 : 사용자 호출
-![서비스 흐름]()
+![서비스 흐름1](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EC%84%9C%EB%B9%84%EC%8A%A4%20%ED%9D%90%EB%A6%84%20%EC%82%AC%EC%9A%A9%EC%9E%90%20%ED%98%B8%EC%B6%9C.png?raw=true)
 
-### 서비스 흐름 : 사용자 호출
-![서비스 흐름]()
+### 서비스 흐름 : 길 동행
+![서비스 흐름2](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EC%84%9C%EB%B9%84%EC%8A%A4%20%ED%9D%90%EB%A6%84%20%EA%B8%B8%20%EB%8F%99%ED%96%89.png?raw=true)
 
 ### System Architecture
-![System Architecture]()
+![System Architecture](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/System%20Architecture.png?raw=true)
 
 ### 시퀀스 다이어그램
 
@@ -118,15 +121,15 @@
 <summary>SC-01 : 사용자 호출 시나리오 [클릭] </summary>
 SC-01-01 스크린 터치로 로봇을 호출할 경우
 
-![SC-01-01]()
+![SC-01-01](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/sc-01-01.png?raw=true)
 
 SC-01-02 손동작으로 호출할 경우
 
-![SC-01-02]()
+![SC-01-02](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/sc-01-02.png?raw=true)
 
 SC-01-03  음성으로 호출할 경우
 
-![SC-01-03]()
+![SC-01-03](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/sc-01-03.png?raw=true)
 
 </details>
 
@@ -135,34 +138,34 @@ SC-01-03  음성으로 호출할 경우
 
 SC-02-01 초진/미접수 환자 – 접수 절차
 
-![SC-02-01]()
+![SC-02-01](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/sc-02-01.png?raw=true)
 
 
 SC-02-02 이미 접수 완료된 환자 – 다음 일정/경로안내 위주
 
-![SC-02-02]()
+![SC-02-02](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/sc-02-02.png?raw=true)
 
 </details>
 
 <details>
 <summary> SC-03 : 길 동행 시나리오 [클릭] </summary>
 
-![SC-03_1]()
-![SC-03_2]()
+![SC-03_1](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/sc-03_1.png?raw=true)
+![SC-03_2](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/sc-03_2.png?raw=true)
 
 </details>
 
 <details>
 <summary> SC-04 : 자동 복귀 시나리오 [클릭] </summary>
 
-![SC-04]()
+![SC-04](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/sc-04.png?raw=true)
 
 </details>
 
 ### ERD
-![ERD1]()
-![ERD2]()
-![ERD3]()
+![ERD1](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/erd1.png?raw=true)
+![ERD2](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/erd2.png?raw=true)
+![ERD3](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/erd3.png?raw=true)
 
 ### Interface Specification
 #### status code 
@@ -266,17 +269,17 @@ SC-02-02 이미 접수 완료된 환자 – 다음 일정/경로안내 위주
 </details>
 
 ### Hardware
-![hardware]()
+![hardware](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/hardware.png?raw=true)
 
 ### 환자 Gui
-![환자 Gui 접수 화면]()
-![환자 Gui 길안내 화면]()
-![환자 Gui 음성안내 화면]()
+![환자 Gui 접수 화면](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%99%98%EC%9E%90GUI%20%EC%A0%91%EC%88%98.png?raw=true)
+![환자 Gui 길안내 화면](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%99%98%EC%9E%90Gui%20%EA%B8%B8%EC%95%88%EB%82%B4.png?raw=true)
+![환자 Gui 음성안내 화면](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%99%98%EC%9E%90Gui%20%EC%9D%8C%EC%84%B1%EC%95%88%EB%82%B4.png?raw=true)
 
 ### 관리자 Gui
-![관리자 Gui 화면]()
-![관리자 Gui 화면]()
-![관리자 Gui 화면]()
+![관리자 Gui 로그인 화면](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EA%B4%80%EB%A6%AC%EC%9E%90Gui%20%EB%A1%9C%EA%B7%B8%EC%9D%B8.png?raw=true)
+![관리자 Gui 대쉬보드 화면](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EA%B4%80%EB%A6%AC%EC%9E%90Gui%20%EB%8C%80%EC%89%AC%EB%B3%B4%EB%93%9C.png?raw=true)
+![관리자 Gui 로그 화면](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EA%B4%80%EB%A6%AC%EC%9E%90Gui%20%EB%A1%9C%EA%B7%B8.png?raw=true)
 
 # 03. 프로젝트 기능 구현
 ### 환자(User) GUI - 예약 접수 / RFID 회원 인식 
@@ -305,7 +308,7 @@ SC-02-02 이미 접수 완료된 환자 – 다음 일정/경로안내 위주
 ### AI 서버 - 객체 트래킹
 
 ### 관리자(Admin) GUI - 로그인 기능
-![관리자GUI 로그인 구현]()
+![관리자GUI 로그인 구현](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EA%B4%80%EB%A6%AC%EC%9E%90Gui%20%EB%A1%9C%EA%B7%B8%EC%9D%B8%20%EA%B5%AC%ED%98%84.png?raw=true)
 
 ### 관리자(Admin) GUI - 대쉬보드 [맵 로봇 위치 / 카메라 전후면 전환 ] 
 
@@ -321,10 +324,10 @@ SC-02-02 이미 접수 완료된 환자 – 다음 일정/경로안내 위주
 
 # 04. 프로젝트 기술 소개
 ### 자율주행 및 장애물 회피 [Dijkstra 알고리즘]
-![Dijkstra]()
+![Dijkstra](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/dijkstra.png?raw=true)
 
 ### 자율주행 및 장애물 회피 [Vector Pursuit]
-![Vector Pursuit]()
+![Vector Pursuit](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/vector%20pursuit.png?raw=true)
 
 ### 사람 재매칭 & 손동작 호출 [Vision / Deep Learning]
 #### 사람 재매칭
