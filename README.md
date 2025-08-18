@@ -331,20 +331,20 @@ SC-02-02 이미 접수 완료된 환자 – 다음 일정/경로안내 위주
 
 ### 사람 재매칭 & 손동작 호출 [Vision / Deep Learning]
 #### 사람 재매칭
-![사람 재매칭1]()
-![사람 재매칭2]()
+![사람 재매칭1](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EC%82%AC%EB%9E%8C%20%EC%9E%AC%EB%A7%A4%EC%B9%AD1.png?raw=true)
+![사람 재매칭2](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EC%82%AC%EB%9E%8C%20%EC%9E%AC%EB%A7%A4%EC%B9%AD2.png?raw=true)
 
 #### 손동작 호출
-![손동작 호출]()
+![손동작 호출](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EC%86%90%EB%8F%99%EC%9E%91%20%ED%98%B8%EC%B6%9C.png?raw=true)
 
 ### 음성 인식 및 음성 안내 [LLM 에이전트 / Deep Learning]
-![LLM 에이전트]()
+![LLM 에이전트](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/llm%EC%97%90%EC%9D%B4%EC%A0%84%ED%8A%B8.png?raw=true)
 
 
 # 05. 트러블 슈팅
-![트러블 슈팅1]()
-![트러블 슈팅2]()
-![트러블 슈팅3]()
+![트러블 슈팅1](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%8A%B8%EB%9F%AC%EB%B8%94%20%EC%8A%88%ED%8C%851.png?raw=true)
+![트러블 슈팅2](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%8A%B8%EB%9F%AC%EB%B8%94%20%EC%8A%88%ED%8C%852.png?raw=true)
+![트러블 슈팅3](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%8A%B8%EB%9F%AC%EB%B8%94%20%EC%8A%88%ED%8C%853.png?raw=true)
 ![트러블 슈팅4]()
 ![트러블 슈팅5]()
 
