@@ -342,9 +342,9 @@ SC-02-02 이미 접수 완료된 환자 – 다음 일정/경로안내 위주
 
 
 # 05. 트러블 슈팅
-![트러블 슈팅1](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%8A%B8%EB%9F%AC%EB%B8%94%20%EC%8A%88%ED%8C%851.png?raw=true)
-![트러블 슈팅2](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%8A%B8%EB%9F%AC%EB%B8%94%20%EC%8A%88%ED%8C%852.png?raw=true)
-![트러블 슈팅3](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%8A%B8%EB%9F%AC%EB%B8%94%20%EC%8A%88%ED%8C%853.png?raw=true)
+![트러블 슈팅1]()
+![트러블 슈팅2]()
+![트러블 슈팅3]()
 ![트러블 슈팅4]()
 ![트러블 슈팅5]()
 
