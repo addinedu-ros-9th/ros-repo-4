@@ -283,45 +283,45 @@ SC-02-02 이미 접수 완료된 환자 – 다음 일정/경로안내 위주
 
 # 03. 프로젝트 기능 구현
 ### 환자(User) GUI - 예약 접수 / RFID 회원 인식 
-![환자 RFID 영상]()
+![환자 RFID 영상](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%99%98%EC%9E%90%20GUI%20RFID.gif?raw=true)
 
 ### 환자(User) GUI - 길안내
-
+![환자 길안내 영상]()
 
 ### 환자(User) GUI - LLM 대화 
-
+![영상]()
 
 ### 환자(User) GUI - LLM 추천 질문
-
+![영상]()
 
 ### 환자(User) GUI - 네비게이션 LLM 에이전트 
-
+![영상]()
 
 ### 환자(User) GUI - 자동 복귀
-
+![영상]()
 
 ### 네비게이션 - 좁은 길 통과 
-
+![영상]()
 
 ### AI 서버 - 손동작 감지
-
+![영상]()
 
 ### AI 서버 - 객체 트래킹
-
+![영상]()
 ### 관리자(Admin) GUI - 로그인 기능
 ![관리자GUI 로그인 구현](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EA%B4%80%EB%A6%AC%EC%9E%90Gui%20%EB%A1%9C%EA%B7%B8%EC%9D%B8%20%EA%B5%AC%ED%98%84.png?raw=true)
 
 ### 관리자(Admin) GUI - 대쉬보드 [맵 로봇 위치 / 카메라 전후면 전환 ] 
-
+![영상]()
 
 ### 관리자(Admin) GUI - 네비게이션
-
+![영상]()
 
 ### 관리자(Admin) GUI - 대쉬보드 : 수동제어
-
+![영상]()
 
 ### 관리자(Admin) GUI - 로그 [로봇 사용 로그 테이블 / 출발지 통계 차트 / 목적지 통계 차트] 
-
+![영상]()
 
 # 04. 프로젝트 기술 소개
 ### 자율주행 및 장애물 회피 [Dijkstra 알고리즘]
