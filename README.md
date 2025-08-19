@@ -286,42 +286,42 @@ SC-02-02 이미 접수 완료된 환자 – 다음 일정/경로안내 위주
 ![환자 RFID 영상](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%99%98%EC%9E%90%20GUI%20RFID.gif?raw=true)
 
 ### 환자(User) GUI - 길안내
-![환자 길안내 영상]()
+![환자 길안내 영상](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%99%98%EC%9E%90%20GUI%20%EA%B8%B8%EC%95%88%EB%82%B4.gif?raw=true)
 
 ### 환자(User) GUI - LLM 대화 
-![영상]()
+![환자 LLM 대화 영상](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%99%98%EC%9E%90%20GUI%20LLM%EB%8C%80%ED%99%94.gif?raw=true)
 
 ### 환자(User) GUI - LLM 추천 질문
-![영상]()
+![환자 LLM 부가기능 영상](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%99%98%EC%9E%90%20GUI%20LLM%20%EB%B6%80%EA%B0%80%EA%B8%B0%EB%8A%A5.gif?raw=true)
 
 ### 환자(User) GUI - 네비게이션 LLM 에이전트 
-![영상]()
+![환자 LLM 네비게이션 영상](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%99%98%EC%9E%90%20GUI%20LLM%20%EB%84%A4%EB%B9%84%EA%B2%8C%EC%9D%B4%EC%85%98.gif?raw=true)
 
 ### 환자(User) GUI - 자동 복귀
-![영상]()
+![환자 로비복귀 영상](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%99%98%EC%9E%90%20GUI%20%EB%A1%9C%EB%B9%84%20%EB%B3%B5%EA%B7%80.gif?raw=true)
 
 ### 네비게이션 - 좁은 길 통과 
-![영상]()
+![좁은길 통과 영상]()
 
 ### AI 서버 - 손동작 감지
-![영상]()
+![손동작 감지 영상]()
 
 ### AI 서버 - 객체 트래킹
-![영상]()
+![객체 트레킹 영상]()
 ### 관리자(Admin) GUI - 로그인 기능
 ![관리자GUI 로그인 구현](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EA%B4%80%EB%A6%AC%EC%9E%90Gui%20%EB%A1%9C%EA%B7%B8%EC%9D%B8%20%EA%B5%AC%ED%98%84.png?raw=true)
 
 ### 관리자(Admin) GUI - 대쉬보드 [맵 로봇 위치 / 카메라 전후면 전환 ] 
-![영상]()
+![관리자 대쉬보드 영상]()
 
 ### 관리자(Admin) GUI - 네비게이션
-![영상]()
+![관리자 원격제어 네비게이션 영상]()
 
 ### 관리자(Admin) GUI - 대쉬보드 : 수동제어
-![영상]()
+![관리자 수동제어 영상]()
 
 ### 관리자(Admin) GUI - 로그 [로봇 사용 로그 테이블 / 출발지 통계 차트 / 목적지 통계 차트] 
-![영상]()
+![관리자 로그 영상]()
 
 # 04. 프로젝트 기술 소개
 ### 자율주행 및 장애물 회피 [Dijkstra 알고리즘]
@@ -351,7 +351,7 @@ SC-02-02 이미 접수 완료된 환자 – 다음 일정/경로안내 위주
 
 # 00. 에필로그
 ### 팀소개
-![팀소개]()
+![팀소개](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%8C%80%EC%86%8C%EA%B0%9C.jpg?raw=true)
 
 | 이름 | 주요 역할 | 포폴 사이트 |
 |:---:|---|---|
