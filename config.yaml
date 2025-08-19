@@ -1,0 +1,63 @@
+# 네트워크 설정
+network:
+  # PC IP 주소
+  wonho_pc: "192.168.0.74"     # 원호 PC (rosGui) - 실제 IP로 업데이트
+  chaeyeon_pc: "192.168.0.27"  # 채연 PC (AI Server)
+  minje_pc: "192.168.0.36"     # 민제 PC (LLM Server)
+  taeho_pc: "192.168.0.18"     # 태호 PC (Central Server)
+
+llm_server:
+  ip: network.minje_pc
+  port: 5000
+
+# AI 서버 설정
+ai_server:
+  ip: "192.168.0.27"
+  port: 5005
+  max_packet_size: 60000
+  
+  # AI 서버 관련 포트들
+  udp_port: 5005      # UDP 이미지 전송용
+  status_port: 5006   # 상태 정보 전송용
+
+  # UDP 이미지 전송 타겟 설정
+  udp_target:
+    ip: "192.168.0.74"  # 팀원 PC IP (원호 PC)
+    port: 8888          # 팀원 PC의 UDP 수신 포트
+
+  target_central_server:
+    ip: network.taeho_pc
+    port: 5005 
+
+# Central 서버 설정
+central_server:
+  ip: "192.168.0.36"
+  port: 6000
+  robot_id: 3
+  
+  # HTTP 서버 (웹 API용)
+  http_port: 8080
+  http_host: "0.0.0.0"
+  
+  # ROS2 통신용
+  ros_port: 6006
+  
+  # GUI 통신용
+  gui_port: 6007
+
+  target_ros_gui:
+    ip: "192.168.0.74"
+    port: 8888
+  
+  websocket_port : 3000
+
+ros_gui_client:
+  ip: "192.168.0.74"
+  udp_receive_port: 8888 # UDP 이미지를 받을 포트
+
+database:
+  host: "localhost"
+  port: 3306
+  username: "root"
+  password: "heR@491!"
+  database: "HeroDB"

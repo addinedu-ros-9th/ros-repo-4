@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>DashboardWidget</class>
+ <widget class="QWidget" name="DashboardWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1250</width>
+    <height>850</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <widget class="QLabel" name="title_point1">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>27</y>
+     <width>4</width>
+     <height>10</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title_point2">
+   <property name="geometry">
+    <rect>
+     <x>479</x>
+     <y>27</y>
+     <width>4</width>
+     <height>10</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title1">
+   <property name="geometry">
+    <rect>
+     <x>34</x>
+     <y>23</y>
+     <width>66</width>
+     <height>19</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 18pt</family>
+     <pointsize>16</pointsize>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string>MAP</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title2">
+   <property name="geometry">
+    <rect>
+     <x>493</x>
+     <y>23</y>
+     <width>100</width>
+     <height>19</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 18pt</family>
+     <pointsize>16</pointsize>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string>CAMERA</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="controlBtn">
+   <property name="geometry">
+    <rect>
+     <x>1135</x>
+     <y>514</y>
+     <width>88</width>
+     <height>27</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 24pt</family>
+     <pointsize>14</pointsize>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string>원격 제어</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="camera_bg">
+   <property name="geometry">
+    <rect>
+     <x>477</x>
+     <y>58</y>
+     <width>753</width>
+     <height>439</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="camera_img">
+   <property name="geometry">
+    <rect>
+     <x>497</x>
+     <y>78</y>
+     <width>713</width>
+     <height>399</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title_point3">
+   <property name="geometry">
+    <rect>
+     <x>479</x>
+     <y>523</y>
+     <width>4</width>
+     <height>10</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title3">
+   <property name="geometry">
+    <rect>
+     <x>493</x>
+     <y>517</y>
+     <width>100</width>
+     <height>19</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 18pt</family>
+     <pointsize>16</pointsize>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string>Status</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="status_label">
+   <property name="geometry">
+    <rect>
+     <x>569</x>
+     <y>517</y>
+     <width>68</width>
+     <height>21</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>이동중</string>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignCenter</set>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="destinationBtn">
+   <property name="geometry">
+    <rect>
+     <x>1016</x>
+     <y>514</y>
+     <width>108</width>
+     <height>27</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 24pt</family>
+     <pointsize>14</pointsize>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string>목적지 선택</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="camera_toggle_bg">
+   <property name="geometry">
+    <rect>
+     <x>575</x>
+     <y>15</y>
+     <width>106</width>
+     <height>36</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="camera_toggle1">
+   <property name="geometry">
+    <rect>
+     <x>578</x>
+     <y>18</y>
+     <width>50</width>
+     <height>30</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 24pt</family>
+     <pointsize>14</pointsize>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string>전면</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="camera_toggle2">
+   <property name="geometry">
+    <rect>
+     <x>628</x>
+     <y>18</y>
+     <width>50</width>
+     <height>30</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 24pt</family>
+     <pointsize>14</pointsize>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string>후면</string>
+   </property>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

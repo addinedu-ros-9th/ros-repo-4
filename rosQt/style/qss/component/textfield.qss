@@ -1,0 +1,29 @@
+.textfield {
+    border: 1px solid #ccc;
+    border-radius: {{radius}};
+}
+
+.textfield.small {
+    padding: 0 6px;
+    height: 28px;
+    font-size: 14px;
+}
+
+.textfield.readonly {
+    background-color: #eee;
+    color: #999;
+}
+
+.textfield.large {
+    padding: 0 15px;
+    height: 44px;
+}
+
+.textfield.large:focus {
+    outline: none;
+    border: 1px solid {{primary}}; /* 더 진한 색상과 두께 */
+}
+
+.textfield.error {
+    border: 1px solid {{error}}; /* 에러 색상 */
+}

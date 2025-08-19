@@ -1,0 +1,45 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- 배경 이미지 -->
+
+    <!-- 왼쪽 눈 하이라이트 -->
+
+    <!-- 오른쪽 눈 하이라이트 -->
+
+    <ImageView
+        android:id="@+id/background"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:src="@drawable/background" />
+
+    <ImageView
+        android:id="@+id/left_eye"
+        android:layout_width="70dp"
+        android:layout_height="70dp"
+        android:layout_marginStart="372dp"
+        android:layout_marginTop="225dp"
+        android:src="@drawable/eye_highlight" />
+
+    <ImageView
+        android:id="@+id/right_eye"
+        android:layout_width="70dp"
+        android:layout_height="70dp"
+        android:layout_marginStart="905dp"
+        android:layout_marginTop="225dp"
+        android:src="@drawable/eye_highlight" />
+    <!-- 👇 터치 유도 이미지 추가 -->
+    <ImageView
+        android:id="@+id/tap_prompt"
+        android:layout_width="300dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="760dp"
+        android:src="@drawable/tap_to_start"
+        android:visibility="visible" />
+
+    <!-- 테스트 버튼 -->
+
+</FrameLayout>

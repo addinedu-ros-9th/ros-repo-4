@@ -1,0 +1,21 @@
+.radiobox {
+    font-size: 14px;
+    color: #000;
+}
+
+.radiobox.gray9 {
+    color: #999;
+}
+
+.radiobox::indicator {
+    width: 20px;
+    height: 20px;
+}
+
+.radiobox::indicator:unchecked {
+    image: url("./style/images/radiobox_unchecked.png");
+}
+
+.radiobox::indicator:checked {
+    image: url("./style/images/radiobox_checked.png");
+}

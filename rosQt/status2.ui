@@ -1,0 +1,801 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Status2Widget</class>
+ <widget class="QWidget" name="Status2Widget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>753</width>
+    <height>281</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <widget class="QLabel" name="move_bg">
+   <property name="geometry">
+    <rect>
+     <x>331</x>
+     <y>0</y>
+     <width>422</width>
+     <height>77</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="move_first">
+   <property name="geometry">
+    <rect>
+     <x>440</x>
+     <y>16</y>
+     <width>204</width>
+     <height>44</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 18pt</family>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string>대장암 센터 이동 중</string>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignCenter</set>
+   </property>
+  </widget>
+  <widget class="QLabel" name="point1">
+   <property name="geometry">
+    <rect>
+     <x>331</x>
+     <y>111</y>
+     <width>4</width>
+     <height>4</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 18pt</family>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignCenter</set>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title1">
+   <property name="geometry">
+    <rect>
+     <x>345</x>
+     <y>105</y>
+     <width>100</width>
+     <height>17</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 18pt</family>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string>위치 정보</string>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+   </property>
+  </widget>
+  <widget class="QLabel" name="content1">
+   <property name="geometry">
+    <rect>
+     <x>455</x>
+     <y>105</y>
+     <width>221</width>
+     <height>17</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 18pt</family>
+     <weight>50</weight>
+     <bold>false</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string>x: 0.0 / y: 0.0 / yaw : 0.0</string>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+   </property>
+  </widget>
+  <widget class="QLabel" name="machine_box">
+   <property name="geometry">
+    <rect>
+     <x>331</x>
+     <y>148</y>
+     <width>422</width>
+     <height>133</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="battery_img">
+   <property name="geometry">
+    <rect>
+     <x>351</x>
+     <y>179</y>
+     <width>16</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 18pt</family>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignCenter</set>
+   </property>
+  </widget>
+  <widget class="QLabel" name="network_img">
+   <property name="geometry">
+    <rect>
+     <x>351</x>
+     <y>233</y>
+     <width>16</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 18pt</family>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignCenter</set>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title5">
+   <property name="geometry">
+    <rect>
+     <x>377</x>
+     <y>179</y>
+     <width>100</width>
+     <height>17</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 18pt</family>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string>배터리 잔량</string>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title6">
+   <property name="geometry">
+    <rect>
+     <x>377</x>
+     <y>233</y>
+     <width>100</width>
+     <height>17</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 18pt</family>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string>네트워크 상태</string>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title5_status">
+   <property name="geometry">
+    <rect>
+     <x>693</x>
+     <y>179</y>
+     <width>40</width>
+     <height>17</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 18pt</family>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string>75%</string>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title6_status">
+   <property name="geometry">
+    <rect>
+     <x>693</x>
+     <y>233</y>
+     <width>40</width>
+     <height>17</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 18pt</family>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string>최상</string>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title5_box">
+   <property name="geometry">
+    <rect>
+     <x>477</x>
+     <y>175</y>
+     <width>206</width>
+     <height>24</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title6_box">
+   <property name="geometry">
+    <rect>
+     <x>477</x>
+     <y>229</y>
+     <width>206</width>
+     <height>24</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title5_box_cell1">
+   <property name="geometry">
+    <rect>
+     <x>481</x>
+     <y>179</y>
+     <width>18</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title5_box_cell2">
+   <property name="geometry">
+    <rect>
+     <x>501</x>
+     <y>179</y>
+     <width>18</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title5_box_cell3">
+   <property name="geometry">
+    <rect>
+     <x>521</x>
+     <y>179</y>
+     <width>18</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title5_box_cell4">
+   <property name="geometry">
+    <rect>
+     <x>541</x>
+     <y>179</y>
+     <width>18</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title5_box_cell5">
+   <property name="geometry">
+    <rect>
+     <x>561</x>
+     <y>179</y>
+     <width>18</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title5_box_cell6">
+   <property name="geometry">
+    <rect>
+     <x>581</x>
+     <y>179</y>
+     <width>18</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title5_box_cell7">
+   <property name="geometry">
+    <rect>
+     <x>601</x>
+     <y>179</y>
+     <width>18</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title5_box_cell8">
+   <property name="geometry">
+    <rect>
+     <x>621</x>
+     <y>179</y>
+     <width>18</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title5_box_cell9">
+   <property name="geometry">
+    <rect>
+     <x>641</x>
+     <y>179</y>
+     <width>18</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title5_box_cell10">
+   <property name="geometry">
+    <rect>
+     <x>661</x>
+     <y>179</y>
+     <width>18</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title6_box_cell1">
+   <property name="geometry">
+    <rect>
+     <x>481</x>
+     <y>233</y>
+     <width>46</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title6_box_cell2">
+   <property name="geometry">
+    <rect>
+     <x>531</x>
+     <y>233</y>
+     <width>46</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title6_box_cell3">
+   <property name="geometry">
+    <rect>
+     <x>582</x>
+     <y>233</y>
+     <width>46</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="title6_box_cell4">
+   <property name="geometry">
+    <rect>
+     <x>632</x>
+     <y>233</y>
+     <width>46</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="arrowBtn1">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>91</width>
+     <height>70</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="arrowBtn2">
+   <property name="geometry">
+    <rect>
+     <x>104</x>
+     <y>0</y>
+     <width>91</width>
+     <height>70</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="arrowBtn3">
+   <property name="geometry">
+    <rect>
+     <x>208</x>
+     <y>0</y>
+     <width>91</width>
+     <height>70</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="arrowBtn4">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>82</y>
+     <width>91</width>
+     <height>70</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="arrowBtn5">
+   <property name="geometry">
+    <rect>
+     <x>104</x>
+     <y>82</y>
+     <width>91</width>
+     <height>70</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="arrowBtn6">
+   <property name="geometry">
+    <rect>
+     <x>208</x>
+     <y>82</y>
+     <width>91</width>
+     <height>70</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="arrowBtn7">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>165</y>
+     <width>91</width>
+     <height>70</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="arrowBtn8">
+   <property name="geometry">
+    <rect>
+     <x>104</x>
+     <y>165</y>
+     <width>91</width>
+     <height>70</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="arrowBtn9">
+   <property name="geometry">
+    <rect>
+     <x>208</x>
+     <y>165</y>
+     <width>91</width>
+     <height>70</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="arrowBtn_key1">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>91</width>
+     <height>70</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="arrowBtn_key2">
+   <property name="geometry">
+    <rect>
+     <x>104</x>
+     <y>0</y>
+     <width>91</width>
+     <height>70</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="arrowBtn_key3">
+   <property name="geometry">
+    <rect>
+     <x>208</x>
+     <y>0</y>
+     <width>91</width>
+     <height>70</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="arrowBtn_key4">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>82</y>
+     <width>91</width>
+     <height>70</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="arrowBtn_key5">
+   <property name="geometry">
+    <rect>
+     <x>104</x>
+     <y>82</y>
+     <width>91</width>
+     <height>70</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="arrowBtn_key6">
+   <property name="geometry">
+    <rect>
+     <x>208</x>
+     <y>82</y>
+     <width>91</width>
+     <height>70</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="arrowBtn_key7">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>165</y>
+     <width>91</width>
+     <height>70</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="arrowBtn_key8">
+   <property name="geometry">
+    <rect>
+     <x>104</x>
+     <y>165</y>
+     <width>91</width>
+     <height>70</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QLabel" name="arrowBtn_key9">
+   <property name="geometry">
+    <rect>
+     <x>208</x>
+     <y>165</y>
+     <width>91</width>
+     <height>70</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="teleopBtn">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>250</y>
+     <width>301</width>
+     <height>31</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>수동제어</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="teleop_status">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>301</width>
+     <height>241</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Inter 18pt</family>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text">
+    <string>수동제어중이 아닙니다.</string>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignCenter</set>
+   </property>
+  </widget>
+  <zorder>move_bg</zorder>
+  <zorder>move_first</zorder>
+  <zorder>point1</zorder>
+  <zorder>title1</zorder>
+  <zorder>content1</zorder>
+  <zorder>machine_box</zorder>
+  <zorder>battery_img</zorder>
+  <zorder>network_img</zorder>
+  <zorder>title5</zorder>
+  <zorder>title6</zorder>
+  <zorder>title5_status</zorder>
+  <zorder>title6_status</zorder>
+  <zorder>title5_box</zorder>
+  <zorder>title6_box</zorder>
+  <zorder>title5_box_cell1</zorder>
+  <zorder>title5_box_cell2</zorder>
+  <zorder>title5_box_cell3</zorder>
+  <zorder>title5_box_cell4</zorder>
+  <zorder>title5_box_cell5</zorder>
+  <zorder>title5_box_cell6</zorder>
+  <zorder>title5_box_cell7</zorder>
+  <zorder>title5_box_cell8</zorder>
+  <zorder>title5_box_cell9</zorder>
+  <zorder>title5_box_cell10</zorder>
+  <zorder>title6_box_cell1</zorder>
+  <zorder>title6_box_cell2</zorder>
+  <zorder>title6_box_cell3</zorder>
+  <zorder>title6_box_cell4</zorder>
+  <zorder>arrowBtn_key1</zorder>
+  <zorder>arrowBtn_key2</zorder>
+  <zorder>arrowBtn_key3</zorder>
+  <zorder>arrowBtn_key4</zorder>
+  <zorder>arrowBtn_key5</zorder>
+  <zorder>arrowBtn_key6</zorder>
+  <zorder>arrowBtn_key7</zorder>
+  <zorder>arrowBtn_key8</zorder>
+  <zorder>arrowBtn_key9</zorder>
+  <zorder>arrowBtn1</zorder>
+  <zorder>arrowBtn2</zorder>
+  <zorder>arrowBtn3</zorder>
+  <zorder>arrowBtn4</zorder>
+  <zorder>arrowBtn5</zorder>
+  <zorder>arrowBtn6</zorder>
+  <zorder>arrowBtn7</zorder>
+  <zorder>arrowBtn8</zorder>
+  <zorder>arrowBtn9</zorder>
+  <zorder>teleopBtn</zorder>
+  <zorder>teleop_status</zorder>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

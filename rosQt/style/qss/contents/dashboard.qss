@@ -1,0 +1,97 @@
+.label {
+    width: 10px;
+    height: 10px;
+    min-width: 10px;
+    min-height: 10px;
+    max-width: 10px;
+    max-height: 10px;
+    border-radius: 5px;
+}
+.camera_img {
+    /* background: url("./style/images/camera_img_sample.png") no-repeat center center; */
+    border-radius: {{radius}};
+}
+.map_img {
+    background: url("./style/images/map-img.png") no-repeat center center;
+    border-radius: {{radius}};
+}
+
+.move_first {
+    border-radius: 5px;
+    background-color: white;
+    font-size: 20px;
+    font-weight: bold;
+    color: {{primary_dark}};
+    border : 2px solid {{primary_dark}};
+}
+
+.move_last {
+    border-radius: 5px;
+    background-color: white;
+    font-size: 20px;
+    font-weight: bold;
+    color: #666;
+    border : 2px solid #666;
+}
+
+.move_arrow {
+    background: url("./style/images/status_arrow.png") no-repeat center center;
+}
+
+.battery_img {
+    background: url("./style/images/battery.png") no-repeat center center;
+}
+
+.network_img {
+    background: url("./style/images/network.png") no-repeat center center;
+}
+
+.map_robot {
+    /* background: url("./style/images/map_robot.png") no-repeat center center; */
+    background: transparent;
+    border-radius: {{radius}};
+}
+
+.arrowBtn {
+    border-radius: 2px;
+    background-color: rgba(0,0,0,0.06);
+}
+
+.arrowBtn:hover {
+    background-color: rgba(0,0,0,0.12);
+}
+
+.arrowBtn.active {
+    background-color: rgba(0,0,0,0.15);
+}
+.arrowBtn.active:hover {
+    background-color: rgba(0,0,0,0.21);
+}
+
+.arrowBtn-key1 {
+    background: url("./style/images/key1.png") no-repeat center center;
+}
+.arrowBtn-key2 {
+    background: url("./style/images/key2.png") no-repeat center center;
+}
+.arrowBtn-key3 {
+    background: url("./style/images/key3.png") no-repeat center center;
+}
+.arrowBtn-key4 {
+    background: url("./style/images/key4.png") no-repeat center center;
+}
+.arrowBtn-key5 {
+    background: url("./style/images/key5.png") no-repeat center center;
+}
+.arrowBtn-key6 {
+    background: url("./style/images/key6.png") no-repeat center center;
+}
+.arrowBtn-key7 {
+    background: url("./style/images/key7.png") no-repeat center center;
+}
+.arrowBtn-key8 {
+    background: url("./style/images/key8.png") no-repeat center center;
+}
+.arrowBtn-key9 {
+    background: url("./style/images/key9.png") no-repeat center center;
+}

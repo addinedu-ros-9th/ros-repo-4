@@ -1,0 +1,349 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>LoginWidget</class>
+ <widget class="QWidget" name="LoginWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1440</width>
+    <height>900</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>MainWindow</string>
+  </property>
+  <widget class="QWidget" name="centralwidget" native="true">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1510</width>
+     <height>900</height>
+    </rect>
+   </property>
+   <widget class="QLabel" name="login_bg">
+    <property name="geometry">
+     <rect>
+      <x>540</x>
+      <y>0</y>
+      <width>900</width>
+      <height>900</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string/>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="login_logo">
+    <property name="geometry">
+     <rect>
+      <x>70</x>
+      <y>204</y>
+      <width>400</width>
+      <height>61</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Inter 18pt</family>
+      <weight>50</weight>
+      <bold>false</bold>
+     </font>
+    </property>
+    <property name="text">
+     <string>  ASAN HERO</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="login_greeting">
+    <property name="geometry">
+     <rect>
+      <x>70</x>
+      <y>278</y>
+      <width>400</width>
+      <height>28</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Inter 18pt</family>
+      <weight>75</weight>
+      <bold>true</bold>
+     </font>
+    </property>
+    <property name="text">
+     <string>Asan Hero에 오신 걸 환영합니다.</string>
+    </property>
+    <property name="alignment">
+     <set>Qt::AlignCenter</set>
+    </property>
+   </widget>
+   <widget class="QLabel" name="login_desc1">
+    <property name="geometry">
+     <rect>
+      <x>70</x>
+      <y>322</y>
+      <width>400</width>
+      <height>19</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Inter 24pt</family>
+     </font>
+    </property>
+    <property name="text">
+     <string>Asan Hero는 서울아산병원의 안내 로봇 '영웅이'를</string>
+    </property>
+    <property name="alignment">
+     <set>Qt::AlignCenter</set>
+    </property>
+   </widget>
+   <widget class="QLabel" name="login_desc2">
+    <property name="geometry">
+     <rect>
+      <x>70</x>
+      <y>343</y>
+      <width>400</width>
+      <height>19</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Inter 24pt</family>
+     </font>
+    </property>
+    <property name="text">
+     <string>관리하기 위한 ROS2 관제 시스템입니다.</string>
+    </property>
+    <property name="alignment">
+     <set>Qt::AlignCenter</set>
+    </property>
+   </widget>
+   <widget class="QLabel" name="login_id">
+    <property name="geometry">
+     <rect>
+      <x>70</x>
+      <y>410</y>
+      <width>400</width>
+      <height>19</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Inter 18pt</family>
+     </font>
+    </property>
+    <property name="text">
+     <string>ID</string>
+    </property>
+    <property name="alignment">
+     <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+    </property>
+   </widget>
+   <widget class="QLabel" name="login_div">
+    <property name="geometry">
+     <rect>
+      <x>70</x>
+      <y>508</y>
+      <width>400</width>
+      <height>1</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string/>
+    </property>
+   </widget>
+   <widget class="QLabel" name="login_password">
+    <property name="geometry">
+     <rect>
+      <x>70</x>
+      <y>528</y>
+      <width>400</width>
+      <height>19</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Inter 18pt</family>
+     </font>
+    </property>
+    <property name="text">
+     <string>Password</string>
+    </property>
+    <property name="alignment">
+     <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="login_textfield1">
+    <property name="geometry">
+     <rect>
+      <x>70</x>
+      <y>434</y>
+      <width>400</width>
+      <height>44</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>admin1</string>
+    </property>
+    <property name="placeholderText">
+     <string>Email</string>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="login_textfield2">
+    <property name="geometry">
+     <rect>
+      <x>70</x>
+      <y>552</y>
+      <width>400</width>
+      <height>44</height>
+     </rect>
+    </property>
+    <property name="inputMask">
+     <string/>
+    </property>
+    <property name="text">
+     <string>0000</string>
+    </property>
+    <property name="echoMode">
+     <enum>QLineEdit::Password</enum>
+    </property>
+    <property name="placeholderText">
+     <string>Password</string>
+    </property>
+    <property name="clearButtonEnabled">
+     <bool>false</bool>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="login_btn">
+    <property name="geometry">
+     <rect>
+      <x>70</x>
+      <y>686</y>
+      <width>400</width>
+      <height>50</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Inter 18pt</family>
+      <weight>50</weight>
+      <bold>false</bold>
+     </font>
+    </property>
+    <property name="text">
+     <string>로그인</string>
+    </property>
+   </widget>
+   <widget class="QCheckBox" name="login_checkbox">
+    <property name="geometry">
+     <rect>
+      <x>70</x>
+      <y>646</y>
+      <width>181</width>
+      <height>25</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Inter 18pt</family>
+     </font>
+    </property>
+    <property name="text">
+     <string>Remember Me</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="login_div2">
+    <property name="geometry">
+     <rect>
+      <x>70</x>
+      <y>626</y>
+      <width>400</width>
+      <height>1</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string/>
+    </property>
+   </widget>
+   <widget class="QLabel" name="auth_text1">
+    <property name="geometry">
+     <rect>
+      <x>70</x>
+      <y>483</y>
+      <width>400</width>
+      <height>19</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Inter 18pt</family>
+     </font>
+    </property>
+    <property name="text">
+     <string>아이디를 정확히 입력해주세요.</string>
+    </property>
+    <property name="alignment">
+     <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+    </property>
+   </widget>
+   <widget class="QLabel" name="auth_text2">
+    <property name="geometry">
+     <rect>
+      <x>70</x>
+      <y>597</y>
+      <width>400</width>
+      <height>19</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Inter 18pt</family>
+     </font>
+    </property>
+    <property name="text">
+     <string>비밀번호를 정확히 입력해주세요.</string>
+    </property>
+    <property name="alignment">
+     <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+    </property>
+   </widget>
+   <widget class="QLabel" name="login_logo_icon">
+    <property name="geometry">
+     <rect>
+      <x>232</x>
+      <y>130</y>
+      <width>76</width>
+      <height>76</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string/>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1440</width>
+     <height>24</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QStatusBar" name="statusbar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>3</width>
+     <height>24</height>
+    </rect>
+   </property>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

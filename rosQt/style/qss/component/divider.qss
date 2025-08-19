@@ -1,0 +1,26 @@
+.divider.ver {
+    border-bottom: 1px solid #ccc;
+}
+.divider.ver.dotted {
+    border-bottom: 1px dotted #666;
+}
+.divider.ver.dashed {
+    border-bottom: 1px dashed #666;
+}
+
+.divider.hor {
+    border-right: 1px solid #ccc;
+}
+.divider.hor.dotted {
+    border-right: 1px dotted #666;
+}
+.divider.hor.dashed {
+    border-right: 1px dashed #666;
+}
+
+#verLine {
+    background-color: #999;
+}
+#horLine {
+    background-color: #999;
+}

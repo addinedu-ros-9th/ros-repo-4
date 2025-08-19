@@ -1,0 +1,46 @@
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <RecoveryNode number_of_retries="5" name="NavigateRecovery">  <!-- 재시도 횟수 5회로 확대: 안정성 강화 -->
+      <PipelineSequence>
+        <ControllerSelector selected_controller="{selected_controller}" default_controller="FollowPath" topic_name="controller_selector"/>  <!-- 기본 DWB -->
+        <PlannerSelector selected_planner="{selected_planner}" default_planner="GridBased" topic_name="planner_selector"/>  <!-- 기본 GridBased -->
+        
+        <RateController hz="5.0" name="RateControllerComputePathToPose">  <!-- 주기 5Hz로 증가: 실시간 재수정 강화 -->
+          <RecoveryNode number_of_retries="3" name="RecoveryComputePathToPose">  <!-- 최대 3번 replanning -->
+            <Fallback name="FallbackComputePathToPose">
+              <ReactiveSequence name="CheckIfNewPathNeeded">
+                <Inverter><GlobalUpdatedGoal/></Inverter>
+                <IsPathValid path="{path}"/>  <!-- 기존 경로 유효성 검사 유지 -->
+              </ReactiveSequence>
+              <ComputePathToPose goal="{goal}" path="{path}" planner_id="{selected_planner}"/>
+              <ReplanIfPathInvalid path="{path}" costmap="{global_costmap}" />  <!-- 새로 추가: 경로 무효 시 자동 재계획 -->
+            </Fallback>
+            <ClearEntireCostmap name="ClearGlobalCostmap-Context" service_name="global_costmap/clear_entirely_global_costmap"/>  <!-- 복구: 코스트맵 지우기 -->
+          </RecoveryNode>
+        </RateController>
+        
+        <RecoveryNode number_of_retries="3" name="RecoveryFollowPath">  <!-- 실행 중 재시도 3회 -->
+          <Sequence name="DynamicControllerSwitch">  <!-- 기존 커스텀 유지 -->
+            <Condition name="IsPathNarrow"/>  <!-- 커스텀 조건: 좁은 길 체크 (e.g., 경로 폭 < 0.5m) -->
+            <SetBlackboard output_key="selected_controller" value="MPPI"/>  <!-- MPPI로 전환: 좁은 길에 유연 -->
+          </Sequence>
+          <FollowPath path="{path}" controller_id="{selected_controller}"/>
+          <ClearEntireCostmap name="ClearLocalCostmap-Context" service_name="local_costmap/clear_entirely_local_costmap"/>
+        </RecoveryNode>
+      </PipelineSequence>
+      
+      <ReactiveFallback name="FallbackRecoveries">
+        <GoalUpdated/>
+        <RoundRobin name="RecoveryActions">
+          <Sequence name="ClearingActions">  <!-- 기존 복구 유지 -->
+            <ClearEntireCostmap name="ClearLocalCostmap-Subtree" service_name="local_costmap/clear_entirely_local_costmap"/>
+            <ClearEntireCostmap name="ClearGlobalCostmap-Subtree" service_name="global_costmap/clear_entirely_global_costmap"/>
+          </Sequence>
+          <BackUp name="BackUpRecovery" backup_dist="0.50" backup_speed="0.10"/>  <!-- 후진 강화: 거리 증가 -->
+          <Spin name="SpinRecovery" spin_dist="1.57"/>
+          <Wait name="WaitRecovery" wait_duration="3.0"/>  <!-- 대기 짧게 조정 -->
+        </RoundRobin>
+      </ReactiveFallback>
+    </RecoveryNode>
+  </BehaviorTree>
+</root>

@@ -1,0 +1,363 @@
+amcl:
+  ros__parameters:
+    use_sim_time: True
+    alpha1: 0.2
+    alpha2: 0.2
+    alpha3: 0.2
+    alpha4: 0.2
+    alpha5: 0.2
+    base_frame_id: "base_footprint"
+    beam_skip_distance: 0.5
+    beam_skip_error_threshold: 0.9
+    beam_skip_threshold: 0.3
+    do_beamskip: false
+    global_frame_id: "map"
+    lambda_short: 0.1
+    laser_likelihood_max_dist: 2.0
+    laser_max_range: 100.0
+    laser_min_range: -1.0
+    laser_model_type: "likelihood_field"
+    max_beams: 60
+    # 파티클 필터 - 더 많은 파티클로 정확도 향상
+    max_particles: 3000  # 2000에서 3000으로 증가
+    min_particles: 800   # 500에서 800으로 증가
+    odom_frame_id: "odom"
+    pf_err: 0.03  # 0.05에서 0.03으로 감소 - 더 정확한 위치 추정
+    pf_z: 0.99
+    recovery_alpha_fast: 0.0
+    recovery_alpha_slow: 0.0
+    resample_interval: 1
+    robot_model_type: "nav2_amcl::DifferentialMotionModel"
+    save_pose_rate: 0.5
+    sigma_hit: 0.15  # 0.2에서 0.15로 감소 - 더 정확한 센서 모델
+    tf_broadcast: true
+    transform_tolerance: 1.0
+    # 업데이트 임계값 - 더 자주 업데이트
+    update_min_a: 0.1  # 0.2에서 0.1로 감소 - 작은 회전에도 업데이트
+    update_min_d: 0.15  # 0.25에서 0.15로 감소 - 작은 이동에도 업데이트
+    z_hit: 0.6   # 0.5에서 0.6으로 증가 - 센서 신뢰도 증가
+    z_max: 0.05
+    z_rand: 0.4  # 0.5에서 0.4로 감소 - 랜덤 노이즈 감소
+    z_short: 0.05
+    scan_topic: scan_filtered
+    set_initial_pose: true
+    initial_pose: [0, 0, 0]
+
+
+bt_navigator:
+  ros__parameters:
+    global_frame: map
+    robot_base_frame: base_footprint
+    odom_topic: /odom
+    bt_loop_duration: 10
+    default_server_timeout: 20
+    wait_for_service_timeout: 1000
+    action_server_result_timeout: 900.0
+    #default_nav_to_pose_bt_xml: /home/kth/robot_dev/vicpinky_2/src/vic_pinky/vicpinky_navigation/behavior_tree/custom_bt.xml
+    navigators: ["navigate_to_pose", "navigate_through_poses"]
+    navigate_to_pose:
+      plugin: "nav2_bt_navigator::NavigateToPoseNavigator"
+    navigate_through_poses:
+      plugin: "nav2_bt_navigator::NavigateThroughPosesNavigator"
+    # 'default_nav_through_poses_bt_xml' and 'default_nav_to_pose_bt_xml' are use defaults:
+    # nav2_bt_navigator/navigate_to_pose_w_replanning_and_recovery.xml
+    # nav2_bt_navigator/navigate_through_poses_w_replanning_and_recovery.xml
+    # They can be set here or via a RewrittenYaml remap from a parent launch file to Nav2.
+
+    # plugin_lib_names is used to add custom BT plugins to the executor (vector of strings).
+    # Built-in plugins are added automatically
+    # plugin_lib_names: []
+
+    error_code_names:
+      - compute_path_error_code
+      - follow_path_error_code
+
+controller_server:
+  ros__parameters:
+    use_sim_time: False
+    controller_frequency: 20.0
+    min_x_velocity_threshold: 0.001
+    goal_checker_plugins: ["general_goal_checker"] # "precise_goal_checker"
+    controller_plugins: ["FollowPath"]
+
+    # Progress checker parameters
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.4  # 0.3에서 0.4로 증가 - 적당한 진행도 체크
+      movement_time_allowance: 12.0  # 15.0에서 12.0으로 감소 - 적당한 시간 허용
+    # Goal checker parameters
+    #precise_goal_checker:
+    #  plugin: "nav2_controller::SimpleGoalChecker"
+    #  xy_goal_tolerance: 0.25
+    #  yaw_goal_tolerance: 0.25
+    #  stateful: True
+    general_goal_checker:
+      stateful: True
+      plugin: "nav2_controller::SimpleGoalChecker"
+      xy_goal_tolerance: 0.3  # 0.2에서 0.3으로 증가 - 목표 도달 허용 범위 확대
+      yaw_goal_tolerance: 0.2  # 0.15에서 0.2로 증가 - 방향 허용 범위 확대
+    # DWB parameters
+    #FollowPath:
+    #  plugin: "dwb_core::DWBLocalPlanner"
+    #  debug_trajectory_details: True
+    #  min_vel_x: 0.0
+    #  min_vel_y: 0.0
+    #  max_vel_x: 0.25
+    #  max_vel_y: 0.0
+    #  max_vel_theta: 0.5
+    #  min_speed_xy: 0.0
+    #  max_speed_xy: 0.25
+    #  min_speed_theta: 0.0
+    #  acc_lim_x: 0.8
+    #  acc_lim_y: 0.0
+    #  acc_lim_theta: 2.0
+    #  decel_lim_x: -0.5
+    #  decel_lim_y: 0.0
+    #  decel_lim_theta: -2.0
+    #  vx_samples: 20
+    #  vy_samples: 5
+    #  vtheta_samples: 20
+    #  sim_time: 1.5
+    #  linear_granularity: 0.05
+    #  angular_granularity: 0.025
+    #  transform_tolerance: 0.2
+    #  xy_goal_tolerance: 0.25
+    #  trans_stopped_velocity: 0.25
+    #  short_circuit_trajectory_evaluation: True
+    #  stateful: True
+    #  critics: ["RotateToGoal", "Oscillation", "BaseObstacle", "GoalAlign", "PathAlign", "PathDist", "GoalDist"]
+    #  BaseObstacle.scale: 0.02
+    #  PathAlign.scale: 32.0
+    #  PathAlign.forward_point_distance: 0.1
+    #  GoalAlign.scale: 24.0
+    #  GoalAlign.forward_point_distance: 0.1
+    #  PathDist.scale: 32.0
+    #  GoalDist.scale: 24.0
+    #  RotateToGoal.scale: 32.0
+    #  RotateToGoal.slowing_factor: 5.0
+    #  RotateToGoal.lookahead_time: -1.0
+    FollowPath:
+      plugin: "vector_pursuit_controller::VectorPursuitController"
+      # 제어 게인 - 경로 추종 강화
+      k: 2.5  # 2.0에서 2.5로 증가 - 적당한 경로 추종 강도
+      
+      # 속도 - 코너 회전 최적화
+      desired_linear_vel: 0.35  # 0.4에서 0.35로 감소 - 코너에서 더 안정적인 속도
+      min_linear_velocity: 0.06  # 0.08에서 0.06으로 감소 - 더 낮은 최소 속도
+      min_approach_linear_velocity: 0.08  # 0.1에서 0.08로 감소 - 코너 접근 시 더 낮은 속도
+      
+      # Lookahead - 코너 회전 최적화
+      lookahead_dist: 0.9  # 1.0에서 0.9로 감소 - 코너에서 적당한 경로 추종
+      min_lookahead_dist: 0.55  # 0.6에서 0.55로 감소 - 급커브에서 적당한 거리
+      max_lookahead_dist: 1.3  # 1.4에서 1.3으로 감소 - 적당한 최대 거리
+      use_velocity_scaled_lookahead_dist: true  # 속도 기반 거리 조절 유지
+      
+      # 회전 - 코너 회전 성능 유지
+      rotate_to_heading_angular_vel: 0.7  # 0.6에서 0.7로 증가 - 적당한 회전 속도
+      rotate_to_heading_min_angle: 0.4  # 0.5에서 0.4로 감소 - 적당한 회전 민감도
+      use_rotate_to_heading: true
+      allow_reversing: false
+      
+      # 가속도 - 코너 회전 성능 유지
+      max_angular_accel: 1.8  # 1.5에서 1.8로 증가 - 적당한 각가속도
+      max_linear_accel: 1.3  # 1.6에서 1.3으로 감소 - 안정적인 선가속도
+      max_lateral_accel: 0.15  # 0.2에서 0.15로 감소 - 측면 가속도 최소화로 안정성 향상
+      
+      # 기하학적 제약 - 코너 회전 최적화
+      min_turning_radius: 0.2  # 0.3에서 0.2로 감소 - 더 작은 회전 반경으로 급커브 대응
+      
+      # 시간 - 적당한 시간
+      lookahead_time: 1.5  # 2.0에서 1.5로 감소 - 적당한 계획 시간
+      transform_tolerance: 0.2  # 0.3에서 0.2로 감소 - 더 정확한 허용 오차
+      
+      # 안전장치 - 적당한 안전장치
+      max_allowed_time_to_collision_up_to_target: 0.9  # 0.8에서 0.9로 증가
+      use_collision_detection: true  # false에서 true로 변경 - 충돌 감지 활성화
+      use_cost_regulated_linear_velocity_scaling: true  # false에서 true로 변경 - 비용 맵 기반 속도 조절 활성화
+      cost_scaling_dist: 0.6  # 0.4에서 0.6으로 증가
+      cost_scaling_gain: 0.3  # 0.15에서 0.3으로 증가
+      inflation_cost_scaling_factor: 1.5  # 1.0에서 1.5로 증가
+      
+      # 경로 추종 - 정확하게
+      max_robot_pose_search_dist: 4.0  # 3.0에서 4.0으로 증가 - 적당한 검색 거리
+      use_interpolation: true
+      use_heading_from_path: true
+      
+      # 접근 - 적당한 접근
+      approach_velocity_scaling_dist: 1.2  # 1.0에서 1.2로 증가 - 적당한 감속 거리
+
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      update_frequency: 10.0
+      publish_frequency: 5.0
+      global_frame: odom
+      robot_base_frame: base_link
+      use_sim_time: False
+      rolling_window: true
+      width: 5
+      height: 5
+      resolution: 0.05
+      footprint: '[[0.1, 0.2], [0.1, -0.2], [-0.5, -0.2], [-0.5, 0.2]]'
+      plugins: ["voxel_layer", "inflation_layer"]
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.7
+      voxel_layer:
+        plugin: "nav2_costmap_2d::VoxelLayer"
+        enabled: True
+        publish_voxel_map: True
+        origin_z: 0.0
+        z_resolution: 0.05
+        z_voxels: 16
+        max_obstacle_height: 2.0
+        mark_threshold: 0
+        observation_sources: scan
+        scan:
+          topic: /scan_filtered
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "LaserScan"
+          raytrace_max_range: 5.0
+          raytrace_min_range: 0.0
+          obstacle_max_range: 4.5
+          obstacle_min_range: 0.0
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: True
+      always_send_full_costmap: True
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      update_frequency: 1.0
+      publish_frequency: 1.0
+      global_frame: map
+      robot_base_frame: base_footprint
+      use_sim_time: False
+      robot_radius: 0.25
+      resolution: 0.05
+      track_unknown_space: true
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: scan
+        scan:
+          topic: /scan_filtered
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "LaserScan"
+          raytrace_max_range: 3.0
+          raytrace_min_range: 0.0
+          obstacle_max_range: 2.5
+          obstacle_min_range: 0.0
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: True
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.6
+      always_send_full_costmap: True
+
+map_server:
+  ros__parameters:
+    use_sim_time: False
+    # Overridden in launch by the "map" launch configuration or provided default value.
+    # To use in yaml, remove the default "map" value in the tb3_simulation_launch.py file & provide full path to map below.
+    yaml_filename: ""
+
+map_saver:
+  ros__parameters:
+    use_sim_time: False
+    save_map_timeout: 5.0
+    free_thresh_default: 0.25
+    occupied_thresh_default: 0.65
+    map_subscribe_transient_local: True
+
+planner_server:
+  ros__parameters:
+    expected_planner_frequency: 20.0
+    planner_plugins: ["GridBased"]
+    GridBased:
+      plugin: "graph_planner::GraphPlanner"
+    #costmap_update_timeout: 1.0
+    #GridBased:
+    #  plugin: "nav2_navfn_planner::NavfnPlanner"
+    #  tolerance: 0.5
+    #  use_astar: false
+    #  allow_unknown: true
+
+smoother_server:
+  ros__parameters:
+    use_sim_time: False
+    smoother_plugins: ["simple_smoother"]
+    simple_smoother:
+      plugin: "nav2_smoother::SimpleSmoother"
+      tolerance: 1.0e-10
+      max_its: 1000
+      do_refinement: True
+
+behavior_server:
+  ros__parameters:
+    local_costmap_topic: local_costmap/costmap_raw
+    global_costmap_topic: global_costmap/costmap_raw
+    local_footprint_topic: local_costmap/published_footprint
+    global_footprint_topic: global_costmap/published_footprint
+    cycle_frequency: 10.0
+    behavior_plugins: ["spin", "backup", "drive_on_heading", "assisted_teleop", "wait"]
+    spin:
+      plugin: "nav2_behaviors::Spin"
+    backup:
+      plugin: "nav2_behaviors::BackUp"
+    drive_on_heading:
+      plugin: "nav2_behaviors::DriveOnHeading"
+    wait:
+      plugin: "nav2_behaviors::Wait"
+    assisted_teleop:
+      plugin: "nav2_behaviors::AssistedTeleop"
+    local_frame: odom
+    global_frame: map
+    robot_base_frame: base_link
+    transform_tolerance: 0.1
+    simulate_ahead_time: 2.0
+    max_rotational_vel: 1.0
+    min_rotational_vel: 0.4
+    rotational_acc_lim: 3.2
+
+robot_state_publisher:
+  ros__parameters:
+    use_sim_time: False
+
+waypoint_follower:
+  ros__parameters:
+    use_sim_time: False
+    loop_rate: 20
+    stop_on_failure: false
+    waypoint_task_executor_plugin: "wait_at_waypoint"
+    wait_at_waypoint:
+      plugin: "nav2_waypoint_follower::WaitAtWaypoint"
+      enabled: True
+      waypoint_pause_duration: 200
+
+velocity_smoother:
+  ros__parameters:
+    use_sim_time: False
+    smoothing_frequency: 20.0
+    scale_velocities: False
+    feedback: "CLOSED_LOOP"
+    # 속도 제한 - 코너 회전 성능 유지
+    max_velocity: [0.5, 0.0, 1.3]  # 선속도 0.5 유지, 각속도 1.2→1.3으로 증가
+    min_velocity: [-0.5, 0.0, -1.3]  # 선속도 -0.5 유지, 각속도 -1.2→-1.3으로 증가
+    # 가속도 제한 - 코너 회전 성능 유지
+    max_accel: [1.5, 0.0, 2.2]  # 선가속도 1.5 유지, 각가속도 2.0→2.2로 증가
+    max_decel: [-1.5, 0.0, -2.2]  # 선감속도 -1.5 유지, 각감속도 -2.0→-2.2로 증가
+    odom_topic: "odom"
+    odom_duration: 0.1
+    deadband_velocity: [0.0, 0.0, 0.0]
+    velocity_timeout: 1.0
