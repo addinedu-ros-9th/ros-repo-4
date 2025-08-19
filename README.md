@@ -342,11 +342,11 @@ SC-02-02 이미 접수 완료된 환자 – 다음 일정/경로안내 위주
 
 
 # 05. 트러블 슈팅
-![트러블 슈팅1]()
-![트러블 슈팅2]()
-![트러블 슈팅3]()
-![트러블 슈팅4]()
-![트러블 슈팅5]()
+![트러블 슈팅1](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%8A%B8%EB%9F%AC%EB%B8%94%20%EC%8A%88%ED%8C%851.png?raw=true)
+![트러블 슈팅2](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%8A%B8%EB%9F%AC%EB%B8%94%20%EC%8A%88%ED%8C%852.png?raw=true)
+![트러블 슈팅3](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%8A%B8%EB%9F%AC%EB%B8%94%20%EC%8A%88%ED%8C%853.png?raw=true)
+![트러블 슈팅4](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%8A%B8%EB%9F%AC%EB%B8%94%20%EC%8A%88%ED%8C%854.png?raw=true)
+![트러블 슈팅5](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%8A%B8%EB%9F%AC%EB%B8%94%20%EC%8A%88%ED%8C%855.png?raw=true)
 
 # 00. 에필로그
 ### 팀소개
@@ -362,15 +362,26 @@ SC-02-02 이미 접수 완료된 환자 – 다음 일정/경로안내 위주
 
 ### 프로젝트 관리
 #### 컨플루언스 - 문서 관리
-![컨플루언스]()
+![컨플루언스](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EC%BB%A8%ED%94%8C%EB%A3%A8%EC%96%B8%EC%8A%A4.png?raw=true)
 
 #### 지라 - 일정 관리
-![지라]()
+![지라](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EC%A7%80%EB%9D%BC.png?raw=true)
 
 #### HW 제작 - 3D 프린팅 + 후가공(퍼티 / 샌딩 / 시트지)
 ![하드웨어 제작1]()
 ![하드웨어 제작2]()
 ![하드웨어 제작3]()
+![하드웨어 제작4]()
+![하드웨어 제작5]()
+![하드웨어 제작6]()
+![하드웨어 제작7]()
+![하드웨어 제작8]()
+![하드웨어 제작9]()
+![하드웨어 제작10]()
+![하드웨어 제작11]()
+![하드웨어 제작12]()
+![하드웨어 제작13]()
+
 
 # 마무리
 ## 소감
@@ -379,5 +390,5 @@ SC-02-02 이미 접수 완료된 환자 – 다음 일정/경로안내 위주
 | 김채연 | | 
 | 김범진 | |
 | 구민제 | | 
-| 최원호 | | 
+| 최원호 | 3D 프린팅을 통해 하드웨어 제작과 UI 디자인에 더해 C++을 이용해 QT 화면을 작업하면서 약간은 서버와도 소통도 하고 ros2 통신 세팅을 위한 rviz맵 세팅도 하고 다양한 경험을 조금씩 맛볼 수 있어서 재밌었습니다. 수강생 때 해볼 수 있는 과감한 시도를 다 해본 거 같아 뿌듯합니다. | 
 | 김태호 | | 
