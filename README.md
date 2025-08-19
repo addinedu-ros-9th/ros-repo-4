@@ -1,5 +1,5 @@
-[![표지](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%91%9C%EC%A7%80.png?raw=true)](https://docs.google.com/presentation/d/1FakMHUjW8QSYNp0pCkSbHC8iK0WQIAL3S_snXaCv-xs/edit?slide=id.g369f27ec0ea_3_0#slide=id.g369f27ec0ea_3_0)
-[ㄴ 클릭시 PPT 이동](https://docs.google.com/presentation/d/1FakMHUjW8QSYNp0pCkSbHC8iK0WQIAL3S_snXaCv-xs/edit?slide=id.g369f27ec0ea_3_0#slide=id.g369f27ec0ea_3_0)
+[![표지](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%91%9C%EC%A7%80.png?raw=true)](https://docs.google.com/presentation/d/1oV-mY3bv-sJK2Gfmo4MlbgOfs4dTnHREZe68CmfjYtQ/edit?slide=id.g3735f5e2a27_0_0#slide=id.g3735f5e2a27_0_0)
+[ㄴ 클릭시 PPT 이동](https://docs.google.com/presentation/d/1oV-mY3bv-sJK2Gfmo4MlbgOfs4dTnHREZe68CmfjYtQ/edit?slide=id.g3735f5e2a27_0_0#slide=id.g3735f5e2a27_0_0)
 
 ## 주제 : 대형병원 안내 로봇 시스템 [ROS2 프로젝트]
 ![예시 이미지](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EC%98%88%EC%8B%9C%20%EC%9D%B4%EB%AF%B8%EC%A7%80.png?raw=true)
