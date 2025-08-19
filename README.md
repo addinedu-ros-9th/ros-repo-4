@@ -301,27 +301,28 @@ SC-02-02 이미 접수 완료된 환자 – 다음 일정/경로안내 위주
 ![환자 로비복귀 영상](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%99%98%EC%9E%90%20GUI%20%EB%A1%9C%EB%B9%84%20%EB%B3%B5%EA%B7%80.gif?raw=true)
 
 ### 네비게이션 - 좁은 길 통과 
-![좁은길 통과 영상]()
+![좁은길 통과 영상](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EC%A2%81%EC%9D%80%EB%AC%B8%20%ED%86%B5%EA%B3%BC.gif?raw=true)
 
 ### AI 서버 - 손동작 감지
-![손동작 감지 영상]()
+![손동작 감지 영상](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/AI%20%EC%84%9C%EB%B2%84%20%EC%86%90%EB%8F%99%EC%9E%91%20%EA%B0%90%EC%A7%80.gif?raw=true)
 
 ### AI 서버 - 객체 트래킹
-![객체 트레킹 영상]()
+![객체 트레킹 영상](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/AI%20%EC%84%9C%EB%B2%84%20%ED%8A%B8%EB%9E%98%ED%82%B9.gif?raw=true)
+
 ### 관리자(Admin) GUI - 로그인 기능
 ![관리자GUI 로그인 구현](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EA%B4%80%EB%A6%AC%EC%9E%90Gui%20%EB%A1%9C%EA%B7%B8%EC%9D%B8%20%EA%B5%AC%ED%98%84.png?raw=true)
 
 ### 관리자(Admin) GUI - 대쉬보드 [맵 로봇 위치 / 카메라 전후면 전환 ] 
-![관리자 대쉬보드 영상]()
+![관리자 대쉬보드 영상](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EA%B4%80%EB%A6%AC%EC%9E%90%20GUI%20%EC%A0%84%ED%9B%84%EB%A9%B4%20%EC%B9%B4%EB%A9%94%EB%9D%BC.gif?raw=true)
 
 ### 관리자(Admin) GUI - 네비게이션
-![관리자 원격제어 네비게이션 영상]()
+![관리자 원격제어 네비게이션 영상](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EA%B4%80%EB%A6%AC%EC%9E%90%20GUI%20%EB%84%A4%EB%B9%84%EA%B2%8C%EC%9D%B4%ED%8C%85.gif?raw=true)
 
 ### 관리자(Admin) GUI - 대쉬보드 : 수동제어
-![관리자 수동제어 영상]()
+![관리자 수동제어 영상](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EC%88%98%EB%8F%99%EC%A0%9C%EC%96%B4%20GUI%20%EB%A1%9C%EB%B4%87.gif?raw=true)
 
 ### 관리자(Admin) GUI - 로그 [로봇 사용 로그 테이블 / 출발지 통계 차트 / 목적지 통계 차트] 
-![관리자 로그 영상]()
+![관리자 로그 영상](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EA%B4%80%EB%A6%AC%EC%9E%90%20GUi%20%EB%A1%9C%EA%B7%B8.gif?raw=true)
 
 # 04. 프로젝트 기술 소개
 ### 자율주행 및 장애물 회피 [Dijkstra 알고리즘]
