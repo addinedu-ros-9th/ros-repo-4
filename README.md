@@ -291,7 +291,7 @@ SC-02-02 이미 접수 완료된 환자 – 다음 일정/경로안내 위주
 ### 환자(User) GUI - LLM 대화 
 ![환자 LLM 대화 영상](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%99%98%EC%9E%90%20GUI%20LLM%EB%8C%80%ED%99%94.gif?raw=true)
 
-### 환자(User) GUI - LLM 추천 질문
+### 환자(User) GUI - LLM 부가 기능(시설 정보, 위치 조회 등)
 ![환자 LLM 부가기능 영상](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%ED%99%98%EC%9E%90%20GUI%20LLM%20%EB%B6%80%EA%B0%80%EA%B8%B0%EB%8A%A5.gif?raw=true)
 
 ### 환자(User) GUI - 네비게이션 LLM 에이전트 
