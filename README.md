@@ -104,7 +104,7 @@
 ![System Requirements](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/System%20Requirements.png?raw=true)
 
 기능 리스트를 요약하면 크게 3가지로 나눌 수 있습니다. <br/>
-자율주랳ㅇ 및 길안내 / 사용자 인터페이스 / 관리자 GUI
+자율주행 및 길안내 / 사용자 인터페이스 / 관리자 GUI
 
 ### 서비스 흐름 : 사용자 호출
 ![서비스 흐름1](https://github.com/addinedu-ros-9th/ros-repo-4/blob/dev/readme_image/%EC%84%9C%EB%B9%84%EC%8A%A4%20%ED%9D%90%EB%A6%84%20%EC%82%AC%EC%9A%A9%EC%9E%90%20%ED%98%B8%EC%B6%9C.png?raw=true)
