@@ -1,0 +1,30 @@
+<?xml version="1.0" ?>
+<sdf version="1.8">
+  <model name="asan_hospital">
+    <static>true</static>
+    <link name="link">
+      <visual name="visual">
+        <geometry>
+          <mesh>
+            <uri>file:///home/kth/robot_dev/vicpinky_2/install/vicpinky_gazebo/share/vicpinky_gazebo/models/asan_hospital/meshes/asan_map.obj</uri>
+            <scale>1 1 1</scale>
+          </mesh>
+        </geometry>
+      </visual>
+      <collision name="collision">
+        <geometry>
+          <mesh>
+            <uri>file:///home/kth/robot_dev/vicpinky_2/install/vicpinky_gazebo/share/vicpinky_gazebo/models/asan_hospital/meshes/asan_map.obj</uri>
+            <scale>1 1 1</scale>
+          </mesh>
+        </geometry>
+      </collision>
+      <cast_shadows>true</cast_shadows>
+      <material>
+        <ambient>0.4 0.4 0.4 1</ambient>
+        <diffuse>0.6 0.6 0.6 1</diffuse>
+        <specular>0.1 0.1 0.1 1</specular>
+      </material>
+    </link>
+  </model>
+</sdf>
